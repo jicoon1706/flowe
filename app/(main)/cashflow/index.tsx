@@ -1,8 +1,9 @@
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Info, ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react-native';
-import { ScreenHeader } from '../../components/ui/ScreenHeader';
-import { Card } from '../../components/ui/Card';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { Card } from '../../../components/ui/Card';
 
 const financialClass = {
   emoji: '💎',
@@ -37,12 +38,13 @@ const liabilities = [
 ];
 
 export default function CashFlowScreen() {
+  const router = useRouter();
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScreenHeader
         title="Cash Flow"
         rightAction={
-          <Pressable onPress={() => {}} className="p-2">
+          <Pressable onPress={() => router.push('/cashflow/info')} className="p-2">
             <Info size={22} color="#ffffff" />
           </Pressable>
         }

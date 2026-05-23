@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { HomeTopBar } from '../../components/home/HomeTopBar';
@@ -20,7 +20,7 @@ export default function HomeScreen() {
         <HomeTopBar
           name="Ahmad"
           onBellPress={() => router.push('/home/notifications')}
-          onLockPress={() => router.push('/(main)/lock')}
+          onLockPress={() => {}}
         />
         <AffirmationCard
           index={affirmationIndex}
@@ -34,7 +34,15 @@ export default function HomeScreen() {
           visible={balanceVisible}
           onToggle={() => setBalanceVisible(!balanceVisible)}
         />
-        <AccountCards onAccountPress={(id) => router.push(`/home/account/${id}`)} />
+        <AccountCards onAccountPress={(id, type) => {
+          if (type === 'tabung') {
+            router.push(`/home/tabung/${id}`);
+          } else if (type === 'wallet') {
+            router.push(`/home/wallet/${id}`);
+          } else {
+            router.push(`/home/account/${id}`);
+          }
+        }} />
         <Shortcuts onPress={(id) => {
           switch (id) {
             case 'analysis': router.push('/home/analysis'); break;

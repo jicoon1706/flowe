@@ -56,11 +56,13 @@ export default function NewTabungIndexScreen() {
             <Pressable
               key={template.id}
               onPress={() => router.push(`/tabung/new/form?template=${template.id}`)}
-              className="w-full bg-card rounded-2xl p-4 border border-border active:scale-[0.98] transition-transform"
+              className="w-full bg-card rounded-2xl p-4 border border-border active:scale-[0.98] transition-transform flex-row items-center gap-4"
             >
-              <Text className="text-3xl mb-2">{template.emoji}</Text>
-              <Text className="text-sm font-semibold text-foreground mb-1">{template.name}</Text>
-              <Text className="text-xs text-muted-foreground">{template.description}</Text>
+              <Text className="text-3xl">{template.emoji}</Text>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-foreground mb-1">{template.name}</Text>
+                <Text className="text-xs text-muted-foreground">{template.description}</Text>
+              </View>
             </Pressable>
           ))}
         </View>

@@ -11,12 +11,13 @@ const accounts: {
   color: string;
 }[] = [
   { id: '1', type: 'bank', name: 'Maybank', balance: '3,200.00', color: '#ffd93d' },
-  { id: '2', type: 'tabung', name: 'Tabung Raya', saved: '850.00', target: '5,000.00', color: '#6bcf7f' },
-  { id: '3', type: 'wallet', name: 'Cash', balance: '200.00', color: '#00d4ff' },
+  { id: '2', type: 'bank', name: 'CIMB', balance: '1,500.00', color: '#ff6b6b' },
+  { id: '3', type: 'tabung', name: 'Tabung Raya', saved: '850.00', target: '5,000.00', color: '#6bcf7f' },
+  { id: '4', type: 'wallet', name: 'Cash', balance: '200.00', color: '#00d4ff' },
 ];
 
 interface AccountCardsProps {
-  onAccountPress: (id: string) => void;
+  onAccountPress: (id: string, type: 'bank' | 'tabung' | 'wallet') => void;
 }
 
 export function AccountCards({ onAccountPress }: AccountCardsProps) {
@@ -35,7 +36,7 @@ export function AccountCards({ onAccountPress }: AccountCardsProps) {
         {accounts.map((account) => (
           <Pressable
             key={account.id}
-            onPress={() => onAccountPress(account.id)}
+            onPress={() => onAccountPress(account.id, account.type)}
             className="mr-3 bg-card border border-border rounded-2xl p-4 w-36 active:scale-[0.98] transition-transform"
           >
             <View className="flex-row items-center justify-between mb-3">
