@@ -2,12 +2,14 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { User, Shield, Bell, Settings, Heart, Database, ChevronRight, AlertTriangle } from 'lucide-react-native';
+import { useSettings } from '@/context/SettingsContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { SettingsGroup } from '../../components/ui/SettingsGroup';
 import { SettingsRow } from '../../components/ui/SettingsRow';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { state } = useSettings();
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -23,7 +25,7 @@ export default function SettingsScreen() {
               <User size={28} color="#000000" />
             </View>
             <View className="flex-1">
-              <Text className="text-lg font-semibold text-foreground mb-0.5">Ahmad</Text>
+              <Text className="text-lg font-semibold text-foreground mb-0.5">{state.profile.displayName}</Text>
               <Text className="text-sm text-muted-foreground">Tap to edit profile</Text>
             </View>
             <ChevronRight size={20} color="#a0a0a0" />
@@ -34,7 +36,7 @@ export default function SettingsScreen() {
         <SettingsGroup title="Account">
           <SettingsRow
             label="Display Name"
-            value="Ahmad"
+            value={state.profile.displayName}
             icon={<User size={16} color="#a0a0a0" />}
             onPress={() => router.push('/settings/account')}
           />
@@ -49,7 +51,7 @@ export default function SettingsScreen() {
           <View className="border-t border-border" />
           <SettingsRow
             label="Fingerprint"
-            badge="Enabled"
+            badge={state.security.fingerprintEnabled ? "Enabled" : "Disabled"}
             icon={<Shield size={16} color="#a0a0a0" />}
             onPress={() => router.push('/settings/security')}
           />

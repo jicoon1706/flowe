@@ -9,6 +9,7 @@ interface SettingsRowProps {
   danger?: boolean;
   badge?: string;
   hasChevron?: boolean;
+  rightElement?: React.ReactNode;
 }
 
 export function SettingsRow({
@@ -19,6 +20,7 @@ export function SettingsRow({
   danger = false,
   badge,
   hasChevron = true,
+  rightElement,
 }: SettingsRowProps) {
   return (
     <Pressable
@@ -44,6 +46,7 @@ export function SettingsRow({
             <Text className="text-xs text-income font-medium">{badge}</Text>
           </View>
         )}
+        {rightElement}
         {hasChevron && onPress && <ChevronRight size={16} color="#a0a0a0" />}
       </View>
     </Pressable>
