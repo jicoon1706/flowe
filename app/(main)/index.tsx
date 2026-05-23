@@ -20,7 +20,7 @@ export default function HomeScreen() {
         <HomeTopBar
           name="Ahmad"
           onBellPress={() => router.push('/home/notifications')}
-          onLockPress={() => router.push('/lock')}
+          onLockPress={() => router.push('/(main)/lock')}
         />
         <AffirmationCard
           index={affirmationIndex}
@@ -38,7 +38,7 @@ export default function HomeScreen() {
         <Shortcuts onPress={(id) => {
           switch (id) {
             case 'analysis': router.push('/home/analysis'); break;
-            case 'learn': router.push('/learn'); break;
+            case 'learn': router.push('/home/learn'); break;
             case 'newTabung': router.push('/tabung/new'); break;
             case 'accounts': router.push('/home/accounts'); break;
           }

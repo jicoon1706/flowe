@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, Pencil, Plus, Minus } from '../../../components/ui/icons';
+import { ChevronLeft, Pencil, Plus, Minus } from '../../../../components/ui/icons';
 
 const MOCK_TABUNG: Record<string, {
   name: string;
@@ -11,7 +11,7 @@ const MOCK_TABUNG: Record<string, {
   target: string;
   color: string;
   daysLeft: number;
-  history: Array<{ id: string; type: 'topup' | 'withdraw'; amount: string; note: string; date: string }>;
+  history: { id: string; type: 'topup' | 'withdraw'; amount: string; note: string; date: string }[];
 }> = {
   '2': {
     name: 'Tabung Raya',

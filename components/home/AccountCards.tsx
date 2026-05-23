@@ -1,7 +1,7 @@
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Landmark, PiggyBank, Wallet } from 'lucide-react-native';
 
-const accounts: Array<{
+const accounts: {
   id: string;
   type: 'bank' | 'tabung' | 'wallet';
   name: string;
@@ -9,7 +9,7 @@ const accounts: Array<{
   saved?: string;
   target?: string;
   color: string;
-}> = [
+}[] = [
   { id: '1', type: 'bank', name: 'Maybank', balance: '3,200.00', color: '#ffd93d' },
   { id: '2', type: 'tabung', name: 'Tabung Raya', saved: '850.00', target: '5,000.00', color: '#6bcf7f' },
   { id: '3', type: 'wallet', name: 'Cash', balance: '200.00', color: '#00d4ff' },

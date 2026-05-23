@@ -3,9 +3,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { User, Shield, Bell, Settings, Heart, Database, ChevronRight, AlertTriangle } from 'lucide-react-native';
 import { useSettings } from '@/context/SettingsContext';
-import { ScreenHeader } from '../../components/ui/ScreenHeader';
-import { SettingsGroup } from '../../components/ui/SettingsGroup';
-import { SettingsRow } from '../../components/ui/SettingsRow';
+import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { SettingsGroup } from '../../../components/ui/SettingsGroup';
+import { SettingsRow } from '../../../components/ui/SettingsRow';
 
 export default function SettingsScreen() {
   const router = useRouter();
