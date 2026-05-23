@@ -1,0 +1,71 @@
+// components/ui/icons.tsx
+// All icons map to MaterialIcons — unknown names fall back to 'help-outline' (no crash)
+import React from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+type Props = { size?: number; color?: string };
+
+// Individual named exports for all icons
+export const Bell = (props: Props) => <MaterialIcons name="notifications" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const BellOff = (props: Props) => <MaterialIcons name="notifications-off" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Lock = (props: Props) => <MaterialIcons name="lock" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Unlock = (props: Props) => <MaterialIcons name="lock-open" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Eye = (props: Props) => <MaterialIcons name="visibility" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const EyeOff = (props: Props) => <MaterialIcons name="visibility-off" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Plus = (props: Props) => <MaterialIcons name="add" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Minus = (props: Props) => <MaterialIcons name="remove" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Copy = (props: Props) => <MaterialIcons name="content-copy" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ArrowLeft = (props: Props) => <MaterialIcons name="arrow-back" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ArrowRight = (props: Props) => <MaterialIcons name="arrow-forward" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ArrowUp = (props: Props) => <MaterialIcons name="arrow-upward" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ArrowDown = (props: Props) => <MaterialIcons name="arrow-downward" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ChevronLeft = (props: Props) => <MaterialIcons name="chevron-left" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ChevronRight = (props: Props) => <MaterialIcons name="chevron-right" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ChevronDown = (props: Props) => <MaterialIcons name="expand-more" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ChevronUp = (props: Props) => <MaterialIcons name="expand-less" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Home = (props: Props) => <MaterialIcons name="home" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const House = (props: Props) => <MaterialIcons name="home" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Settings = (props: Props) => <MaterialIcons name="settings" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Gear = (props: Props) => <MaterialIcons name="settings" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Heart = (props: Props) => <MaterialIcons name="favorite" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Share = (props: Props) => <MaterialIcons name="share" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Share2 = (props: Props) => <MaterialIcons name="share" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Trash = (props: Props) => <MaterialIcons name="delete" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Trash2 = (props: Props) => <MaterialIcons name="delete-sweep" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Delete = (props: Props) => <MaterialIcons name="delete" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Pencil = (props: Props) => <MaterialIcons name="edit" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const PencilSimple = (props: Props) => <MaterialIcons name="edit" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const PlusCircle = (props: Props) => <MaterialIcons name="add-circle" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const MinusCircle = (props: Props) => <MaterialIcons name="remove-circle" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Repeat = (props: Props) => <MaterialIcons name="repeat" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Info = (props: Props) => <MaterialIcons name="info" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Folder = (props: Props) => <MaterialIcons name="folder" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const TrendingUp = (props: Props) => <MaterialIcons name="trending-up" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const TrendingDown = (props: Props) => <MaterialIcons name="trending-down" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Paperclip = (props: Props) => <MaterialIcons name="attach-file" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Clock = (props: Props) => <MaterialIcons name="schedule" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const X = (props: Props) => <MaterialIcons name="close" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const User = (props: Props) => <MaterialIcons name="person" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Wallet = (props: Props) => <MaterialIcons name="account-balance-wallet" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const DollarSign = (props: Props) => <MaterialIcons name="attach-money" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Calendar = (props: Props) => <MaterialIcons name="event" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const CalendarDays = (props: Props) => <MaterialIcons name="date-range" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Sparkle = (props: Props) => <MaterialIcons name="auto-awesome" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const DotsThreeVertical = (props: Props) => <MaterialIcons name="more-vert" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ScanLine = (props: Props) => <MaterialIcons name="document-scanner" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const AlertCircle = (props: Props) => <MaterialIcons name="error-outline" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ArrowRightLeft = (props: Props) => <MaterialIcons name="swap-horiz" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Check = (props: Props) => <MaterialIcons name="check" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const CheckCircle = (props: Props) => <MaterialIcons name="check-circle" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const ExternalLink = (props: Props) => <MaterialIcons name="open-in-new" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const FilePlus = (props: Props) => <MaterialIcons name="add-circle-outline" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const RefreshCw = (props: Props) => <MaterialIcons name="refresh" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Download = (props: Props) => <MaterialIcons name="file-download" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Fingerprint = (props: Props) => <MaterialIcons name="fingerprint" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Database = (props: Props) => <MaterialIcons name="storage" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Play = (props: Props) => <MaterialIcons name="play-arrow" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Pause = (props: Props) => <MaterialIcons name="pause" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const PiggyBank = (props: Props) => <MaterialIcons name="savings" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+type IconName = 'help-outline' | 'notifications' | 'notifications-off' | 'lock' | 'lock-open' | 'visibility' | 'visibility-off' | 'add' | 'remove' | 'content-copy' | 'arrow-back' | 'arrow-forward' | 'arrow-upward' | 'arrow-downward' | 'chevron-left' | 'chevron-right' | 'expand-more' | 'expand-less' | 'home' | 'settings' | 'favorite' | 'share' | 'delete' | 'delete-sweep' | 'edit' | 'add-circle' | 'remove-circle' | 'repeat' | 'info' | 'folder' | 'trending-up' | 'trending-down' | 'attach-file' | 'schedule' | 'close' | 'person' | 'account-balance-wallet' | 'attach-money' | 'event' | 'date-range' | 'auto-awesome' | 'more-vert' | 'document-scanner' | 'error-outline' | 'swap-horiz' | 'check' | 'check-circle' | 'open-in-new' | 'add-circle-outline' | 'refresh' | 'file-download' | 'fingerprint' | 'storage' | 'play-arrow' | 'pause' | 'savings';
+
+export const Icon = (props: Props & { name?: IconName }) => <MaterialIcons name={props.name ?? 'help-outline'} size={props.size ?? 24} color={props.color ?? '#fff'} />;
