@@ -27,12 +27,12 @@ const styles = StyleSheet.create({
     width: 44,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.dark.border,
+    backgroundColor: Colors.border,
     justifyContent: 'center',
     padding: 2,
   },
   toggleOn: {
-    backgroundColor: Colors.dark.tint,
+    backgroundColor: Colors.primary,
   },
   toggleDisabled: {
     opacity: 0.5,
@@ -41,10 +41,10 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: Colors.dark.textSecondary,
+    backgroundColor: Colors.muted,
   },
   toggleDotOn: {
-    backgroundColor: Colors.dark.darkBg,
+    backgroundColor: Colors.primary,
     alignSelf: 'flex-end',
   },
 });
