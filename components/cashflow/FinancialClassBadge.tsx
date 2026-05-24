@@ -80,7 +80,7 @@ export function FinancialClassBadge({
         </View>
       </View>
       <Text className="text-sm text-muted-foreground mb-4">{config.desc}</Text>
-      <View class="grid grid-cols-2 gap-3">
+      <View className="grid grid-cols-2 gap-3">
         <StatCard label="Assets" value={`RM ${totalAssets.toLocaleString()}`} colorClass="text-primary" />
         <StatCard label="Liabilities" value={`RM ${totalLiabilities.toLocaleString()}`} colorClass="text-red-400" />
         <StatCard label="Passive Income" value={`RM ${passiveIncome.toFixed(0)}/mo`} colorClass="text-primary" />
