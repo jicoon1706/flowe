@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, Alert } from 'react-native';
+import { View, Text, Pressable, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Download, AlertTriangle, Database, FileText, Check, X } from 'lucide-react-native';
@@ -10,10 +10,10 @@ type ExportFormat = 'csv' | 'pdf';
 type DateRange = '1m' | '3m' | '1y' | 'all';
 
 const DATE_RANGE_LABELS: Record<DateRange, string> = {
-  '1m': 'Last 1 month',
-  '3m': 'Last 3 months',
-  '1y': 'Last 1 year',
-  'all': 'All time',
+  '1m': 'This Month',
+  '3m': 'Last 3 Months',
+  '1y': 'Last Year',
+  'all': 'All Time',
 };
 
 export default function DataScreen() {
@@ -27,27 +27,8 @@ export default function DataScreen() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
 
-  const handleExport = () => {
-    Alert.alert('Exporting...', 'Your data is being exported.', [{ text: 'OK' }]);
-  };
-
-  const handleReset = () => {
-    Alert.alert(
-      'Reset App',
-      'Are you sure? This will delete all your data.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          style: 'destructive',
-          onPress: () => {
-            dispatch({ type: 'RESET_ALL' });
-            router.push('/');
-          },
-        },
-      ]
-    );
-  };
+  const handleExport = () => {};
+  const handleReset = () => {};
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
