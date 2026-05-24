@@ -21,7 +21,7 @@ export default function DataScreen() {
   const { dispatch } = useSettings();
 
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
-  const [dateRange, setDateRange] = useState<DateRange>('3m');
+  const [dateRange, setDateRange] = useState<DateRange>('1m');
   const [exporting, setExporting] = useState(false);
   const [exported, setExported] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
