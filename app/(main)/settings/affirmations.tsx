@@ -19,13 +19,12 @@ export default function AffirmationsScreen() {
   };
 
   const [inputText, setInputText] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<typeof CATEGORIES[number]>(state.affirmations.categoryPreference);
 
   const addWord = () => {
     if (inputText.trim()) {
       dispatch({
         type: 'ADD_AFFIRMATION_WORD',
-        payload: { id: Date.now().toString(), text: inputText.trim(), category: selectedCategory as 'Saving' | 'Investing' | 'Mindset' | 'Awareness' }
+        payload: { id: Date.now().toString(), text: inputText.trim(), category: (state.affirmations.categoryPreference === 'All' ? 'Mindset' : state.affirmations.categoryPreference) as 'Saving' | 'Investing' | 'Mindset' | 'Awareness' }
       });
       setInputText('');
     }
