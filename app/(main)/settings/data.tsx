@@ -1,13 +1,31 @@
+import { useState } from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Download, AlertTriangle } from 'lucide-react-native';
+import { Download, AlertTriangle, Database, FileText, Check, X } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useSettings } from '@/context/SettingsContext';
+
+type ExportFormat = 'csv' | 'pdf';
+type DateRange = '1m' | '3m' | '1y' | 'all';
+
+const DATE_RANGE_LABELS: Record<DateRange, string> = {
+  '1m': 'Last 1 month',
+  '3m': 'Last 3 months',
+  '1y': 'Last 1 year',
+  'all': 'All time',
+};
 
 export default function DataScreen() {
   const router = useRouter();
   const { dispatch } = useSettings();
+
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
+  const [dateRange, setDateRange] = useState<DateRange>('3m');
+  const [exporting, setExporting] = useState(false);
+  const [exported, setExported] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetInput, setResetInput] = useState('');
 
   const handleExport = () => {
     Alert.alert('Exporting...', 'Your data is being exported.', [{ text: 'OK' }]);
