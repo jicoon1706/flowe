@@ -1,6 +1,6 @@
 import { View, Text } from 'react-native';
 
-interface IncomeItem { label: string; amount: number; isPassive?: boolean; }
+interface IncomeItem { label: string; amount: number; }
 interface ExpenseItem { label: string; amount: number; }
 
 interface IncomeStatementCardProps {
@@ -28,12 +28,15 @@ export function IncomeStatementCard({
       <View className="bg-card border border-border rounded-b-2xl p-5 space-y-4">
         {/* Income */}
         <View>
-          <Text className="font-semibold text-sm mb-2 text-green-400">Income</Text>
+          <View className="flex-row items-center gap-1.5 mb-2">
+            <View className="w-2 h-2 rounded-full bg-green-400" />
+            <Text className="font-semibold text-sm text-muted-foreground">Income</Text>
+          </View>
           <View className="space-y-2">
             {incomeItems.map((item, i) => (
               <View key={i} className="flex-row justify-between text-sm">
                 <Text className="text-muted-foreground">{item.label}</Text>
-                <Text className="text-foreground">RM {item.amount.toLocaleString()}</Text>
+                <Text className="text-muted-foreground">RM {item.amount.toLocaleString()}</Text>
               </View>
             ))}
             {passiveFromAssets > 0 && (
@@ -51,12 +54,15 @@ export function IncomeStatementCard({
 
         {/* Expenses */}
         <View>
-          <Text className="font-semibold text-sm mb-2 text-red-400">Expenses</Text>
+          <View className="flex-row items-center gap-1.5 mb-2">
+            <View className="w-2 h-2 rounded-full bg-red-400" />
+            <Text className="font-semibold text-sm text-muted-foreground">Expenses</Text>
+          </View>
           <View className="space-y-2">
             {expenseItems.map((item, i) => (
               <View key={i} className="flex-row justify-between text-sm">
                 <Text className="text-muted-foreground">{item.label}</Text>
-                <Text className="text-foreground">RM {item.amount.toLocaleString()}</Text>
+                <Text className="text-muted-foreground">RM {item.amount.toLocaleString()}</Text>
               </View>
             ))}
             <View className="border-t border-border pt-2 flex-row justify-between font-semibold text-sm">
