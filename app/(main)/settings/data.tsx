@@ -164,7 +164,7 @@ export default function DataScreen() {
 
         {/* Reset Confirmation Modal */}
         {showResetConfirm && (
-          <View className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
+          <View className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
             <View className="bg-background border border-border rounded-3xl p-6 w-full max-w-sm">
               {/* Icon */}
               <View className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -185,7 +185,7 @@ export default function DataScreen() {
                 onChangeText={setResetInput}
                 placeholder='Type "reset" to confirm'
                 placeholderTextColor="#a0a0a0"
-                className="w-full bg-card border border-border rounded-xl px-4 py-3 text-center text-foreground font-mono mb-4 focus:border-red-500"
+                className="w-full bg-card border border-border rounded-xl px-4 py-3 text-center text-foreground font-mono mb-4"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
