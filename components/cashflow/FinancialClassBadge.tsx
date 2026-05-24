@@ -1,4 +1,4 @@
-import { View, Text, Animated } from 'react-native';
+import { View, Text, Animated, useRef, useEffect } from 'react-native';
 
 type FinancialClass = 'poor' | 'middle' | 'rich';
 
@@ -67,9 +67,9 @@ export function FinancialClassBadge({
   netWorth,
 }: FinancialClassBadgeProps) {
   const config = CLASS_CONFIG[financialClass] ?? CLASS_CONFIG.poor;
-  const scaleAnim = Animated.useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  Animated.useEffect(() => {
+  useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(scaleAnim, { toValue: 1.05, duration: 1000, useNativeDriver: true }),

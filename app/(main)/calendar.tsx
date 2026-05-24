@@ -1,29 +1,15 @@
 import { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Card } from '../../components/ui/Card';
+import { TransactionDetail, TransactionData } from '../../components/home/TransactionDetail';
 
 interface CalendarDay {
   day: number;
   hasTransaction: boolean;
   types?: ('income' | 'expense' | 'transfer')[];
-}
-
-interface DayTransaction {
-  id: string;
-  name: string;
-  emoji: string;
-  amount: string;
-  type: 'income' | 'expense';
-  time: string;
-}
-
-interface MonthSummary {
-  income: string;
-  expense: string;
-  net: string;
 }
 
 const currentMonth = 'May 2025';
@@ -63,9 +49,9 @@ const calendarDays = [
   { day: 31, hasTransaction: false },
 ];
 
-const dayTransactions = [
-  { id: '1', name: 'Makan Siang', emoji: '🍔', amount: '-12.50', type: 'expense', time: '12:30 PM' },
-  { id: '2', name: 'Salary', emoji: '💼', amount: '+3,500.00', type: 'income', time: '9:00 AM' },
+const dayTransactions: TransactionData[] = [
+  { id: '1', name: 'Makan Siang', category: 'Food', categoryIcon: '🍔', amount: '-RM 12.50', type: 'expense', date: '20 May 2025', recurring: true, recurringFreq: 'monthly', account: 'Maybank', note: 'Lunch with colleagues' },
+  { id: '2', name: 'Salary', category: 'Income', categoryIcon: '💼', amount: '+RM 3,500.00', type: 'income', date: '20 May 2025', recurring: true, recurringFreq: 'monthly', account: 'Maybank', startDate: '1 May 2025', reminder: 'Same day' },
 ];
 
 const summary = {
@@ -76,11 +62,13 @@ const summary = {
 
 export default function CalendarScreen() {
   const [selectedDay, setSelectedDay] = useState(20);
+  const [selectedTransaction, setSelectedTransaction] = useState<TransactionData | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScreenHeader title="Calendar" />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView className="pb-36" showsVerticalScrollIndicator={false}>
         {/* Month Navigator */}
         <View className="flex-row items-center justify-between px-4 py-3">
           <Pressable
@@ -112,15 +100,15 @@ export default function CalendarScreen() {
           </Card>
           <Card className="flex-1">
             <Text className="text-xs text-muted-foreground mb-1">Net</Text>
-            <Text className="text-base font-bold text-primary">+RM {summary.net}</Text>
+            <Text className="text-base font-bold text-[#e0ff66]">+RM {summary.net}</Text>
           </Card>
         </View>
 
         {/* Calendar Grid */}
         <View className="px-4 mb-4">
-          <View className="bg-card border border-border rounded-2xl p-4">
+          <View className="bg-card border border-border rounded-2xl p-6">
             {/* Day Headers */}
-            <View className="flex-row mb-2">
+            <View className="flex-row mb-4">
               {days.map((day) => (
                 <View key={day} className="flex-1 items-center">
                   <Text className="text-xs text-muted-foreground font-medium">{day}</Text>
@@ -131,7 +119,7 @@ export default function CalendarScreen() {
             <View className="flex-row flex-wrap">
               {/* Empty cells for first week alignment (May 2025 starts on Thursday = index 4) */}
               {[...Array(4)].map((_, i) => (
-                <View key={`empty-${i}`} className="w-[14.28%] h-10" />
+                <View key={`empty-${i}`} className="w-[14.28%] h-12" />
               ))}
               {calendarDays.map((item) => {
                 const isToday = item.day === 20;
@@ -140,20 +128,20 @@ export default function CalendarScreen() {
                   <Pressable
                     key={item.day}
                     onPress={() => setSelectedDay(item.day)}
-                    className="w-[14.28%] h-10 items-center justify-center"
+                    className="w-[14.28%] h-12 items-center justify-center"
                     accessible
                     accessibilityLabel={`${item.day} May${item.hasTransaction ? ', has transactions' : ''}`}
                   >
                     <View
                       className={`
-                        w-8 h-8 rounded-full items-center justify-center
-                        ${isSelected ? 'bg-primary' : isToday ? 'border-2 border-primary' : ''}
+                        w-10 h-10 rounded-full items-center justify-center
+                        ${isSelected ? 'bg-[#e0ff66]' : isToday ? 'border-2 border-[#e0ff66]' : ''}
                       `}
                     >
                       <Text
                         className={`
-                          text-sm font-medium
-                          ${isSelected ? 'text-primary-foreground' : isToday ? 'text-primary' : 'text-foreground'}
+                          text-base font-medium
+                          ${isSelected ? 'text-[#000000]' : isToday ? 'text-[#e0ff66]' : 'text-foreground'}
                         `}
                       >
                         {item.day}
@@ -161,7 +149,7 @@ export default function CalendarScreen() {
                     </View>
                     {/* Transaction dots */}
                     {item.hasTransaction && (
-                      <View className="absolute bottom-0.5 flex-row gap-0.5">
+                      <View className="absolute bottom-1 flex-row gap-0.5">
                         {item.types?.slice(0, 3).map((type, i) => (
                           <View
                             key={i}
@@ -182,7 +170,7 @@ export default function CalendarScreen() {
         {/* Legend */}
         <View className="flex-row items-center justify-center gap-4 px-4 mb-4">
           <View className="flex-row items-center gap-1.5">
-            <View className="w-2 h-2 rounded-full bg-income" />
+            <View className="w-2 h-2 rounded-full bg-[#e0ff66]" />
             <Text className="text-xs text-muted-foreground">Income</Text>
           </View>
           <View className="flex-row items-center gap-1.5">
@@ -197,42 +185,46 @@ export default function CalendarScreen() {
 
         {/* Day Transactions */}
         <View className="px-4 mb-6">
-          <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-sm font-semibold text-foreground">
-              {selectedDay === 20 ? 'Today' : `${selectedDay} May`}
-            </Text>
-            <Pressable className="flex-row items-center gap-1 bg-primary rounded-xl px-3 py-1.5">
-              <Plus size={14} color="#000" />
-              <Text className="text-xs font-semibold text-primary-foreground">Add</Text>
-            </Pressable>
-          </View>
+          <Text className="text-sm font-semibold text-foreground mb-3">
+            {selectedDay === 20 ? 'Today' : `${selectedDay} May`}
+          </Text>
           <View className="gap-2">
             {dayTransactions.map((tx) => (
-              <View
+              <Pressable
                 key={tx.id}
-                className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3"
+                onPress={() => {
+                  setSelectedTransaction(tx);
+                  setModalVisible(true);
+                }}
+                className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
               >
                 <View className="flex-row items-center gap-3">
                   <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
-                    <Text className="text-base">{tx.emoji}</Text>
+                    <Text className="text-base">{tx.categoryIcon}</Text>
                   </View>
                   <View>
                     <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
-                    <Text className="text-xs text-muted-foreground">{tx.time}</Text>
+                    <Text className="text-xs text-muted-foreground">{tx.date}</Text>
                   </View>
                 </View>
                 <Text
                   className={`text-sm font-semibold ${
-                    tx.type === 'income' ? 'text-income' : 'text-expense'
+                    tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : 'text-[#00d4ff]'
                   }`}
                 >
                   {tx.amount}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>
       </ScrollView>
+
+      <TransactionDetail
+        transaction={selectedTransaction}
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }

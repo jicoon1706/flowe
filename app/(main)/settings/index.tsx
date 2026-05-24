@@ -1,8 +1,8 @@
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { User, Shield, Bell, Settings, Heart, Database, ChevronRight, AlertTriangle } from 'lucide-react-native';
 import { useSettings } from '@/context/SettingsContext';
+import { useRouter } from 'expo-router';
+import { AlertTriangle, Bell, ChevronRight, Database, Heart, Settings, Shield, User } from 'lucide-react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { SettingsGroup } from '../../../components/ui/SettingsGroup';
 import { SettingsRow } from '../../../components/ui/SettingsRow';
@@ -89,12 +89,6 @@ export default function SettingsScreen() {
             onPress={() => router.push('/settings/recurring')}
           />
           <View className="border-t border-border" />
-          <SettingsRow
-            label="Balance Visibility"
-            value="Visible"
-            icon={<Settings size={16} color="#a0a0a0" />}
-            onPress={() => router.push('/settings/data')}
-          />
         </SettingsGroup>
 
         <SettingsGroup title="Affirmations">

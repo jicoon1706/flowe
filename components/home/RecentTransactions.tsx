@@ -28,7 +28,7 @@ export function RecentTransactions({ onSeeAll, onTransactionPress }: RecentTrans
 
   return (
     <>
-      <View className="px-4 mb-6 flex-1">
+      <View className="px-4 pb-36 flex-1">
         <View className="flex-row items-center justify-between mb-3">
           <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
             Recent Transactions
@@ -60,7 +60,7 @@ export function RecentTransactions({ onSeeAll, onTransactionPress }: RecentTrans
               <View className="flex-row items-center gap-2">
                 <Text
                   className={`text-sm font-semibold ${
-                    tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : 'text-primary'
+                    tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : tx.type === 'transfer' ? 'text-[#00d4ff]' : 'text-primary'
                   }`}
                 >
                   {tx.amount}

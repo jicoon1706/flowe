@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.muted,
   },
   toggleDotOn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.background,
     alignSelf: 'flex-end',
   },
 });

@@ -2,7 +2,7 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Info, ChevronLeft, ChevronRight } from 'lucide-react-native';
-import React from 'react';
+import { useState } from 'react';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { FinancialClassBadge } from '../../../components/cashflow/FinancialClassBadge';
 import { CashFlowDiagram } from '../../../components/cashflow/CashFlowDiagram';
@@ -59,11 +59,11 @@ interface Liability { id: string; name: string; type: string; icon: string; amou
 // ─── Main screen ────────────────────────────────────────────────────────────────
 export default function CashFlowScreen() {
   const router = useRouter();
-  const [monthIndex, setMonthIndex] = React.useState(4); // May 2026
-  const [assets, setAssets] = React.useState<Asset[]>(INITIAL_ASSETS);
-  const [liabilities, setLiabilities] = React.useState<Liability[]>(INITIAL_LIABILITIES);
-  const [balanceSheetTab, setBalanceSheetTab] = React.useState<'assets' | 'liabilities'>('assets');
-  const [manageTab, setManageTab] = React.useState<'assets' | 'liabilities'>('assets');
+  const [monthIndex, setMonthIndex] = useState(4); // May 2026
+  const [assets, setAssets] = useState<Asset[]>(INITIAL_ASSETS);
+  const [liabilities, setLiabilities] = useState<Liability[]>(INITIAL_LIABILITIES);
+  const [balanceSheetTab, setBalanceSheetTab] = useState<'assets' | 'liabilities'>('assets');
+  const [manageTab, setManageTab] = useState<'assets' | 'liabilities'>('assets');
 
   // ─── Computed ────────────────────────────────────────────────────────────────
   const totalIncome = INCOME_ITEMS.reduce((s, i) => s + i.amount, 0);

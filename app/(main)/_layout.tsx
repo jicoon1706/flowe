@@ -1,5 +1,7 @@
-import { Tabs, useRouter } from 'expo-router';
+import { TabBarProvider, useTabBar } from '@/context/TabBarContext';
+import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Calendar, DollarSign, Home, Plus, Settings } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 
 function AddButton(props: { onPress?: (e?: any) => void }) {
@@ -13,12 +15,16 @@ function AddButton(props: { onPress?: (e?: any) => void }) {
   );
 }
 
-export default function MainLayout() {
+function MainTabs() {
+  const { isTabBarHidden } = useTabBar();
+  const pathname = usePathname();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
+          display: isTabBarHidden(pathname) ? 'none' : 'flex',
           position: 'absolute',
           backgroundColor: '#0D0D0D',
           borderTopWidth: 0,
@@ -174,5 +180,32 @@ export default function MainLayout() {
         }}
       />
     </Tabs>
+  );
+}
+
+function TabBarVisibilityWrapper({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { hideTabBar, showTabBar } = useTabBar();
+
+  useEffect(() => {
+    // Hide tab bar for nested settings routes
+    const hiddenPaths = ['settings/account', 'settings/change-pin', 'settings/security', 'settings/notifications', 'settings/categories', 'settings/recurring', 'settings/affirmations', 'settings/data'];
+    if (hiddenPaths.some(path => pathname.includes(path))) {
+      hideTabBar(pathname);
+    } else {
+      showTabBar(pathname);
+    }
+  }, [pathname]);
+
+  return <>{children}</>;
+}
+
+export default function MainLayout() {
+  return (
+    <TabBarProvider>
+      <TabBarVisibilityWrapper>
+        <MainTabs />
+      </TabBarVisibilityWrapper>
+    </TabBarProvider>
   );
 }

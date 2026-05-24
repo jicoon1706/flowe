@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Camera, RefreshCw, Calendar, ChevronDown, Bell, Check } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { expenseCategories, incomeCategories } from '../../constants/categories';
 import { Button } from '../../components/ui/Button';
 import { AmountInput } from '../../components/ui/AmountInput';
@@ -27,14 +27,35 @@ const dateQuickOptions = [
 
 export default function AddTransactionScreen() {
   const router = useRouter();
+  const searchParams = useLocalSearchParams();
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('food');
   const [account, setAccount] = useState('1');
   const [toAccount, setToAccount] = useState('2');
-  const [dateOption, setDateOption] = useState<'today' | 'yesterday' | 'custom'>('today');
-  const [customDate, setCustomDate] = useState<Date>(new Date());
+  const [dateOption, setDateOption] = useState<'today' | 'yesterday' | 'custom'>(() => {
+    const dateParam = searchParams.date as string | undefined;
+    if (dateParam) {
+      // Parse ISO string as local time to preserve the intended date
+      const [year, month, day, hour = 12, minute = 0] = dateParam.split(/[-T:Z]/).map(Number);
+      const d = new Date(year, month - 1, day, hour, minute);
+      if (!isNaN(d.getTime())) return 'custom';
+    }
+    return 'today';
+  });
+  const [customDate, setCustomDate] = useState<Date>(() => {
+    const dateParam = searchParams.date as string | undefined;
+    if (dateParam) {
+      // Parse ISO string as local time to preserve the intended date
+      const [year, month, day, hour = 12, minute = 0] = dateParam.split(/[-T:Z]/).map(Number);
+      const d = new Date(year, month - 1, day, hour, minute);
+      if (!isNaN(d.getTime())) {
+        return d;
+      }
+    }
+    return new Date();
+  });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'custom' | 'start' | 'end'>('date');
   const [recurring, setRecurring] = useState(false);

@@ -33,7 +33,7 @@ interface TransactionDetailProps {
 const typeColors = {
   expense: { bg: 'bg-expense/10', text: 'text-expense', label: 'Expense' },
   income: { bg: 'bg-income/10', text: 'text-income', label: 'Income' },
-  transfer: { bg: 'bg-primary/10', text: 'text-primary', label: 'Transfer' },
+  transfer: { bg: 'bg-[#00d4ff]/10', text: 'text-[#00d4ff]', label: 'Transfer' },
 };
 
 export function TransactionDetail({ transaction, visible, onClose }: TransactionDetailProps) {
@@ -70,7 +70,7 @@ export function TransactionDetail({ transaction, visible, onClose }: Transaction
             {/* Amount */}
             <Text
               className={`text-3xl font-bold mb-4 ${
-                transaction.type === 'income' ? 'text-income' : transaction.type === 'expense' ? 'text-expense' : 'text-primary'
+                transaction.type === 'income' ? 'text-income' : transaction.type === 'expense' ? 'text-expense' : transaction.type === 'transfer' ? 'text-[#00d4ff]' : 'text-primary'
               }`}
             >
               {transaction.amount}

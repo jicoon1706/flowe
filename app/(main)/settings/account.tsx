@@ -1,4 +1,4 @@
-import { View, Text, TextInput, Pressable } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -6,13 +6,16 @@ import { User } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useSettings } from '@/context/SettingsContext';
 
+const FINANCIAL_IDENTITIES = ['Employee', 'Entrepreneur', 'Investor', 'Business Owner'] as const;
+
 export default function AccountScreen() {
   const router = useRouter();
   const { state, dispatch } = useSettings();
   const [name, setName] = useState(state.profile.displayName);
+  const [financialIdentity, setFinancialIdentity] = useState(state.profile.financialIdentity || 'Employee');
 
   const handleSave = () => {
-    dispatch({ type: 'UPDATE_PROFILE', payload: { displayName: name } });
+    dispatch({ type: 'UPDATE_PROFILE', payload: { displayName: name, financialIdentity } });
     router.back();
   };
 
@@ -42,6 +45,31 @@ export default function AccountScreen() {
               placeholderTextColor="#a0a0a0"
             />
           </View>
+        </View>
+
+        {/* Financial Identity */}
+        <View className="bg-card border border-border rounded-2xl p-5 mt-4">
+          <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
+            Financial Identity
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-1">
+            <View className="flex-row gap-2 px-1">
+              {FINANCIAL_IDENTITIES.map((identity) => {
+                const isActive = financialIdentity === identity;
+                return (
+                  <Pressable
+                    key={identity}
+                    onPress={() => setFinancialIdentity(identity)}
+                    className={isActive ? 'bg-primary/10 border border-primary rounded-full px-4 py-2' : 'bg-card border border-border rounded-full px-4 py-2'}
+                  >
+                    <Text className={isActive ? 'text-primary text-sm' : 'text-muted-foreground text-sm'}>
+                      {identity}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
         </View>
 
         {/* Save Button */}
