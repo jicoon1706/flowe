@@ -19,18 +19,29 @@ interface AnimatedFlowDotProps {
 }
 
 function AnimatedFlowDot({ keyframes, color }: AnimatedFlowDotProps) {
-  const progress = useRef(new Animated.Value(0)).current;
-  const loopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const translateX = useRef(new Animated.Value(keyframes[0].x)).current;
+  const translateY = useRef(new Animated.Value(keyframes[0].y)).current;
+  const loopRef = useRef<ReturnType<typeof Animated.loop> | null>(null);
 
   useEffect(() => {
-    const totalDuration = keyframes.reduce((s, k) => s + k.duration, 0);
-    loopRef.current = Animated.loop(
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: totalDuration,
-        useNativeDriver: true,
-      })
-    );
+    // Create sequence of all segments chained together
+    const segmentAnims = keyframes.map((kf, i) => {
+      const next = keyframes[(i + 1) % keyframes.length];
+      return Animated.parallel([
+        Animated.timing(translateX, {
+          toValue: next.x,
+          duration: kf.duration,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateY, {
+          toValue: next.y,
+          duration: kf.duration,
+          useNativeDriver: true,
+        }),
+      ]);
+    });
+
+    loopRef.current = Animated.loop(Animated.sequence(segmentAnims));
     loopRef.current.start();
     return () => { if (loopRef.current) loopRef.current.stop(); };
   }, []);
@@ -39,26 +50,11 @@ function AnimatedFlowDot({ keyframes, color }: AnimatedFlowDotProps) {
     <Animated.View
       style={{
         position: 'absolute',
-        left: 0,
-        top: 0,
         width: 10,
         height: 10,
         borderRadius: 5,
         backgroundColor: color,
-        transform: [
-          {
-            translateX: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [keyframes[0].x, keyframes[keyframes.length - 1].x],
-            }),
-          },
-          {
-            translateY: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [keyframes[0].y, keyframes[keyframes.length - 1].y],
-            }),
-          },
-        ],
+        transform: [{ translateX }, { translateY }],
       }}
     />
   );
