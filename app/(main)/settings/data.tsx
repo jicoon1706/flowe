@@ -27,7 +27,14 @@ export default function DataScreen() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
 
-  const handleExport = () => {};
+  const handleExport = () => {
+    setExporting(true);
+    setTimeout(() => {
+      setExporting(false);
+      setExported(true);
+      setTimeout(() => setExported(false), 3000);
+    }, 1500);
+  };
   const handleReset = () => {};
 
   return (
@@ -56,17 +63,75 @@ export default function DataScreen() {
           </View>
         </View>
 
-        <View className="bg-card border border-border rounded-2xl p-5 mb-6">
-          <Pressable
-            onPress={handleExport}
-            className="flex-row items-center gap-3 py-3"
-          >
-            <Download size={20} color="#a0a0a0" />
-            <View className="flex-1">
-              <Text className="text-foreground text-sm font-medium">Export Data</Text>
-              <Text className="text-muted-foreground text-xs">Download all your data as JSON</Text>
+        {/* Export Data */}
+        <View className="mb-6">
+          <Text className="text-sm font-medium text-muted-foreground mb-3 px-2">Export Data</Text>
+          <View className="bg-card border border-border rounded-2xl p-4">
+            {/* Format */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium mb-2">Format</Text>
+              <View className="flex flex-row gap-2">
+                {(['csv', 'pdf'] as ExportFormat[]).map((fmt) => (
+                  <Pressable
+                    key={fmt}
+                    onPress={() => setExportFormat(fmt)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border font-semibold text-sm ${
+                      exportFormat === fmt
+                        ? 'bg-primary text-black border-primary'
+                        : 'bg-muted border-border text-muted-foreground'
+                    }`}
+                  >
+                    <FileText size={16} />
+                    <Text>{fmt.toUpperCase()}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </Pressable>
+
+            {/* Date Range */}
+            <View className="mb-5">
+              <Text className="text-sm font-medium mb-2">Date Range</Text>
+              <View className="grid grid-cols-2 gap-2">
+                {(Object.keys(DATE_RANGE_LABELS) as DateRange[]).map((range) => (
+                  <Pressable
+                    key={range}
+                    onPress={() => setDateRange(range)}
+                    className={`py-2.5 px-3 rounded-xl text-sm border ${
+                      dateRange === range
+                        ? 'bg-primary/20 border-primary text-primary'
+                        : 'bg-muted border-border text-muted-foreground'
+                    }`}
+                  >
+                    <Text>{DATE_RANGE_LABELS[range]}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Export Button */}
+            <Pressable
+              onPress={handleExport}
+              disabled={exporting}
+              className="w-full py-3.5 bg-primary text-black rounded-xl font-semibold flex items-center justify-center gap-2 disabled:opacity-70"
+            >
+              {exported ? (
+                <View className="flex-row items-center gap-2">
+                  <Check size={20} color="#000" />
+                  <Text className="text-black font-semibold">Exported!</Text>
+                </View>
+              ) : exporting ? (
+                <View className="flex-row items-center gap-2">
+                  <View className="w-5 h-5 border-2 border-black/40 border-t-black rounded-full animate-spin" />
+                  <Text className="text-black font-semibold">Exporting...</Text>
+                </View>
+              ) : (
+                <View className="flex-row items-center gap-2">
+                  <Download size={20} color="#000" />
+                  <Text className="text-black font-semibold">Export {exportFormat.toUpperCase()}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         <View className="bg-card border border-border rounded-2xl p-5">
