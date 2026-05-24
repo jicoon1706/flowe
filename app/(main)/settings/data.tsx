@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { View, Text, Pressable, Alert, TextInput } from 'react-native';
+import { View, Text, Pressable, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Download, AlertTriangle, Database, FileText, Check, X } from 'lucide-react-native';
+import { Download, AlertTriangle, Database, FileText, Check } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useSettings } from '@/context/SettingsContext';
 
