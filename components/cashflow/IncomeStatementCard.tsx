@@ -42,10 +42,10 @@ export function IncomeStatementCard({
             {passiveFromAssets > 0 && (
               <View className="flex-row justify-between text-sm">
                 <Text className="text-muted-foreground">📈 Passive (Assets)</Text>
-                <Text className="text-primary">RM {passiveFromAssets.toLocaleString()}</Text>
+                <Text className="text-muted-foreground">RM {passiveFromAssets.toLocaleString()}</Text>
               </View>
             )}
-            <View className="border-t border-border pt-2 flex-row justify-between font-semibold text-sm">
+            <View className="border-t border-border pt-2 flex-row justify-between font-bold text-sm">
               <Text className="text-foreground">Total Income</Text>
               <Text className="text-green-400">RM {totalIncome.toLocaleString()}</Text>
             </View>
@@ -65,7 +65,7 @@ export function IncomeStatementCard({
                 <Text className="text-muted-foreground">RM {item.amount.toLocaleString()}</Text>
               </View>
             ))}
-            <View className="border-t border-border pt-2 flex-row justify-between font-semibold text-sm">
+            <View className="border-t border-border pt-2 flex-row justify-between font-bold text-sm">
               <Text className="text-foreground">Total Expenses</Text>
               <Text className="text-red-400">RM {totalExpenses.toLocaleString()}</Text>
             </View>
