@@ -61,7 +61,7 @@ export function FinancialClassBadge({
   passiveIncome,
   netWorth,
 }: FinancialClassBadgeProps) {
-  const config = CLASS_CONFIG[financialClass];
+  const config = CLASS_CONFIG[financialClass] ?? CLASS_CONFIG.poor;
 
   return (
     <View className={`bg-gradient-to-br ${config.bgGlow} border-2 ${config.borderColor} rounded-2xl p-5`}>
