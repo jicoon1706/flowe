@@ -46,7 +46,7 @@ const MOCK_PROJECT: Project = {
 
 export default function ProjectDetailScreen() {
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  useLocalSearchParams<{ projectId: string }>();
   const [project, setProject] = useState(MOCK_PROJECT);
   const [showMenu, setShowMenu] = useState(false);
   const [showRename, setShowRename] = useState(false);
@@ -86,7 +86,7 @@ export default function ProjectDetailScreen() {
               <Text className="text-4xl mb-3">📝</Text>
               <Text className="text-foreground font-medium">Belum ada entri</Text>
               <Text className="text-muted-foreground text-sm mt-1">
-                Tap '+ Tambah Entri' to add your first note
+                {"Tap '+ Tambah Entri' to add your first note"}
               </Text>
             </View>
           ) : (

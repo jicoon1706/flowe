@@ -1,7 +1,6 @@
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { Result } from '../utils/result';
-import type { SupabaseError } from '../utils/result';
+import type { Result, SupabaseError } from '../utils/result';
 
 export const authRepository = {
   async signUp(

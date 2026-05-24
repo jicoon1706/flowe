@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Folder } from '../../../../components/ui/icons';
+import { ChevronLeft } from '../../../../components/ui/icons';
 
 interface Project {
   id: string;

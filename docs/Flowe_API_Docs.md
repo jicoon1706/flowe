@@ -196,7 +196,7 @@ const userId = session?.user.id;
 |---|---|---|
 | `id` | uuid (PK) | references `auth.users(id)` |
 | `display_name` | varchar(30) | required |
-| `financial_identity` | text | `rich_dad` · `middle_class` · `building_wealth` |
+| `financial_identity` | text | `employee` · `entrepreneur` · `investor` · `business_owner` (Settings → Account chips) |
 | `avatar_url` | text | Supabase Storage URL |
 | `member_since` | timestamptz | auto |
 | `updated_at` | timestamptz | auto |
@@ -219,7 +219,7 @@ const { data, error } = await supabase
 {
   "id": "uuid",
   "display_name": "Ahmad",
-  "financial_identity": "building_wealth",
+  "financial_identity": "investor",
   "avatar_url": "https://...",
   "member_since": "2026-01-01T00:00:00Z",
   "updated_at": "2026-05-22T10:00:00Z"
@@ -233,7 +233,7 @@ const { error } = await supabase
   .from('profiles')
   .update({
     display_name: 'Ahmad Rizal',
-    financial_identity: 'rich_dad',
+    financial_identity: 'investor',
     avatar_url: 'https://...',
     updated_at: new Date().toISOString(),
   })
@@ -254,7 +254,7 @@ const { error } = await supabase
 | `user_id` | uuid | FK → `profiles(id)`, unique |
 | `pin_hash` | text | SHA-256 of 6-digit PIN |
 | `fingerprint_enabled` | boolean | default `false` |
-| `auto_lock_minutes` | int | default `5` |
+| `auto_lock_minutes` | int | default `5`. `null` represents the "Never" option in Settings → Security |
 | `updated_at` | timestamptz | |
 
 ### GET – Fetch Auth Config
@@ -427,7 +427,10 @@ const { error } = await supabase
 | `to_date` | date | |
 | `linked_bank_id` | uuid | FK → `bank_accounts(id)`, optional |
 | `description` | text | |
-| `template_type` | varchar(50) | `raya` · `emergency` · `holiday` · `gadget` · `down_payment` · `custom` |
+| `icon` | varchar(10) | emoji shown on tabung card |
+| `color` | varchar(7) | hex from form palette |
+| `template_type` | varchar(50) | `tabung_raya` · `emergency` · `holiday` · `gadget` · `down_payment` · `custom` |
+| `auto_save` | boolean | default `false`. "Monthly automatic savings" toggle on `/tabung/new/form` |
 
 ### POST – Create Tabung Account
 
@@ -439,7 +442,10 @@ const { error } = await supabase.from('tabung_accounts').insert({
   from_date: '2026-01-01',
   to_date: '2026-06-01',
   linked_bank_id: bankAccountId,
-  template_type: 'raya',
+  icon: '🎉',
+  color: '#6bcf7f',
+  template_type: 'tabung_raya',
+  auto_save: false,
 });
 ```
 
@@ -502,8 +508,10 @@ const { error } = await supabase.from('wallet_accounts').insert({
 | `created_at` | timestamptz | |
 | `updated_at` | timestamptz | |
 
-**Expense categories:** `food_drink` · `transport` · `bills` · `shopping` · `health` · `entertainment` · `others`  
-**Income categories:** `salary` · `freelance` · `gift` · `investment_returns` · `business` · `rental` · `others`
+**Expense categories:** `food_drink` · `transport` · `bills` · `shopping` · `health` · `entertainment` · `others`
+**Income categories:** `salary` · `freelance` · `gift` · `allowance` · `investment` · `rental` · `others`
+
+> Canonical IDs come from `constants/categories.ts`. User-added categories live in `custom_categories` (see §13) and use the same `transaction_type` discriminator.
 
 ### GET – Fetch Transactions by Month
 
@@ -661,7 +669,9 @@ const { error } = await supabase
 | `frequency` | recurring_frequency | `monthly` · `weekly` · `yearly` |
 | `start_date` | date | |
 | `end_date` | date | null = indefinite |
+| `next_date` | date | next scheduled occurrence, surfaced in Settings → Recurring list |
 | `reminder_enabled` | boolean | default `false` |
+| `reminder_offset` | reminder_offset | `none` · `same_day` · `1_day` · `3_days` · `1_week` (Add-Transaction recurring picker) |
 | `status` | recurring_status | `active` · `paused` · `ended` |
 | `last_applied_at` | timestamptz | |
 | `created_at` | timestamptz | |
@@ -689,7 +699,9 @@ const { error } = await supabase.from('recurring_rules').insert({
   from_account_id: accountId,
   frequency: 'monthly',
   start_date: '2026-06-01',
+  next_date: '2026-06-01',
   reminder_enabled: true,
+  reminder_offset: '1_day',
   status: 'active',
 });
 ```
@@ -1170,6 +1182,52 @@ const { error } = await supabase
 
 ---
 
+### 11.2 User Affirmations
+
+> User-authored affirmation words from Settings → Affirmations → "Affirmation Words". Each entry is tagged with a category; when the user's Category Preference is "All" the client falls back to `mindset`.
+
+**Table:** `public.user_affirmations`
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid (PK) | |
+| `user_id` | uuid | FK → `profiles(id)` |
+| `text` | varchar(280) | the word/phrase |
+| `category` | affirmation_category | `saving` · `investing` · `mindset` · `awareness` |
+| `is_active` | boolean | default `true` (soft delete) |
+| `created_at` | timestamptz | |
+
+### GET – List User Affirmations
+
+```typescript
+const { data, error } = await supabase
+  .from('user_affirmations')
+  .select()
+  .eq('is_active', true)
+  .order('created_at', { ascending: false });
+```
+
+### POST – Add Affirmation Word
+
+```typescript
+const { error } = await supabase.from('user_affirmations').insert({
+  user_id: userId,
+  text: 'Spend with intention',
+  category: 'mindset',
+});
+```
+
+### DELETE – Remove Affirmation Word
+
+```typescript
+const { error } = await supabase
+  .from('user_affirmations')
+  .update({ is_active: false })
+  .eq('id', affirmationId);
+```
+
+---
+
 ## 12. Settings
 
 **Table:** `public.settings` – one row per user.
@@ -1460,6 +1518,9 @@ const { error } = await supabase.storage
 | `transaction_type` | `expense` · `income` · `transfer` · `tabung_topup` · `tabung_withdraw` |
 | `recurring_frequency` | `monthly` · `weekly` · `yearly` |
 | `recurring_status` | `active` · `paused` · `ended` |
+| `reminder_offset` | `none` · `same_day` · `1_day` · `3_days` · `1_week` |
+| `financial_identity` (check) | `employee` · `entrepreneur` · `investor` · `business_owner` |
+| `tabung template_type` | `tabung_raya` · `emergency` · `holiday` · `gadget` · `down_payment` · `custom` |
 | `asset_type` | `real_estate` · `stocks` · `unit_trust` · `fixed_deposit` · `asb` · `gold` · `vehicle` · `business` · `others` |
 | `liability_type` | `mortgage` · `car_loan` · `credit_card` · `study_loan` · `medical_loan` · `business_loan` · `others` |
 | `notification_type` | `expense` · `income` · `transfer` · `recurring` · `alert` · `tabung` · `milestone` · `asset` · `cashflow` · `note` · `affirmation` · `project` |

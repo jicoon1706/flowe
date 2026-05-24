@@ -2,61 +2,107 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { TrendingUp, TrendingDown, ArrowRight, Banknote } from 'lucide-react-native';
+import { MessageCircle } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Card } from '../../../components/ui/Card';
+import { CashFlowPatternDiagram } from '../../../components/cashflow/CashFlowPatternDiagram';
 
-const patterns = {
+type PatternKey = 'poor' | 'middle' | 'rich';
+
+const patterns: Record<PatternKey, {
+  emoji: string;
+  label: string;
+  shortLabel: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  title: string;
+  flowPath: string;
+  description: string;
+  image: any;
+  keyFacts: string[];
+  richDadQuote: string;
+  actionLabel: string;
+  action: string;
+  comparisonFlow: string;
+}> = {
   poor: {
     emoji: '😟',
-    label: 'Poor Pattern',
+    label: 'Poor',
+    shortLabel: 'Poor',
     color: '#ff6b6b',
     bgColor: 'bg-expense/10',
     borderColor: 'border-expense/30',
-    flow: ['Job', 'Income', 'Expenses', 'Money Gone'],
-    flowIcons: ['briefcase', 'wallet', 'shopping-cart', 'x-circle'],
+    title: 'The Poor Cash Flow Pattern',
+    flowPath: 'Income → Expenses',
+    description:
+      "A poor person's entire income flows directly into expenses — rent, food, transport, clothes. There are no assets being built and no liabilities. Every ringgit earned is spent. The balance sheet stays empty.",
+    image: require('../../../assets/images/cashflow/poor.png'),
     keyFacts: [
-      'Only source of income is salary',
-      'No savings or investments',
-      'Expenses equal or exceed income',
-      'Living paycheck to paycheck',
+      'All income comes from a job (active income)',
+      'Every ringgit goes straight to daily expenses',
+      'No assets accumulating in the balance sheet',
+      'No investment or savings habit',
+      'Financial stress increases when job is lost',
     ],
-    quote: '"The poor work for money. The rich have money work for them."',
-    tip: 'Start building an emergency fund with just RM 100/month',
+    richDadQuote:
+      '"The poor and the middle class work for money. The rich have money work for them."',
+    actionLabel: 'First Step',
+    action:
+      'Start by saving 10% of every paycheck before spending. Open an ASB or fixed deposit account. Even RM 50/month builds the asset habit.',
+    comparisonFlow: 'Job → Income → Expenses',
   },
   middle: {
     emoji: '😐',
-    label: 'Middle Class',
+    label: 'Middle',
+    shortLabel: 'Middle',
     color: '#ffd93d',
     bgColor: 'bg-yellow-500/10',
     borderColor: 'border-yellow-500/30',
-    flow: ['Job', 'Income', 'Liabilities', 'Treadmill Loop'],
-    flowIcons: ['briefcase', 'wallet', 'credit-card', 'refresh-cw'],
+    title: 'The Middle Class Cash Flow Pattern',
+    flowPath: 'Income → Liabilities → Expenses',
+    description:
+      'The middle class earns more but also borrows more. Their income goes to expenses AND to monthly liability payments (mortgage, car loan, credit cards). Liabilities drain income back out — creating a treadmill that keeps them trapped.',
+    image: require('../../../assets/images/cashflow/middle.png'),
     keyFacts: [
-      'Primary income is salary',
-      'Accumulating liabilities (car loans, mortgages)',
-      'Passive income is minimal',
-      'Stuck on the financial treadmill',
+      'Income mainly from salary (still active income)',
+      'Liabilities (loans) create monthly payment obligations',
+      'Payments on liabilities drain income like expenses',
+      'The more they earn, the more liabilities they take on',
+      'Assets column exists but mostly lifestyle assets (car, house)',
     ],
-    quote: '"The middle class buys liabilities, thinking they are assets."',
-    tip: 'Focus on paying off liabilities and building real assets',
+    richDadQuote:
+      '"The middle class buys liabilities that they think are assets — a house, a new car, appliances."',
+    actionLabel: 'Key Rule',
+    action:
+      'Before taking any new loan, ask: "Does this asset generate income or drain it?" Focus on building income-generating assets, not lifestyle upgrades.',
+    comparisonFlow: 'Job → Income → Liabilities → Expenses',
   },
   rich: {
     emoji: '💎',
-    label: 'Rich Pattern',
+    label: 'Rich',
+    shortLabel: 'Rich',
     color: '#C5FF00',
     bgColor: 'bg-primary/10',
     borderColor: 'border-primary/30',
-    flow: ['Assets', 'Income', 'Expenses', 'Reinvest'],
-    flowIcons: ['trending-up', 'dollar-sign', 'shopping-bag', 'repeat'],
+    title: 'The Rich Cash Flow Pattern',
+    flowPath: 'Assets → Income → Assets',
+    description:
+      'The rich build an asset column first — real estate, stocks, business interests. These assets generate passive income (rental, dividends, royalties). That income covers expenses and the surplus is reinvested into more assets. The cycle self-compounds.',
+    image: require('../../../assets/images/cashflow/rich.png'),
     keyFacts: [
-      'Passive income exceeds expenses',
-      'Owns income-producing assets',
-      'Continuously reinvests profits',
-      'Money works for them 24/7',
+      'Income comes FROM assets, not from a job',
+      'Rental income, dividends, royalties flow into income',
+      'Expenses are paid by passive income — not active work',
+      'Surplus income is reinvested into more assets',
+      'The asset column grows continuously and automatically',
     ],
-    quote: '"The rich acquire assets. The poor merely create expenses."',
-    tip: 'Keep reinvesting 50% of your passive income into assets',
+    richDadQuote:
+      '"Rich people acquire assets. The poor and middle class acquire liabilities they think are assets."',
+    actionLabel: 'Start Here',
+    action:
+      'Start by acquiring ONE income-generating asset: a unit trust, ASB, or rental property. When it generates RM 1 passively, you\'ve started the rich pattern.',
+    comparisonFlow: 'Assets → Income → Expenses + More Assets',
   },
 };
 
@@ -66,8 +112,6 @@ const comparisonData = [
   { label: 'Financial Freedom', poor: 'None', middle: 'Limited', rich: 'Full freedom' },
   { label: 'Money Mindset', poor: 'Earn to spend', middle: 'Earn to buy assets', rich: 'Assets earn for me' },
 ];
-
-type PatternKey = 'poor' | 'middle' | 'rich';
 
 export default function CashFlowGuideScreen() {
   const router = useRouter();
@@ -82,111 +126,155 @@ export default function CashFlowGuideScreen() {
         onBack={() => router.back()}
       />
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Pattern Tabs */}
+        {/* Kiyosaki Wisdom Quote */}
         <View className="px-4 mb-4">
-          <View className="flex-row bg-card rounded-2xl p-1">
-            {(['poor', 'middle', 'rich'] as PatternKey[]).map((key) => (
-              <Pressable
-                key={key}
-                onPress={() => setActiveTab(key)}
-                className={`flex-1 py-2 rounded-xl ${activeTab === key ? 'bg-primary' : ''}`}
-              >
-                <Text
-                  className={`text-sm font-semibold text-center ${
-                    activeTab === key ? 'text-primary-foreground' : 'text-muted-foreground'
-                  }`}
-                >
-                  {patterns[key].emoji} {patterns[key].label.split(' ')[0]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        {/* Animated Diagram Card */}
-        <View className="px-4 mb-4">
-          <Card className="items-center py-6">
-            <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-4">
-              Cash Flow Pattern
+          <Card>
+            <Text className="text-sm text-muted-foreground italic mb-2">
+              {'"The cash flow pattern of an asset puts money in your pocket. The cash flow pattern of a liability takes money from your pocket."'}
             </Text>
-            <View className="w-full flex-row items-center justify-center gap-2 mb-4">
-              {activePattern.flow.map((step, index) => (
-                <React.Fragment key={step}>
-                  <View className="items-center">
-                    <View
-                      className={`w-12 h-12 rounded-xl ${activePattern.bgColor} border ${activePattern.borderColor} items-center justify-center mb-1`}
-                    >
-                      {index === 0 && <Banknote size={20} color={activePattern.color} />}
-                      {index === 1 && <TrendingUp size={20} color={activePattern.color} />}
-                      {index === 2 && <TrendingDown size={20} color={activePattern.color} />}
-                      {index === 3 && <ArrowRight size={20} color={activePattern.color} />}
-                    </View>
-                    <Text className="text-xs text-foreground text-center">{step}</Text>
-                  </View>
-                  {index < activePattern.flow.length - 1 && (
-                    <View className="flex-row items-center gap-1">
-                      <View className="w-4 h-0.5" style={{ backgroundColor: activePattern.color }} />
-                      <Text style={{ color: activePattern.color }}>→</Text>
-                    </View>
-                  )}
-                </React.Fragment>
-              ))}
-            </View>
-            <Text className="text-sm text-muted-foreground text-center px-4">
-              {activeTab === 'poor' && 'You work hard, earn money, and it disappears on expenses'}
-              {activeTab === 'middle' && 'You work harder but liabilities drain your income'}
-              {activeTab === 'rich' && 'Your money works for you, creating wealth automatically'}
+            <Text className="text-xs text-primary font-semibold">
+              — Robert Kiyosaki, Rich Dad Poor Dad
             </Text>
           </Card>
         </View>
 
-        {/* Key Facts */}
+        {/* Pattern Tabs */}
         <View className="px-4 mb-4">
-          <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3 px-4">
-            Key Facts
-          </Text>
+          <View className="flex-row bg-card rounded-2xl p-1">
+            {(['poor', 'middle', 'rich'] as PatternKey[]).map((key) => {
+              const isActive = activeTab === key;
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => setActiveTab(key)}
+                  className={`flex-1 py-2 rounded-xl ${isActive ? `${patterns[key].bgColor} border ${patterns[key].borderColor}` : ''}`}
+                >
+                  <Text
+                    className="text-sm font-semibold text-center"
+                    style={{ color: isActive ? patterns[key].color : '#9ca3af' }}
+                  >
+                    {patterns[key].emoji} {patterns[key].shortLabel}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Pattern Description */}
+        <View className="px-4 mb-4">
+          <Card className={`${activePattern.bgColor} border ${activePattern.borderColor}`}>
+            <View className="flex-row items-start gap-3 mb-2">
+              <Text className="text-2xl">{activePattern.emoji}</Text>
+              <View className="flex-1">
+                <Text className="text-lg font-bold" style={{ color: activePattern.color }}>
+                  {activePattern.title}
+                </Text>
+                <Text className="text-xs text-muted-foreground mt-0.5">
+                  {activePattern.flowPath}
+                </Text>
+              </View>
+            </View>
+            <Text className="text-sm text-foreground leading-5">
+              {activePattern.description}
+            </Text>
+          </Card>
+        </View>
+
+        {/* Cash Flow Pattern Image */}
+        <View className="px-4 mb-4">
+          <Card className="items-center py-6">
+            <Text className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: activePattern.color }}>
+              — Cash Flow Pattern —
+            </Text>
+            <CashFlowPatternDiagram pattern={activeTab} />
+            <Text className="text-xs text-muted-foreground mt-4">
+              Watch the money flow ↑
+            </Text>
+          </Card>
+        </View>
+
+        {/* Key Characteristics */}
+        <View className="px-4 mb-4">
           <Card>
+            <Text className="text-sm font-bold text-foreground mb-3">
+              Key Characteristics
+            </Text>
             {activePattern.keyFacts.map((fact, index) => (
-              <View
-                key={index}
-                className={`flex-row items-center gap-3 py-2 ${index !== activePattern.keyFacts.length - 1 ? 'border-b border-border' : ''}`}
-              >
+              <View key={index} className="flex-row items-start gap-3 py-1.5">
                 <View
-                  className={`w-2 h-2 rounded-full`}
+                  className="w-1.5 h-1.5 rounded-full mt-2"
                   style={{ backgroundColor: activePattern.color }}
                 />
-                <Text className="text-sm text-foreground flex-1">{fact}</Text>
+                <Text className="text-sm text-foreground flex-1 leading-5">{fact}</Text>
               </View>
             ))}
           </Card>
         </View>
 
-        {/* Rich Dad Quote */}
+        {/* Rich Dad Says */}
         <View className="px-4 mb-4">
           <Card className={`border ${activePattern.borderColor}`}>
-            <Text className="text-lg text-primary italic mb-2">The rich acquire assets. The poor merely create expenses.</Text>
-            <Text className="text-xs text-muted-foreground">— Robert Kiyosaki, Rich Dad Poor Dad</Text>
+            <View className="flex-row items-center gap-2 mb-2">
+              <MessageCircle size={14} color={activePattern.color} />
+              <Text className="text-xs font-semibold" style={{ color: activePattern.color }}>
+                Rich Dad Says
+              </Text>
+            </View>
+            <Text className="text-sm text-muted-foreground italic">
+              {activePattern.richDadQuote}
+            </Text>
           </Card>
         </View>
 
-        {/* Actionable Tip */}
+        {/* Action for you */}
         <View className="px-4 mb-4">
-          <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3 px-4">
-            Your Action
-          </Text>
           <View className={`bg-card border ${activePattern.borderColor} rounded-2xl p-4`}>
             <View className="flex-row items-center gap-2 mb-2">
-              <Text className="text-lg">💡</Text>
-              <Text className="text-sm font-semibold text-foreground">Tip</Text>
+              <View
+                className="px-2 py-1 rounded-full"
+                style={{ backgroundColor: `${activePattern.color}26` }}
+              >
+                <Text className="text-xs font-semibold" style={{ color: activePattern.color }}>
+                  {activePattern.actionLabel}
+                </Text>
+              </View>
+              <Text className="text-xs text-muted-foreground">Action for you</Text>
             </View>
-            <Text className="text-sm text-muted-foreground">{activePattern.tip}</Text>
+            <Text className="text-sm text-foreground leading-5">{activePattern.action}</Text>
           </View>
         </View>
 
-        {/* Comparison Table */}
+        {/* Pattern Comparison (flow paths) */}
+        <View className="px-4 mb-4">
+          <Card>
+            <Text className="text-sm font-bold text-foreground mb-3">Pattern Comparison</Text>
+            {(['poor', 'middle', 'rich'] as PatternKey[]).map((key, index) => {
+              const p = patterns[key];
+              return (
+                <View
+                  key={key}
+                  className={`flex-row items-center gap-3 py-3 ${index !== 2 ? 'border-b border-border' : ''}`}
+                >
+                  <Text className="text-xl">{p.emoji}</Text>
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold" style={{ color: p.color }}>
+                      {p.label}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5">
+                      {p.comparisonFlow}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </Card>
+        </View>
+
+        {/* Detailed Comparison Table */}
         <View className="px-4 mb-8">
           <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3 px-4">
-            Pattern Comparison
+            Detailed Comparison
           </Text>
           <Card className="p-0">
             <View className="flex-row bg-card border-b border-border">

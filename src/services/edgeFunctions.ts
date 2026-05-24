@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { Result } from '../utils/result';
-import type { EdgeFunctionError } from '../utils/result';
+import type { Result, EdgeFunctionError } from '../utils/result';
 import type { CashflowSummary, AnalysisMonthly } from '../types';
 
 export const edgeFunctionsService = {

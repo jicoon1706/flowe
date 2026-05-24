@@ -1,4 +1,5 @@
-import { View, Text, Animated, useRef, useEffect } from 'react-native';
+import { useRef, useEffect } from 'react';
+import { View, Text, Animated } from 'react-native';
 
 type FinancialClass = 'poor' | 'middle' | 'rich';
 
@@ -17,19 +18,13 @@ const CLASS_CONFIG = {
     emoji: '😰',
     label: 'Poor Pattern',
     color: '#ff6b6b',
-    bgGlow: 'from-red-500/15 to-red-500/5',
-    borderColor: 'border-red-500/40',
-    tagColor: 'bg-red-500/15 text-red-400 border-red-500/30',
-    flow: 'Income → Expenses (all of it)',
+    flow: 'Income → Expenses',
     desc: 'Your income goes directly to expenses. No assets working for you yet.',
   },
   middle: {
     emoji: '😐',
     label: 'Middle Class Pattern',
     color: '#ffd93d',
-    bgGlow: 'from-yellow-500/15 to-yellow-500/5',
-    borderColor: 'border-yellow-500/40',
-    tagColor: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
     flow: 'Income → Expenses + Liabilities',
     desc: 'You earn well but liabilities eat your income. Build assets to escape this cycle.',
   },
@@ -37,24 +32,25 @@ const CLASS_CONFIG = {
     emoji: '💎',
     label: 'Rich Pattern',
     color: '#C5FF00',
-    bgGlow: 'from-primary/15 to-primary/5',
-    borderColor: 'border-primary/40',
-    tagColor: 'bg-primary/15 text-primary border-primary/30',
     flow: 'Assets → Income → More Assets',
-    desc: 'Your assets generate income. Money works for you. Keep growing your asset column!',
+    desc: 'Your assets generate income. Money works for you. Keep growing!',
   },
 } as const;
 
-function StatCard({ label, value, colorClass, borderColor }: {
-  label: string;
-  value: string;
-  colorClass: string;
-  borderColor: string;
+function Stat({ label, value, valueColor, accent }: {
+  label: string; value: string; valueColor: string; accent: string;
 }) {
   return (
-    <View className="flex-1 bg-black/20 rounded-xl p-3 border-l-2" style={{ borderLeftColor: borderColor }}>
-      <Text className="text-xs text-muted-foreground mb-0.5">{label}</Text>
-      <Text className={`text-base font-bold ${colorClass}`}>{value}</Text>
+    <View
+      className="flex-1 rounded-xl p-3 border-l-2"
+      style={{ backgroundColor: '#00000033', borderLeftColor: accent }}
+    >
+      <Text className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+        {label}
+      </Text>
+      <Text className="text-base font-bold" style={{ color: valueColor }}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -65,6 +61,7 @@ export function FinancialClassBadge({
   totalLiabilities,
   passiveIncome,
   netWorth,
+  totalExpenses,
 }: FinancialClassBadgeProps) {
   const config = CLASS_CONFIG[financialClass] ?? CLASS_CONFIG.poor;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -78,43 +75,88 @@ export function FinancialClassBadge({
     );
     pulse.start();
     return () => pulse.stop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Progress toward "rich": passive income / total expenses (capped at 100%)
+  const richProgress = totalExpenses > 0
+    ? Math.min(100, (passiveIncome / totalExpenses) * 100)
+    : 0;
+
   return (
-    <View className={`bg-gradient-to-br ${config.bgGlow} border-2 ${config.borderColor} rounded-2xl p-5`}>
-      <View className="flex-row items-center gap-3 mb-3">
+    <View
+      className="rounded-2xl p-5 border-2 overflow-hidden"
+      style={{
+        backgroundColor: config.color + '12',
+        borderColor: config.color + '50',
+      }}
+    >
+      {/* Top: emoji + label */}
+      <View className="flex-row items-center gap-3 mb-4">
         <Animated.View
           className="w-14 h-14 rounded-2xl items-center justify-center"
           style={{
             backgroundColor: config.color + '25',
             transform: [{ scale: scaleAnim }],
             shadowColor: config.color,
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
+            shadowOpacity: 0.4,
+            shadowRadius: 10,
             shadowOffset: { width: 0, height: 0 },
           }}
         >
-          <Text className="text-4xl">{config.emoji}</Text>
+          <Text className="text-3xl">{config.emoji}</Text>
         </Animated.View>
         <View className="flex-1">
           <Text className="text-lg font-bold" style={{ color: config.color }}>
             {config.label}
           </Text>
-          <Text className="text-xs font-mono text-muted-foreground">{config.flow}</Text>
+          <View
+            className="self-start mt-0.5 px-2 py-0.5 rounded-md"
+            style={{ backgroundColor: config.color + '20' }}
+          >
+            <Text className="text-[10px] font-mono" style={{ color: config.color }}>
+              {config.flow}
+            </Text>
+          </View>
         </View>
       </View>
-      <Text className="text-sm text-muted-foreground mb-4">{config.desc}</Text>
-      <View className="flex-row gap-2">
-        <StatCard label="Assets" value={`RM ${totalAssets.toLocaleString()}`} colorClass="text-primary" borderColor={config.color} />
-        <StatCard label="Liabilities" value={`RM ${totalLiabilities.toLocaleString()}`} colorClass="text-red-400" borderColor={config.color} />
+
+      {/* Description */}
+      <Text className="text-sm text-muted-foreground mb-4 leading-5">{config.desc}</Text>
+
+      {/* Progress to financial freedom */}
+      <View className="mb-4">
+        <View className="flex-row justify-between mb-1.5">
+          <Text className="text-[11px] font-semibold text-muted-foreground">
+            Progress to financial freedom
+          </Text>
+          <Text className="text-[11px] font-bold" style={{ color: config.color }}>
+            {richProgress.toFixed(0)}%
+          </Text>
+        </View>
+        <View className="h-1.5 rounded-full bg-black/40 overflow-hidden">
+          <View
+            className="h-full rounded-full"
+            style={{ width: `${richProgress}%`, backgroundColor: config.color }}
+          />
+        </View>
+        <Text className="text-[10px] text-muted-foreground mt-1">
+          Passive income covers {richProgress.toFixed(0)}% of expenses
+        </Text>
       </View>
-      <View className="flex-row gap-2 mt-2">
-        <StatCard label="Passive Income" value={`RM ${passiveIncome.toFixed(0)}/mo`} colorClass="text-primary" borderColor={config.color} />
-        <StatCard
+
+      {/* Stat grid 2x2 */}
+      <View className="flex-row gap-2 mb-2">
+        <Stat label="Assets" value={`RM ${totalAssets.toLocaleString()}`} valueColor="#C5FF00" accent={config.color} />
+        <Stat label="Liabilities" value={`RM ${totalLiabilities.toLocaleString()}`} valueColor="#ff6b6b" accent={config.color} />
+      </View>
+      <View className="flex-row gap-2">
+        <Stat label="Passive/mo" value={`RM ${passiveIncome.toFixed(0)}`} valueColor="#C5FF00" accent={config.color} />
+        <Stat
           label="Net Worth"
           value={`RM ${netWorth.toLocaleString()}`}
-          colorClass={netWorth >= 0 ? 'text-primary' : 'text-red-400'}
-          borderColor={config.color}
+          valueColor={netWorth >= 0 ? '#C5FF00' : '#ff6b6b'}
+          accent={config.color}
         />
       </View>
     </View>

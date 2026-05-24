@@ -1,7 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { Result } from '../utils/result';
-import { fromSupabaseError } from '../utils/result';
-import type { SupabaseError } from '../utils/result';
+import { fromSupabaseError, type Result, type SupabaseError } from '../utils/result';
 import type { LearnProject, LearnEntry, LearnEntryImage } from '../types';
 
 export const learnRepository = {

@@ -195,6 +195,7 @@ function TabBarVisibilityWrapper({ children }: { children: React.ReactNode }) {
     } else {
       showTabBar(pathname);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   return <>{children}</>;

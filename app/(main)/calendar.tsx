@@ -6,11 +6,6 @@ import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Card } from '../../components/ui/Card';
 import { TransactionDetail, TransactionData } from '../../components/home/TransactionDetail';
 
-interface CalendarDay {
-  day: number;
-  hasTransaction: boolean;
-  types?: ('income' | 'expense' | 'transfer')[];
-}
 
 const currentMonth = 'May 2025';
 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

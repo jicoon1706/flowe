@@ -10,6 +10,8 @@ import { IncomeStatementCard } from '../../../components/cashflow/IncomeStatemen
 import { BalanceSheetCard } from '../../../components/cashflow/BalanceSheetCard';
 import { MonthlyTrendChart } from '../../../components/cashflow/MonthlyTrendChart';
 import { ManageAssetsLiabilitiesCard } from '../../../components/cashflow/ManageAssetsLiabilitiesCard';
+import { AddAssetModal, NewAsset } from '../../../components/cashflow/AddAssetModal';
+import { AddLiabilityModal, NewLiability } from '../../../components/cashflow/AddLiabilityModal';
 
 // ─── Mock data (to be replaced by Supabase hookup) ───────────────────────────
 const MONTHS = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026'];
@@ -64,6 +66,40 @@ export default function CashFlowScreen() {
   const [liabilities, setLiabilities] = useState<Liability[]>(INITIAL_LIABILITIES);
   const [balanceSheetTab, setBalanceSheetTab] = useState<'assets' | 'liabilities'>('assets');
   const [manageTab, setManageTab] = useState<'assets' | 'liabilities'>('assets');
+  const [showAddAsset, setShowAddAsset] = useState(false);
+  const [showAddLiability, setShowAddLiability] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [editingLiability, setEditingLiability] = useState<Liability | null>(null);
+
+  const handleAddAsset = (a: NewAsset) => {
+    if (editingAsset) {
+      setAssets((prev) => prev.map((x) => (x.id === editingAsset.id ? { ...x, ...a } : x)));
+    } else {
+      setAssets((prev) => [...prev, { id: `a${Date.now()}`, ...a }]);
+    }
+    setEditingAsset(null);
+    setShowAddAsset(false);
+  };
+
+  const handleAddLiability = (l: NewLiability) => {
+    if (editingLiability) {
+      setLiabilities((prev) => prev.map((x) => (x.id === editingLiability.id ? { ...x, ...l } : x)));
+    } else {
+      setLiabilities((prev) => [...prev, { id: `l${Date.now()}`, ...l }]);
+    }
+    setEditingLiability(null);
+    setShowAddLiability(false);
+  };
+
+  const handleEdit = (item: Asset | Liability) => {
+    if (manageTab === 'assets') {
+      setEditingAsset(item as Asset);
+      setShowAddAsset(true);
+    } else {
+      setEditingLiability(item as Liability);
+      setShowAddLiability(true);
+    }
+  };
 
   // ─── Computed ────────────────────────────────────────────────────────────────
   const totalIncome = INCOME_ITEMS.reduce((s, i) => s + i.amount, 0);
@@ -153,8 +189,8 @@ export default function CashFlowScreen() {
             liabilities={liabilities}
             activeTab={balanceSheetTab}
             onTabChange={setBalanceSheetTab}
-            onAddAsset={() => {}}
-            onAddLiability={() => {}}
+            onAddAsset={() => setShowAddAsset(true)}
+            onAddLiability={() => setShowAddLiability(true)}
             totalAssets={totalAssets}
             totalLiabilities={totalLiabilities}
             netWorth={netWorth}
@@ -167,21 +203,34 @@ export default function CashFlowScreen() {
         </View>
 
         {/* Manage Assets & Liabilities */}
-        <View className="px-4 mb-8">
+        <View className="px-4 mb-32">
           <ManageAssetsLiabilitiesCard
             assets={assets}
             liabilities={liabilities}
             activeTab={manageTab}
             onTabChange={setManageTab}
-            onEdit={() => {}}
+            onEdit={handleEdit}
             onDelete={(id) => {
               setAssets((prev) => prev.filter((a) => a.id !== id));
               setLiabilities((prev) => prev.filter((l) => l.id !== id));
             }}
-            onAdd={() => {}}
+            onAdd={() => (manageTab === 'assets' ? setShowAddAsset(true) : setShowAddLiability(true))}
           />
         </View>
       </ScrollView>
+
+      <AddAssetModal
+        visible={showAddAsset}
+        onClose={() => { setShowAddAsset(false); setEditingAsset(null); }}
+        onSubmit={handleAddAsset}
+        initial={editingAsset}
+      />
+      <AddLiabilityModal
+        visible={showAddLiability}
+        onClose={() => { setShowAddLiability(false); setEditingLiability(null); }}
+        onSubmit={handleAddLiability}
+        initial={editingLiability}
+      />
     </SafeAreaView>
   );
 }

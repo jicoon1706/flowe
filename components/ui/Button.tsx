@@ -1,4 +1,4 @@
-import { Pressable, Text, View, ActivityIndicator } from 'react-native';
+import { Pressable, Text, ActivityIndicator } from 'react-native';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 type ButtonSize = 'sm' | 'md' | 'lg';

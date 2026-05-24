@@ -1,4 +1,5 @@
 import { View, Text } from 'react-native';
+import { ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown, Sparkles } from 'lucide-react-native';
 
 interface IncomeItem { label: string; amount: number; }
 interface ExpenseItem { label: string; amount: number; }
@@ -12,6 +13,55 @@ interface IncomeStatementCardProps {
   netCashFlow: number;
 }
 
+const INCOME_COLOR = '#C5FF00';
+const EXPENSE_COLOR = '#ff6b6b';
+
+function Row({ label, amount, color, total, isPassive }: {
+  label: string; amount: number; color: string; total: number; isPassive?: boolean;
+}) {
+  const pct = total > 0 ? Math.min(100, (amount / total) * 100) : 0;
+  return (
+    <View className="mb-2.5">
+      <View className="flex-row justify-between items-center mb-1">
+        <View className="flex-row items-center gap-1.5">
+          {isPassive && <Sparkles size={12} color={color} />}
+          <Text className="text-sm text-foreground">{label}</Text>
+        </View>
+        <Text className="text-sm font-semibold text-foreground">
+          RM {amount.toLocaleString()}
+        </Text>
+      </View>
+      <View className="h-1 rounded-full bg-black/30 overflow-hidden">
+        <View
+          style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.6 }}
+          className="h-full rounded-full"
+        />
+      </View>
+    </View>
+  );
+}
+
+function SectionHeader({ icon, label, total, color }: {
+  icon: React.ReactNode; label: string; total: number; color: string;
+}) {
+  return (
+    <View className="flex-row items-center justify-between mb-3">
+      <View className="flex-row items-center gap-2">
+        <View
+          className="w-7 h-7 rounded-lg items-center justify-center"
+          style={{ backgroundColor: color + '25' }}
+        >
+          {icon}
+        </View>
+        <Text className="text-sm font-semibold text-foreground">{label}</Text>
+      </View>
+      <Text className="text-base font-bold" style={{ color }}>
+        RM {total.toLocaleString()}
+      </Text>
+    </View>
+  );
+}
+
 export function IncomeStatementCard({
   incomeItems,
   expenseItems,
@@ -20,63 +70,86 @@ export function IncomeStatementCard({
   totalExpenses,
   netCashFlow,
 }: IncomeStatementCardProps) {
+  const isPositive = netCashFlow >= 0;
+  const netColor = isPositive ? INCOME_COLOR : EXPENSE_COLOR;
+
   return (
-    <View>
-      <View className="bg-muted/40 px-5 py-3 border-b border-border rounded-t-2xl">
-        <Text className="font-bold tracking-wide text-sm">INCOME STATEMENT</Text>
+    <View className="bg-card border border-border rounded-2xl overflow-hidden">
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
+        <Text className="font-bold tracking-wider text-xs text-muted-foreground">
+          INCOME STATEMENT
+        </Text>
+        <Text className="text-xs text-muted-foreground">Monthly</Text>
       </View>
-      <View className="bg-card border border-border rounded-b-2xl p-5 space-y-4">
-        {/* Income */}
-        <View>
-          <View className="flex-row items-center gap-1.5 mb-2">
-            <View className="w-2 h-2 rounded-full bg-green-400" />
-            <Text className="font-semibold text-sm text-muted-foreground">Income</Text>
-          </View>
-          <View className="space-y-2">
-            {incomeItems.map((item, i) => (
-              <View key={i} className="flex-row justify-between text-sm">
-                <Text className="text-muted-foreground">{item.label}</Text>
-                <Text className="text-muted-foreground">RM {item.amount.toLocaleString()}</Text>
-              </View>
-            ))}
-            {passiveFromAssets > 0 && (
-              <View className="flex-row justify-between text-sm">
-                <Text className="text-muted-foreground">📈 Passive (Assets)</Text>
-                <Text className="text-muted-foreground">RM {passiveFromAssets.toLocaleString()}</Text>
-              </View>
-            )}
-            <View className="border-t border-border pt-2 flex-row justify-between font-bold text-sm">
-              <Text className="text-foreground">Total Income</Text>
-              <Text className="text-green-400">RM {totalIncome.toLocaleString()}</Text>
+
+      {/* Income section */}
+      <View className="px-5 pb-4">
+        <SectionHeader
+          icon={<ArrowDownLeft size={14} color={INCOME_COLOR} />}
+          label="Income"
+          total={totalIncome}
+          color={INCOME_COLOR}
+        />
+        {incomeItems.map((item, i) => (
+          <Row key={`inc-${i}`} label={item.label} amount={item.amount} color={INCOME_COLOR} total={totalIncome} />
+        ))}
+        {passiveFromAssets > 0 && (
+          <Row
+            label="Passive from Assets"
+            amount={passiveFromAssets}
+            color={INCOME_COLOR}
+            total={totalIncome}
+            isPassive
+          />
+        )}
+      </View>
+
+      {/* Divider */}
+      <View className="h-px bg-border mx-5" />
+
+      {/* Expenses section */}
+      <View className="px-5 py-4">
+        <SectionHeader
+          icon={<ArrowUpRight size={14} color={EXPENSE_COLOR} />}
+          label="Expenses"
+          total={totalExpenses}
+          color={EXPENSE_COLOR}
+        />
+        {expenseItems.map((item, i) => (
+          <Row key={`exp-${i}`} label={item.label} amount={item.amount} color={EXPENSE_COLOR} total={totalExpenses} />
+        ))}
+      </View>
+
+      {/* Net Cash Flow hero footer */}
+      <View
+        className="px-5 py-4 border-t"
+        style={{
+          backgroundColor: netColor + '12',
+          borderTopColor: netColor + '30',
+        }}
+      >
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center gap-2">
+            <View
+              className="w-8 h-8 rounded-xl items-center justify-center"
+              style={{ backgroundColor: netColor + '25' }}
+            >
+              {isPositive ? (
+                <TrendingUp size={16} color={netColor} />
+              ) : (
+                <TrendingDown size={16} color={netColor} />
+              )}
+            </View>
+            <View>
+              <Text className="text-sm font-semibold text-foreground">Net Cash Flow</Text>
+              <Text className="text-[10px] text-muted-foreground">
+                {isPositive ? 'Surplus this month' : 'Deficit this month'}
+              </Text>
             </View>
           </View>
-        </View>
-
-        {/* Expenses */}
-        <View>
-          <View className="flex-row items-center gap-1.5 mb-2">
-            <View className="w-2 h-2 rounded-full bg-red-400" />
-            <Text className="font-semibold text-sm text-muted-foreground">Expenses</Text>
-          </View>
-          <View className="space-y-2">
-            {expenseItems.map((item, i) => (
-              <View key={i} className="flex-row justify-between text-sm">
-                <Text className="text-muted-foreground">{item.label}</Text>
-                <Text className="text-muted-foreground">RM {item.amount.toLocaleString()}</Text>
-              </View>
-            ))}
-            <View className="border-t border-border pt-2 flex-row justify-between font-bold text-sm">
-              <Text className="text-foreground">Total Expenses</Text>
-              <Text className="text-red-400">RM {totalExpenses.toLocaleString()}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Net Cash Flow */}
-        <View className="border-t-2 border-border pt-3 flex-row justify-between items-center">
-          <Text className="font-bold">Net Cash Flow</Text>
-          <Text className={`text-xl font-bold ${netCashFlow >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            RM {netCashFlow.toLocaleString()} {netCashFlow >= 0 ? '✅' : '⚠️'}
+          <Text className="text-2xl font-bold" style={{ color: netColor }}>
+            {isPositive ? '+' : ''}RM {netCashFlow.toLocaleString()}
           </Text>
         </View>
       </View>

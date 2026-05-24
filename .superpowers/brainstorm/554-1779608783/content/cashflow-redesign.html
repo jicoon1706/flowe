@@ -1,0 +1,57 @@
+<div style="padding: 20px; background: #1a1a1a; min-height: 100vh; color: #fff; font-family: system-ui, sans-serif;">
+  <h2 style="color: #C5FF00; margin-bottom: 8px;">Cash Flow Screen — Prototype vs Current</h2>
+  <p class="subtitle" style="color: #a0a0a0; margin-bottom: 24px;">Comparing the prototype design (left) with the current implementation (right)</p>
+
+  <div class="split" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+    <div style="background: #2a2a2a; border-radius: 16px; padding: 16px;">
+      <div style="text-transform: uppercase; font-size: 11px; color: #a0a0a0; letter-spacing: 1px; margin-bottom: 12px;">Prototype Design</div>
+      <img src="file:///c:/Users/jicoo/flowe-akmal/prototype/Mobile app design/images/20_cashflow.png" style="width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);" />
+    </div>
+    <div style="background: #2a2a2a; border-radius: 16px; padding: 16px;">
+      <div style="text-transform: uppercase; font-size: 11px; color: #a0a0a0; letter-spacing: 1px; margin-bottom: 12px;">Current Implementation</div>
+      <div style="background: #1a1a1a; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); padding: 20px; text-align: center; color: #a0a0a0;">
+        <p>Current cashflow.tsx not found at expected path</p>
+        <p style="font-size: 12px; margin-top: 8px;">Need to locate the current file</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="margin-bottom: 24px;">
+    <h3 style="color: #fff; margin-bottom: 12px;">Key Layout Elements in Prototype</h3>
+    <ul style="color: #a0a0a0; line-height: 1.8; padding-left: 20px;">
+      <li><span style="color: #C5FF00;">Month Navigator</span> — Centered "May 2026" with left/right chevrons</li>
+      <li><span style="color: #C5FF00;">Financial Class Badge</span> — Emoji card with diamond icon + "Rich Pattern" label</li>
+      <li><span style="color: #C5FF00;">4-Stat Grid</span> — 2×2: Assets | Liabilities | Passive Income | Net Worth</li>
+      <li><span style="color: #C5FF00;">Cash Flow Diagram</span> — Visual flow diagram (Assets → Income → Expenses)</li>
+      <li><span style="color: #C5FF00;">Income Statement</span> — Itemized income + expenses with totals</li>
+      <li><span style="color: #C5FF00;">Balance Sheet</span> — Tabbed Assets/Liabilities with lists + add button</li>
+      <li><span style="color: #C5FF00;">Monthly Trend Chart</span> — 6-month paired bar chart (assets vs liabilities)</li>
+      <li><span style="color: #C5FF00;">Manage Cards</span> — Edit/delete + add per item (tabbed interface)</li>
+    </ul>
+  </div>
+
+  <div class="options" style="margin-top: 24px;">
+    <p style="color: #a0a0a0; margin-bottom: 16px;">Which aspect should we prioritize in the redesign?</p>
+    <div class="option" data-choice="layout" onclick="toggleSelect(this)" style="background: #2a2a2a; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; border: 2px solid transparent;">
+      <div class="letter" style="color: #C5FF00; font-weight: bold;">A</div>
+      <div class="content">
+        <h3 style="color: #fff;">Full Layout Redesign</h3>
+        <p style="color: #a0a0a0;">Redesign everything to match the prototype exactly — new component architecture</p>
+      </div>
+    </div>
+    <div class="option" data-choice="incremental" onclick="toggleSelect(this)" style="background: #2a2a2a; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; border: 2px solid transparent;">
+      <div class="letter" style="color: #C5FF00; font-weight: bold;">B</div>
+      <div class="content">
+        <h3 style="color: #fff;">Incremental Improvements</h3>
+        <p style="color: #a0a0a0;">Keep current structure but improve the visual styling to match the prototype feel</p>
+      </div>
+    </div>
+    <div class="option" data-choice="components" onclick="toggleSelect(this)" style="background: #2a2a2a; border-radius: 12px; padding: 16px; cursor: pointer; border: 2px solid transparent;">
+      <div class="letter" style="color: #C5FF00; font-weight: bold;">C</div>
+      <div class="content">
+        <h3 style="color: #fff;">Component-Based Refactor</h3>
+        <p style="color: #a0a0a0;">Break into reusable components (FinancialClassBadge, CashFlowDiagram, etc.) with mock data first</p>
+      </div>
+    </div>
+  </div>
+</div>

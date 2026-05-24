@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { ChevronLeft, Check, Calendar as CalendarIcon, ChevronDown } from '../../../../components/ui/icons';
+import { ChevronLeft, Check } from '../../../../components/ui/icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const ICONS = ['🐷', '💰', '🏠', '🎁', '🚗', '🚀', '🌴', '🏢', '🚂', '🎯', '💎', '⭐'];

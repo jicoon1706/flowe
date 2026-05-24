@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Animated } from 'react-native';
+import Svg, { Rect, Line, Path, Circle, Text as SvgText, Defs, Marker, Polygon } from 'react-native-svg';
 import { Info, X } from 'lucide-react-native';
 
 type FinancialClass = 'poor' | 'middle' | 'rich';
@@ -13,105 +14,133 @@ interface CashFlowDiagramProps {
   totalLiabilities: number;
 }
 
-interface AnimatedFlowDotProps {
-  keyframes: { x: number; y: number; duration: number }[];
-  color: string;
-}
+// ─── Diagram geometry (viewBox 340 x 370) ───────────────────────────────────
+const VB_W = 340;
+const VB_H = 370;
 
-function AnimatedFlowDot({ keyframes, color }: AnimatedFlowDotProps) {
-  const translateX = useRef(new Animated.Value(keyframes[0].x)).current;
-  const translateY = useRef(new Animated.Value(keyframes[0].y)).current;
-  const loopRef = useRef<ReturnType<typeof Animated.loop> | null>(null);
+// Income Statement box
+const IS_X = 70;
+const IS_Y = 30;
+const IS_W = 200;
+const IS_H = 130;
+const IS_SPLIT_Y = IS_Y + 50; // divider between Income (top, 30–80) and Expenses (80–160)
+
+// Balance Sheet box
+const BS_X = 70;
+const BS_Y = 200;
+const BS_W = 200;
+const BS_H = 130;
+const BS_SPLIT_X = BS_X + BS_W / 2; // 170 — divider Assets/Liabilities
+
+// Anchor dots — placed on the RIGHT side of each section, away from left-aligned text
+const JOB = { x: 30, y: IS_Y + 30 };          // (30, 60)
+const SALARY = { x: 245, y: 55 };             // right side of Income section
+const EXPENSES_DOT = { x: 245, y: 105 };      // right side of Expenses section
+const ASSETS_DOT = { x: 130, y: 220 };        // top-left of Assets section
+const LIAB_DOT = { x: 245, y: 220 };          // top-right of Liabilities section
+const EXIT = { x: 320, y: 105 };              // arrow exits right of Expenses
+
+// ─── Animated dot that walks an SVG path ───────────────────────────────────
+interface AnimatedDotProps {
+  pathRef: React.RefObject<any>;
+  color: string;
+  duration: number;
+  totalLength: number;
+}
+function AnimatedDot({ pathRef, color, duration, totalLength }: AnimatedDotProps) {
+  const [pt, setPt] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Create sequence of all segments chained together
-    const segmentAnims = keyframes.map((kf, i) => {
-      const next = keyframes[(i + 1) % keyframes.length];
-      return Animated.parallel([
-        Animated.timing(translateX, {
-          toValue: next.x,
-          duration: kf.duration,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: next.y,
-          duration: kf.duration,
-          useNativeDriver: true,
-        }),
-      ]);
+    const loop = Animated.loop(
+      Animated.timing(progress, {
+        toValue: 1,
+        duration,
+        useNativeDriver: false,
+      })
+    );
+    const id = progress.addListener(({ value }) => {
+      const node = pathRef.current;
+      if (node && typeof node.getPointAtLength === 'function') {
+        try {
+          const p = node.getPointAtLength(value * totalLength);
+          setPt({ x: p.x, y: p.y });
+        } catch {}
+      }
     });
+    loop.start();
+    return () => {
+      loop.stop();
+      progress.removeListener(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duration, totalLength]);
 
-    loopRef.current = Animated.loop(Animated.sequence(segmentAnims));
-    loopRef.current.start();
-    return () => { if (loopRef.current) loopRef.current.stop(); };
-  }, []);
-
-  return (
-    <Animated.View
-      style={{
-        position: 'absolute',
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: color,
-        transform: [{ translateX }, { translateY }],
-      }}
-    />
-  );
+  return <Circle cx={pt.x} cy={pt.y} r={4} fill={color} />;
 }
 
+// ─── Pattern config ────────────────────────────────────────────────────────
 const PATTERN_CONFIG = {
   poor: {
     color: '#ff6b6b',
     borderColor: 'border-red-500/30',
-    bgGlow: 'from-red-500/8 to-transparent',
     tagColor: 'bg-red-500/15 text-red-400 border-red-500/30',
     label: 'Poor Pattern',
     desc: 'Income flows directly into expenses. No assets working for you. The money is gone before it can grow.',
     tip: 'Start by saving 10% of every paycheck and open your first investment account.',
-    keyframes: [
-      { x: 10, y: 200, duration: 400 },
-      { x: 80, y: 200, duration: 300 },
-      { x: 80, y: 280, duration: 300 },
-      { x: 200, y: 280, duration: 300 },
-    ] as { x: number; y: number; duration: number }[],
   },
   middle: {
     color: '#ffd93d',
     borderColor: 'border-yellow-500/30',
-    bgGlow: 'from-yellow-500/8 to-transparent',
     tagColor: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
     label: 'Middle Class Pattern',
     desc: 'Income covers expenses AND liability payments. Debt creates a treadmill that keeps draining your cash flow.',
     tip: 'For every new loan ask: does this generate income? Build assets before upgrading lifestyle.',
-    keyframes: [
-      { x: 10, y: 200, duration: 400 },
-      { x: 140, y: 200, duration: 300 },
-      { x: 140, y: 300, duration: 300 },
-      { x: 260, y: 300, duration: 400 },
-      { x: 140, y: 300, duration: 500 },
-      { x: 140, y: 200, duration: 400 },
-    ] as { x: number; y: number; duration: number }[],
   },
   rich: {
     color: '#C5FF00',
     borderColor: 'border-primary/30',
-    bgGlow: 'from-primary/8 to-transparent',
     tagColor: 'bg-primary/15 text-primary border-primary/30',
     label: 'Rich Pattern',
-    desc: 'Assets generate passive income that covers expenses. Surplus is reinvested into more assets — the cycle compounds.',
+    desc: 'Assets generate passive income that covers expenses. Surplus reinvests into more assets — the cycle compounds.',
     tip: 'Keep growing your asset column. Reinvest every surplus ringgit.',
-    keyframes: [
-      { x: 10, y: 200, duration: 400 },
-      { x: 130, y: 200, duration: 300 },
-      { x: 130, y: 280, duration: 300 },
-      { x: 250, y: 280, duration: 400 },
-      { x: 130, y: 280, duration: 400 },
-      { x: 130, y: 200, duration: 300 },
-      { x: 10, y: 200, duration: 400 },
-    ] as { x: number; y: number; duration: number }[],
   },
 } as const;
+
+// Flow paths per pattern. All routed along the RIGHT side so they don't cross text.
+function getFlowPath(cls: FinancialClass): { d: string; length: number } {
+  if (cls === 'poor') {
+    // Job → Salary → straight down through Expenses → exit right
+    const d =
+      `M ${JOB.x + 14} ${JOB.y}` +
+      ` C 80 25, 180 20, ${SALARY.x} ${SALARY.y}` +
+      ` L ${EXPENSES_DOT.x} ${EXPENSES_DOT.y}` +
+      ` L ${EXIT.x} ${EXIT.y}`;
+    return { d, length: 380 };
+  }
+
+  if (cls === 'middle') {
+    // Job → Salary → big loop down/right around Income Statement → up into Liabilities
+    //      → curve up from Liabilities to Expenses → exit right
+    const d =
+      `M ${JOB.x + 14} ${JOB.y}` +
+      ` C 80 25, 180 20, ${SALARY.x} ${SALARY.y}` +
+      ` C 295 90, 310 140, 300 180` +
+      ` C 295 225, 275 245, ${LIAB_DOT.x} ${LIAB_DOT.y}` +
+      ` C 215 195, 215 135, ${EXPENSES_DOT.x} ${EXPENSES_DOT.y}` +
+      ` L ${EXIT.x} ${EXIT.y}`;
+    return { d, length: 760 };
+  }
+
+  // rich: Assets → Income (Salary/Passive) → Expenses → arc back to Assets (closed loop)
+  const d =
+    `M ${ASSETS_DOT.x} ${ASSETS_DOT.y}` +
+    ` C 95 150, 120 70, ${SALARY.x} ${SALARY.y}` +
+    ` C 260 75, 250 95, ${EXPENSES_DOT.x} ${EXPENSES_DOT.y}` +
+    ` C 295 130, 305 230, 200 245` +
+    ` C 170 248, 145 235, ${ASSETS_DOT.x} ${ASSETS_DOT.y}`;
+  return { d, length: 740 };
+}
 
 export function CashFlowDiagram({
   financialClass,
@@ -123,6 +152,8 @@ export function CashFlowDiagram({
 }: CashFlowDiagramProps) {
   const [showInfo, setShowInfo] = useState(false);
   const config = PATTERN_CONFIG[financialClass] ?? PATTERN_CONFIG.poor;
+  const flow = getFlowPath(financialClass);
+  const pathRef = useRef<any>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -134,12 +165,17 @@ export function CashFlowDiagram({
     );
     p.start();
     return () => p.stop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const stroke = config.color;
+  const strokeFaint = config.color + '55';
+  const fillFaint = config.color + '10';
 
   return (
     <View className={`bg-card rounded-2xl border-2 ${config.borderColor} overflow-hidden`}>
       {/* Header */}
-      <View className={`bg-gradient-to-br ${config.bgGlow} px-5 py-4 border-b ${config.borderColor}`}>
+      <View className="px-5 py-4 border-b" style={{ borderColor: config.color + '30' }}>
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center gap-2.5">
             <Animated.View
@@ -172,82 +208,111 @@ export function CashFlowDiagram({
           <Text className="text-sm text-muted-foreground leading-relaxed mb-2">{config.desc}</Text>
           <View className="flex-row items-start gap-2 rounded-xl p-3 border" style={{ borderColor: config.color + '40', backgroundColor: config.color + '10' }}>
             <Text className="text-base">💡</Text>
-            <Text className="text-xs" style={{ color: config.color }}>{config.tip}</Text>
+            <Text className="text-xs flex-1" style={{ color: config.color }}>{config.tip}</Text>
           </View>
         </View>
       )}
 
-      {/* Diagram area */}
-      <View className="px-4 pt-3 pb-4">
-        {/* Visual flow diagram using positioned Views */}
-        <View className="relative" style={{ height: 340 }}>
-          {/* Job bubble */}
-          <View className="absolute left-0 top-[190px] flex-col items-center">
-            <View className="w-12 h-12 rounded-full border-2 items-center justify-center" style={{ borderColor: config.color }}>
-              <Text className="text-xs font-bold" style={{ color: config.color }}>Job</Text>
-            </View>
-          </View>
+      {/* Diagram */}
+      <View className="px-3 pt-3 pb-4">
+        <Svg viewBox={`0 0 ${VB_W} ${VB_H}`} width="100%" height={340}>
+          <Defs>
+            <Marker
+              id="arrowhead"
+              markerWidth={8}
+              markerHeight={8}
+              refX={7}
+              refY={4}
+              orient="auto"
+            >
+              <Polygon points="0,0 8,4 0,8" fill={stroke} />
+            </Marker>
+          </Defs>
 
-          {/* Income box */}
-          <View className="absolute left-[60px] top-[160px]">
-            <View className="rounded-xl border px-4 py-3" style={{ borderColor: config.color + '50', backgroundColor: config.color + '15' }}>
-              <Text className="text-xs text-foreground font-semibold">Income</Text>
-              <Text className="text-sm font-bold" style={{ color: config.color }}>RM {totalIncome.toLocaleString()}</Text>
-            </View>
-          </View>
+          {/* ── INCOME STATEMENT ─────────────────────────── */}
+          <SvgText x={IS_X + IS_W / 2} y={IS_Y - 8} fill="#e5e5e5" fontSize={10} fontWeight="700" textAnchor="middle">
+            INCOME STATEMENT
+          </SvgText>
+          <Rect x={IS_X} y={IS_Y} width={IS_W} height={IS_H} fill={fillFaint} stroke={strokeFaint} strokeWidth={1.5} rx={6} />
+          <Line x1={IS_X} y1={IS_SPLIT_Y} x2={IS_X + IS_W} y2={IS_SPLIT_Y} stroke={strokeFaint} strokeWidth={1} />
 
-          {/* Expenses box */}
-          <View className="absolute left-[60px] top-[260px]">
-            <View className="rounded-xl border px-4 py-3" style={{ borderColor: config.color + '50', backgroundColor: config.color + '15' }}>
-              <Text className="text-xs text-foreground font-semibold">Expenses</Text>
-              <Text className="text-sm font-bold" style={{ color: config.color }}>RM {totalExpenses.toLocaleString()}</Text>
-            </View>
-          </View>
+          {/* Income section (left-aligned text, anchor on right) */}
+          <SvgText x={IS_X + 10} y={IS_Y + 18} fill="#e5e5e5" fontSize={11} fontWeight="700">Income</SvgText>
+          <SvgText x={IS_X + 10} y={IS_Y + 33} fill="#bdbdbd" fontSize={9}>Salary, Freelance</SvgText>
 
-          {/* Assets box (rich only) */}
+          {/* Expenses section */}
+          <SvgText x={IS_X + 10} y={IS_SPLIT_Y + 16} fill="#e5e5e5" fontSize={11} fontWeight="700">Expenses</SvgText>
+          <SvgText x={IS_X + 10} y={IS_SPLIT_Y + 30} fill="#bdbdbd" fontSize={9}>Bills · Food · Transport</SvgText>
+          {financialClass !== 'rich' && (
+            <SvgText x={IS_X + 10} y={IS_SPLIT_Y + 43} fill="#bdbdbd" fontSize={9}>Mortgage · Car · Loans</SvgText>
+          )}
+
+          {/* ── BALANCE SHEET ───────────────────────────── */}
+          <SvgText x={BS_X + BS_W / 2} y={BS_Y - 8} fill="#e5e5e5" fontSize={10} fontWeight="700" textAnchor="middle">
+            BALANCE SHEET
+          </SvgText>
+          <Rect x={BS_X} y={BS_Y} width={BS_W} height={BS_H} fill={fillFaint} stroke={strokeFaint} strokeWidth={1.5} rx={6} />
+          <Line x1={BS_SPLIT_X} y1={BS_Y} x2={BS_SPLIT_X} y2={BS_Y + BS_H} stroke={strokeFaint} strokeWidth={1} />
+
+          {/* Assets */}
+          <SvgText x={BS_X + 10} y={BS_Y + 18} fill="#e5e5e5" fontSize={11} fontWeight="700">Assets</SvgText>
           {financialClass === 'rich' && (
-            <View className="absolute left-[0px] top-[160px]">
-              <View className="rounded-xl border px-3 py-2" style={{ borderColor: config.color + '50', backgroundColor: config.color + '15' }}>
-                <Text className="text-xs text-foreground font-semibold">Assets</Text>
-                <Text className="text-xs font-bold" style={{ color: config.color }}>RM {totalAssets.toLocaleString()}</Text>
-              </View>
-            </View>
+            <>
+              <SvgText x={BS_X + 10} y={BS_Y + 60} fill="#bdbdbd" fontSize={9}>Real Estate</SvgText>
+              <SvgText x={BS_X + 10} y={BS_Y + 73} fill="#bdbdbd" fontSize={9}>Stocks · ASB · FD</SvgText>
+            </>
           )}
 
-          {/* Liabilities box (middle only) */}
+          {/* Liabilities */}
+          <SvgText x={BS_SPLIT_X + 10} y={BS_Y + 18} fill="#e5e5e5" fontSize={11} fontWeight="700">Liabilities</SvgText>
           {financialClass === 'middle' && (
-            <View className="absolute right-[20px] top-[260px]">
-              <View className="rounded-xl border px-3 py-2" style={{ borderColor: config.color + '50', backgroundColor: config.color + '15' }}>
-                <Text className="text-xs text-foreground font-semibold">Liabilities</Text>
-                <Text className="text-xs font-bold text-red-400">RM {totalLiabilities.toLocaleString()}</Text>
-              </View>
-            </View>
+            <>
+              <SvgText x={BS_SPLIT_X + 10} y={BS_Y + 60} fill="#bdbdbd" fontSize={9}>Mortgage</SvgText>
+              <SvgText x={BS_SPLIT_X + 10} y={BS_Y + 73} fill="#bdbdbd" fontSize={9}>Car Loans</SvgText>
+              <SvgText x={BS_SPLIT_X + 10} y={BS_Y + 86} fill="#bdbdbd" fontSize={9}>Credit Card</SvgText>
+              <SvgText x={BS_SPLIT_X + 10} y={BS_Y + 99} fill="#bdbdbd" fontSize={9}>Study Loans</SvgText>
+            </>
           )}
 
-          {/* Exit emoji (poor only) */}
-          {financialClass === 'poor' && (
-            <View className="absolute right-[20px] top-[260px]">
-              <Text className="text-xl">💸</Text>
-            </View>
+          {/* ── Job circle (poor/middle) ───────────────────────── */}
+          {financialClass !== 'rich' && (
+            <>
+              <Circle cx={JOB.x} cy={JOB.y} r={14} fill="none" stroke={stroke} strokeWidth={1.5} />
+              <SvgText x={JOB.x} y={JOB.y + 4} fill={stroke} fontSize={9} fontWeight="700" textAnchor="middle">
+                Job
+              </SvgText>
+            </>
           )}
 
-          {/* Reinvest emoji (rich only) */}
+          {/* ── Anchor dots (visible) ──────────────────────────── */}
+          <Circle cx={SALARY.x} cy={SALARY.y} r={3.5} fill={stroke} />
+          <SvgText x={SALARY.x - 6} y={SALARY.y + 3} fill={stroke} fontSize={8} fontWeight="700" textAnchor="end">
+            {financialClass === 'rich' ? 'Passive' : 'Salary'}
+          </SvgText>
+
+          <Circle cx={EXPENSES_DOT.x} cy={EXPENSES_DOT.y} r={3.5} fill={stroke} />
+
+          {financialClass === 'middle' && (
+            <Circle cx={LIAB_DOT.x} cy={LIAB_DOT.y} r={3.5} fill={stroke} />
+          )}
           {financialClass === 'rich' && (
-            <View className="absolute right-[20px] top-[160px]">
-              <Text className="text-xl">💎</Text>
-            </View>
+            <Circle cx={ASSETS_DOT.x} cy={ASSETS_DOT.y} r={3.5} fill={stroke} />
           )}
 
-          {/* Treadmill emoji (middle only) */}
-          {financialClass === 'middle' && (
-            <View className="absolute right-[20px] top-[260px]">
-              <Text className="text-xl">🔄</Text>
-            </View>
-          )}
+          {/* ── Flow path ──────────────────────────────────────── */}
+          <Path
+            ref={pathRef}
+            d={flow.d}
+            stroke={stroke}
+            strokeWidth={1.8}
+            fill="none"
+            strokeLinecap="round"
+            markerEnd={financialClass === 'rich' ? undefined : 'url(#arrowhead)'}
+          />
 
-          {/* Animated flow dot */}
-          <AnimatedFlowDot keyframes={config.keyframes} color={config.color} />
-        </View>
+          {/* Animated traveler dot */}
+          <AnimatedDot pathRef={pathRef} color={stroke} duration={4000} totalLength={flow.length} />
+        </Svg>
 
         {/* Flow summary strip */}
         <View
@@ -268,11 +333,12 @@ export function CashFlowDiagram({
           )}
           {financialClass === 'middle' && (
             <>
-              <Text className="text-xs font-mono" style={{ color: config.color }}>Income</Text>
+              <Text className="text-xs font-mono" style={{ color: config.color }}>Salary</Text>
               <Text className="text-xs opacity-60">→</Text>
-              <Text className="text-xs font-mono" style={{ color: config.color }}>Expenses + Debt</Text>
+              <Text className="text-xs font-mono" style={{ color: config.color }}>Liabilities</Text>
               <Text className="text-xs opacity-60">→</Text>
-              <Text className="text-xs">🔄 treadmill</Text>
+              <Text className="text-xs font-mono" style={{ color: config.color }}>Expenses</Text>
+              <Text className="text-xs">🔄</Text>
             </>
           )}
           {financialClass === 'rich' && (

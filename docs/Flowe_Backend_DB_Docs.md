@@ -151,7 +151,8 @@ PIN / Fingerprint (expo-secure-store + expo-local-authentication)
 create table public.profiles (
   id                uuid          primary key references auth.users(id) on delete cascade,
   display_name      varchar(30)   not null,
-  financial_identity text         check (financial_identity in ('rich_dad','middle_class','building_wealth')),
+  financial_identity text         check (financial_identity in ('employee','entrepreneur','investor','business_owner')),
+  -- Settings → Account exposes these as: Employee · Entrepreneur · Investor · Business Owner
   avatar_url        text,
   member_since      timestamptz   default now(),
   updated_at        timestamptz   default now()
@@ -183,7 +184,7 @@ create table public.auth_config (
   user_id             uuid          not null references public.profiles(id) on delete cascade,
   pin_hash            text          not null,       -- SHA-256 of 6-digit PIN
   fingerprint_enabled boolean       default false,
-  auto_lock_minutes   int           default 5,
+  auto_lock_minutes   int           default 5,       -- null = "Never" (Settings → Security)
   updated_at          timestamptz   default now(),
   unique (user_id)
 );
@@ -236,7 +237,10 @@ create table public.tabung_accounts (
   to_date         date          not null,
   linked_bank_id  uuid          references public.bank_accounts(id) on delete set null,
   description     text,
-  template_type   varchar(50),                      -- 'raya','emergency','holiday','gadget','down_payment','custom'
+  icon            varchar(10),                      -- emoji shown on tabung card (e.g. 🎉 🛡️ ✈️)
+  color           varchar(7),                       -- hex from tabung form palette (e.g. #6bcf7f)
+  template_type   varchar(50),                      -- 'tabung_raya','emergency','holiday','gadget','down_payment','custom'
+  auto_save       boolean       default false,      -- "Monthly automatic savings" toggle on /tabung/new/form
   unique (account_id)
 );
 ```
@@ -281,8 +285,10 @@ create table public.transactions (
 );
 ```
 
-**Expense categories:** `food_drink` · `transport` · `bills` · `shopping` · `health` · `entertainment` · `others`  
-**Income categories:** `salary` · `freelance` · `gift` · `investment_returns` · `business` · `rental` · `others`
+**Expense categories:** `food_drink` · `transport` · `bills` · `shopping` · `health` · `entertainment` · `others`
+**Income categories:** `salary` · `freelance` · `gift` · `allowance` · `investment` · `rental` · `others`
+
+> Category IDs above are the canonical values shown in `constants/categories.ts` and in the Analysis / Add-Transaction screens. Users may extend either list through the Settings → Manage Categories screen; those custom entries live in `custom_categories` and use the same `transaction_type` discriminator.
 
 > **Transaction Detail popup** (Home → Recent Transactions → tap row) requires a join:  
 > `transactions` + `accounts` (from & to) + `recurring_rules` (when `is_recurring = true`).  
@@ -295,6 +301,7 @@ create table public.transactions (
 ```sql
 create type recurring_frequency as enum ('monthly', 'weekly', 'yearly');
 create type recurring_status    as enum ('active', 'paused', 'ended');
+create type reminder_offset     as enum ('none', 'same_day', '1_day', '3_days', '1_week');
 
 create table public.recurring_rules (
   id              uuid                primary key default gen_random_uuid(),
@@ -308,7 +315,9 @@ create table public.recurring_rules (
   frequency       recurring_frequency not null,
   start_date      date                not null,
   end_date        date,                             -- null = indefinite
+  next_date       date,                             -- next scheduled occurrence, shown in Settings → Recurring list
   reminder_enabled boolean            default false,
+  reminder_offset  reminder_offset    default 'none', -- chosen on Add-Transaction recurring section
   status          recurring_status    default 'active',
   last_applied_at timestamptz,
   created_at      timestamptz         default now(),
@@ -443,6 +452,16 @@ create table public.affirmation_favourites (
   affirmation_id  uuid        not null references public.affirmations(id) on delete cascade,
   created_at      timestamptz default now(),
   unique (user_id, affirmation_id)
+);
+
+-- User-authored affirmations from Settings → Affirmations → "Affirmation Words"
+create table public.user_affirmations (
+  id          uuid                  primary key default gen_random_uuid(),
+  user_id     uuid                  not null references public.profiles(id) on delete cascade,
+  text        varchar(280)          not null,
+  category    affirmation_category  not null,    -- defaults to 'mindset' when "All" is selected
+  is_active   boolean               default true,
+  created_at  timestamptz           default now()
 );
 ```
 
@@ -891,6 +910,8 @@ export const transactionsRepository = {
 | `transaction_type` | `expense` · `income` · `transfer` · `tabung_topup` · `tabung_withdraw` |
 | `recurring_frequency` | `monthly` · `weekly` · `yearly` |
 | `recurring_status` | `active` · `paused` · `ended` |
+| `reminder_offset` | `none` · `same_day` · `1_day` · `3_days` · `1_week` |
+| `financial_identity` (check) | `employee` · `entrepreneur` · `investor` · `business_owner` |
 | `asset_type` | `real_estate` · `stocks` · `unit_trust` · `fixed_deposit` · `asb` · `gold` · `vehicle` · `business` · `others` |
 | `liability_type` | `mortgage` · `car_loan` · `credit_card` · `study_loan` · `medical_loan` · `business_loan` · `others` |
 | `notification_type` | `expense` · `income` · `transfer` · `recurring` · `alert` · `tabung` · `milestone` · `asset` · `cashflow` · `note` · `affirmation` · `project` |

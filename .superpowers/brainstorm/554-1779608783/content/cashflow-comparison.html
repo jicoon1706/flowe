@@ -1,0 +1,85 @@
+<h2>Cash Flow Screen — Prototype vs Current</h2>
+<p class="subtitle">Left: Prototype design (20_cashflow.png) | Right: Current implementation</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Prototype</div>
+    <div class="mockup-body">
+      <img src="../../prototype/Mobile app design/images/20_cashflow.png" style="width:100%;border-radius:12px;border:2px solid #333;" />
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">Current Implementation</div>
+    <div class="mockup-body" style="background:#1a1a1a;padding:16px;border-radius:12px;color:#fff;font-family:system-ui;">
+      <!-- Current cashflow layout structure -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="width:40px;"></div>
+          <div style="font-size:18px;font-weight:600;">May 2025</div>
+          <div style="width:40px;text-align:right;">→</div>
+        </div>
+      </div>
+      <div style="background:#2a2a2a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px;margin-bottom:12px;display:flex;gap:16px;align-items:center;">
+        <div style="width:56px;height:56px;background:rgba(197,255,0,0.1);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:24px;">💎</div>
+        <div>
+          <div style="color:#C5FF00;font-weight:600;margin-bottom:4px;">Rich Pattern</div>
+          <div style="color:#a0a0a0;font-size:14px;">Your passive income exceeds your expenses</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div style="background:#2a2a2a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:12px;">
+          <div style="color:#a0a0a0;font-size:12px;margin-bottom:4px;">Assets</div>
+          <div style="color:#22C55E;font-size:18px;font-weight:700;">RM 45,000</div>
+        </div>
+        <div style="background:#2a2a2a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:12px;">
+          <div style="color:#a0a0a0;font-size:12px;margin-bottom:4px;">Liabilities</div>
+          <div style="color:#EF4444;font-size:18px;font-weight:700;">RM 12,000</div>
+        </div>
+        <div style="background:#2a2a2a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:12px;">
+          <div style="color:#a0a0a0;font-size:12px;margin-bottom:4px;">Passive Income</div>
+          <div style="color:#C5FF00;font-size:18px;font-weight:700;">RM 2,500</div>
+        </div>
+        <div style="background:#2a2a2a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:12px;">
+          <div style="color:#a0a0a0;font-size:12px;margin-bottom:4px;">Net Worth</div>
+          <div style="color:#fff;font-size:18px;font-weight:700;">RM 33,000</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>What needs to change?</h3>
+  <p class="subtitle">Based on your observation that the design doesn't match the prototype, please describe or indicate:</p>
+
+  <div class="options">
+    <div class="option" data-choice="layout" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Layout & Structure</h3>
+        <p>Card positions, spacing, section order different from prototype</p>
+      </div>
+    </div>
+    <div class="option" data-choice="colors" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Colors & Typography</h3>
+        <p>Font sizes, weights, or color values don't match theme</p>
+      </div>
+    </div>
+    <div class="option" data-choice="components" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Component Styling</h3>
+        <p>Cards, buttons, badges look different (radius, borders, shadows)</p>
+      </div>
+    </div>
+    <div class="option" data-choice="all" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>All of the above</h3>
+        <p>Major redesign needed to match prototype</p>
+      </div>
+    </div>
+  </div>
+</div>

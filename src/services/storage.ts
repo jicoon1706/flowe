@@ -1,7 +1,6 @@
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '../lib/supabase';
-import type { Result } from '../utils/result';
-import type { SupabaseError } from '../utils/result';
+import type { Result, SupabaseError } from '../utils/result';
 
 export const storageService = {
   // Avatars

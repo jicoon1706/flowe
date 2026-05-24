@@ -4,7 +4,7 @@ import type { LearnProject, LearnEntry } from '../types';
 import type { SupabaseError } from '../utils/result';
 
 export function useLearn() {
-  const [projects, setProjects] = useState<LearnProject[]>([]);
+  const [projects] = useState<LearnProject[]>([]);
   const [entries, setEntries] = useState<LearnEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<SupabaseError | null>(null);

@@ -210,7 +210,7 @@ export default function DataScreen() {
             <View className="text-center mb-6">
               <Text className="text-xl font-bold text-foreground mb-2">Reset App?</Text>
               <Text className="text-sm text-muted-foreground leading-6">
-                All data will be permanently deleted. Type <Text className="text-red-400 font-bold">"reset"</Text> to confirm.
+                All data will be permanently deleted. Type <Text className="text-red-400 font-bold">{'"reset"'}</Text> to confirm.
               </Text>
             </View>
 

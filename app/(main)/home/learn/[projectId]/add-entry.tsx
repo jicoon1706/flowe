@@ -6,7 +6,7 @@ import { ChevronLeft, X, FilePlus } from '../../../../../components/ui/icons';
 
 export default function AddEntryScreen() {
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  useLocalSearchParams<{ projectId: string }>();
   const [text, setText] = useState('');
   const [images, setImages] = useState<string[]>([]);
 
