@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { Result } from '../utils/result';
-import type { SupabaseError, fromSupabaseError } from '../utils/result';
+import type { SupabaseError } from '../utils/result';
+import { fromSupabaseError } from '../utils/result';
 import type { RecurringRule, RecurringStatus, RecurringFrequency } from '../types';
 
 export interface CreateRecurringRuleRequest {
