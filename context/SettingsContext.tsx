@@ -4,7 +4,6 @@ import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 export interface UserProfile {
   displayName: string;
   avatar: string | null;
-  financialIdentity: 'Employee' | 'Entrepreneur' | 'Investor' | 'Business Owner';
 }
 
 export interface AffirmationWord {
@@ -40,7 +39,7 @@ export interface SettingsState {
 
 // --- Initial State ---
 const INITIAL_STATE: SettingsState = {
-  profile: { displayName: 'Ahmad', avatar: null, financialIdentity: 'Employee' },
+  profile: { displayName: 'Ahmad', avatar: null },
   security: { fingerprintEnabled: true, autoLockTimer: '5 min' },
   notifications: {
     cashflow: true, alert: true, expense: true, income: true,
