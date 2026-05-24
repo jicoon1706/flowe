@@ -19,8 +19,9 @@ interface BalanceSheetCardProps {
 function ItemRow({ icon, name, type, value, monthly, isLiability }: {
   icon: string; name: string; type: string; value: number; monthly: number; isLiability: boolean;
 }) {
+  const accentColor = isLiability ? '#ff6b6b' : '#C5FF00';
   return (
-    <View className="flex-row justify-between items-center py-2">
+    <View className={`flex-row justify-between items-center py-2 border-l-2`} style={{ borderLeftColor: accentColor }}>
       <View className="flex-row items-center gap-2">
         <Text className="text-lg">{icon}</Text>
         <View>
@@ -41,15 +42,8 @@ function ItemRow({ icon, name, type, value, monthly, isLiability }: {
 }
 
 export function BalanceSheetCard({
-  assets,
-  liabilities,
-  activeTab,
-  onTabChange,
-  onAddAsset,
-  onAddLiability,
-  totalAssets,
-  totalLiabilities,
-  netWorth,
+  assets, liabilities, activeTab, onTabChange, onAddAsset, onAddLiability,
+  totalAssets, totalLiabilities, netWorth,
 }: BalanceSheetCardProps) {
   const items = activeTab === 'assets' ? assets : liabilities;
   const onAdd = activeTab === 'assets' ? onAddAsset : onAddLiability;
@@ -67,10 +61,10 @@ export function BalanceSheetCard({
             key={tab}
             onPress={() => onTabChange(tab)}
             className={`flex-1 py-2 rounded-xl text-sm font-semibold capitalize transition-colors ${
-              activeTab === tab ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+              activeTab === tab ? 'bg-primary/20 text-primary' : 'text-muted-foreground'
             }`}
           >
-            <Text className={`text-center ${activeTab === tab ? 'text-primary-foreground' : ''}`}>
+            <Text className={`text-center ${activeTab === tab ? 'text-primary font-semibold' : ''}`}>
               {tab}
             </Text>
           </Pressable>
@@ -82,40 +76,18 @@ export function BalanceSheetCard({
           {items.map((item) => {
             if (isLiability) {
               const l = item as Liability;
-              return (
-                <ItemRow
-                  key={l.id}
-                  icon={l.icon}
-                  name={l.name}
-                  type={l.type}
-                  value={l.amountOwed}
-                  monthly={l.monthlyPayment}
-                  isLiability
-                />
-              );
+              return <ItemRow key={l.id} icon={l.icon} name={l.name} type={l.type} value={l.amountOwed} monthly={l.monthlyPayment} isLiability />;
             }
             const a = item as Asset;
-            return (
-              <ItemRow
-                key={a.id}
-                icon={a.icon}
-                name={a.name}
-                type={a.type}
-                value={a.value}
-                monthly={a.monthlyIncome}
-                isLiability={false}
-              />
-            );
+            return <ItemRow key={a.id} icon={a.icon} name={a.name} type={a.type} value={a.value} monthly={a.monthlyIncome} isLiability={false} />;
           })}
         </View>
         <Pressable
           onPress={onAdd}
-          className="flex-row items-center justify-center gap-2 py-3 border-t border-dashed border-border"
+          className="flex-row items-center justify-center gap-2 py-3 mx-4 mb-4 bg-primary/10 rounded-xl"
         >
           <Plus size={16} color="#C5FF00" />
-          <Text className="text-sm text-primary font-medium">
-            Add {activeTab === 'assets' ? 'Asset' : 'Liability'}
-          </Text>
+          <Text className="text-sm text-primary font-semibold">Add {activeTab === 'assets' ? 'Asset' : 'Liability'}</Text>
         </Pressable>
         {/* Totals */}
         <View className="px-5 py-4 border-t border-border bg-muted/20">
@@ -129,7 +101,7 @@ export function BalanceSheetCard({
           </View>
           <View className="flex-row justify-between items-center border-t border-border pt-3">
             <Text className="font-bold">Net Worth</Text>
-            <Text className={`text-xl font-bold ${netWorth >= 0 ? 'text-primary' : 'text-red-400'}`}>
+            <Text className={`text-2xl font-bold ${netWorth >= 0 ? 'text-primary' : 'text-red-400'}`}>
               RM {netWorth.toLocaleString()}
             </Text>
           </View>
