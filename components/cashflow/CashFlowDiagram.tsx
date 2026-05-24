@@ -124,15 +124,34 @@ export function CashFlowDiagram({
   const [showInfo, setShowInfo] = useState(false);
   const config = PATTERN_CONFIG[financialClass] ?? PATTERN_CONFIG.poor;
 
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const p = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.3, duration: 750, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.0, duration: 750, useNativeDriver: true }),
+      ])
+    );
+    p.start();
+    return () => p.stop();
+  }, []);
+
   return (
     <View className={`bg-card rounded-2xl border-2 ${config.borderColor} overflow-hidden`}>
       {/* Header */}
       <View className={`bg-gradient-to-br ${config.bgGlow} px-5 py-4 border-b ${config.borderColor}`}>
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center gap-2.5">
-            <View
+            <Animated.View
               className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: config.color }}
+              style={{
+                backgroundColor: config.color,
+                transform: [{ scale: pulseAnim }],
+                shadowColor: config.color,
+                shadowOpacity: 0.4,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 0 },
+              }}
             />
             <View>
               <Text className="font-bold text-sm" style={{ color: config.color }}>Cash Flow Pattern</Text>
