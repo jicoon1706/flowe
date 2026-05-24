@@ -1,5 +1,5 @@
 import { View, Text } from 'react-native';
-import { TrendingUp } from 'lucide-react-native';
+import { TrendingUp, TrendingDown } from 'lucide-react-native';
 
 interface MonthlyDataPoint { month: string; assets: number; liabilities: number; }
 
@@ -11,6 +11,7 @@ interface MonthlyTrendChartProps {
 export function MonthlyTrendChart({ data, netWorthChange }: MonthlyTrendChartProps) {
   const maxValue = Math.max(...data.map((d) => Math.max(d.assets, d.liabilities)));
   const scale = (value: number) => (value / maxValue) * 96;
+  const isPositive = netWorthChange >= 0;
 
   return (
     <View>
@@ -18,8 +19,12 @@ export function MonthlyTrendChart({ data, netWorthChange }: MonthlyTrendChartPro
         <View className="flex-row items-center justify-between">
           <Text className="font-bold text-sm">Monthly Trend</Text>
           <View className="flex-row items-center gap-1">
-            <TrendingUp size={14} color="#C5FF00" />
-            <Text className="text-xs text-primary font-semibold">Net worth grew RM {netWorthChange.toLocaleString()} this month</Text>
+            {isPositive
+              ? <TrendingUp size={14} color="#C5FF00" />
+              : <TrendingDown size={14} color="#ff6b6b" />}
+            <Text className={`text-xs font-semibold ${isPositive ? 'text-primary' : 'text-red-400'}`}>
+              Net worth {isPositive ? 'grew' : 'fell'} RM {Math.abs(netWorthChange).toLocaleString()} this month
+            </Text>
           </View>
         </View>
       </View>
@@ -30,9 +35,13 @@ export function MonthlyTrendChart({ data, netWorthChange }: MonthlyTrendChartPro
             <View key={i} className="flex-1 flex flex-col items-center gap-1">
               <View className="flex flex-row items-end gap-0.5 h-24 w-full justify-center">
                 <View
-                  className="w-4 rounded-t-lg"
+                  className="w-4 rounded-t-lg relative"
                   style={{ height: scale(point.assets), backgroundColor: '#C5FF00' + '99' }}
-                />
+                >
+                  <Text className="absolute -top-4 w-full text-center text-xs text-muted-foreground/60">
+                    {(point.assets / 1000).toFixed(0)}k
+                  </Text>
+                </View>
                 <View
                   className="w-4 rounded-t-lg"
                   style={{ height: scale(point.liabilities), backgroundColor: '#ff6b6b' + '80' }}
