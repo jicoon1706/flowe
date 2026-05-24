@@ -41,17 +41,17 @@ export default function DataScreen() {
             <Text className="font-semibold text-foreground">Storage Summary</Text>
           </View>
           <View className="grid grid-cols-3 gap-3">
-            <View className="bg-muted rounded-xl py-3 text-center">
-              <Text className="text-lg font-bold text-primary">248</Text>
-              <Text className="text-xs text-muted-foreground">Transactions</Text>
+            <View className="bg-muted rounded-xl py-3 items-center">
+              <Text className="text-lg font-bold text-primary text-center">248</Text>
+              <Text className="text-xs text-muted-foreground text-center">Transactions</Text>
             </View>
-            <View className="bg-muted rounded-xl py-3 text-center">
-              <Text className="text-lg font-bold text-primary">12</Text>
-              <Text className="text-xs text-muted-foreground">Categories</Text>
+            <View className="bg-muted rounded-xl py-3 items-center">
+              <Text className="text-lg font-bold text-primary text-center">12</Text>
+              <Text className="text-xs text-muted-foreground text-center">Categories</Text>
             </View>
-            <View className="bg-muted rounded-xl py-3 text-center">
-              <Text className="text-lg font-bold text-primary">5</Text>
-              <Text className="text-xs text-muted-foreground">Recurring</Text>
+            <View className="bg-muted rounded-xl py-3 items-center">
+              <Text className="text-lg font-bold text-primary text-center">5</Text>
+              <Text className="text-xs text-muted-foreground text-center">Recurring</Text>
             </View>
           </View>
         </View>
