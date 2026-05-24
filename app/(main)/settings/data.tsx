@@ -34,6 +34,28 @@ export default function DataScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScreenHeader title="Data" onBack={() => router.back()} />
       <View className="flex-1 px-4 pt-4">
+        {/* Storage Summary */}
+        <View className="bg-card border border-border rounded-2xl p-4 mb-6">
+          <View className="flex-row items-center gap-3 mb-3">
+            <Database size={20} color="#C5FF00" />
+            <Text className="font-semibold text-foreground">Storage Summary</Text>
+          </View>
+          <View className="grid grid-cols-3 gap-3">
+            <View className="bg-muted rounded-xl py-3 text-center">
+              <Text className="text-lg font-bold text-primary">248</Text>
+              <Text className="text-xs text-muted-foreground">Transactions</Text>
+            </View>
+            <View className="bg-muted rounded-xl py-3 text-center">
+              <Text className="text-lg font-bold text-primary">12</Text>
+              <Text className="text-xs text-muted-foreground">Categories</Text>
+            </View>
+            <View className="bg-muted rounded-xl py-3 text-center">
+              <Text className="text-lg font-bold text-primary">5</Text>
+              <Text className="text-xs text-muted-foreground">Recurring</Text>
+            </View>
+          </View>
+        </View>
+
         <View className="bg-card border border-border rounded-2xl p-5 mb-6">
           <Pressable
             onPress={handleExport}
