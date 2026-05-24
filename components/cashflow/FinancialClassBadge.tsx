@@ -1,5 +1,4 @@
 import { View, Text, Animated } from 'react-native';
-import { useRef, useEffect } from 'react';
 
 type FinancialClass = 'poor' | 'middle' | 'rich';
 
@@ -19,7 +18,7 @@ const CLASS_CONFIG = {
     label: 'Poor Pattern',
     color: '#ff6b6b',
     bgGlow: 'from-red-500/15 to-red-500/5',
-    borderColor: '#ff6b6b',
+    borderColor: 'border-red-500/40',
     tagColor: 'bg-red-500/15 text-red-400 border-red-500/30',
     flow: 'Income → Expenses (all of it)',
     desc: 'Your income goes directly to expenses. No assets working for you yet.',
@@ -29,7 +28,7 @@ const CLASS_CONFIG = {
     label: 'Middle Class Pattern',
     color: '#ffd93d',
     bgGlow: 'from-yellow-500/15 to-yellow-500/5',
-    borderColor: '#ffd93d',
+    borderColor: 'border-yellow-500/40',
     tagColor: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
     flow: 'Income → Expenses + Liabilities',
     desc: 'You earn well but liabilities eat your income. Build assets to escape this cycle.',
@@ -39,7 +38,7 @@ const CLASS_CONFIG = {
     label: 'Rich Pattern',
     color: '#C5FF00',
     bgGlow: 'from-primary/15 to-primary/5',
-    borderColor: '#C5FF00',
+    borderColor: 'border-primary/40',
     tagColor: 'bg-primary/15 text-primary border-primary/30',
     flow: 'Assets → Income → More Assets',
     desc: 'Your assets generate income. Money works for you. Keep growing your asset column!',
@@ -68,13 +67,13 @@ export function FinancialClassBadge({
   netWorth,
 }: FinancialClassBadgeProps) {
   const config = CLASS_CONFIG[financialClass] ?? CLASS_CONFIG.poor;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = Animated.useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
+  Animated.useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.05, duration: 1000 }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 1000 }),
+        Animated.timing(scaleAnim, { toValue: 1.05, duration: 1000, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1.0, duration: 1000, useNativeDriver: true }),
       ])
     );
     pulse.start();
