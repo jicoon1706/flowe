@@ -1,19 +1,8 @@
 import { View, Text, Pressable } from 'react-native';
+import { Plus } from 'lucide-react-native';
 
-interface Asset {
-  id: string;
-  name: string;
-  value: number;
-  monthly: number;
-}
-
-interface Liability {
-  id: string;
-  name: string;
-  value: number;
-  monthly: number;
-  rate?: string;
-}
+interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
+interface Liability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
 
 interface BalanceSheetCardProps {
   assets: Asset[];
@@ -22,15 +11,33 @@ interface BalanceSheetCardProps {
   onTabChange: (tab: 'assets' | 'liabilities') => void;
   onAddAsset: () => void;
   onAddLiability: () => void;
+  totalAssets: number;
+  totalLiabilities: number;
+  netWorth: number;
 }
 
-function formatCurrency(amount: number) {
-  return `RM ${amount.toLocaleString()}`;
-}
-
-function formatMonthly(monthly: number) {
-  const sign = monthly >= 0 ? '+' : '';
-  return `${sign}${formatCurrency(monthly)}/mo`;
+function ItemRow({ icon, name, type, value, monthly, isLiability }: {
+  icon: string; name: string; type: string; value: number; monthly: number; isLiability: boolean;
+}) {
+  return (
+    <View className="flex-row justify-between items-center py-2">
+      <View className="flex-row items-center gap-2">
+        <Text className="text-lg">{icon}</Text>
+        <View>
+          <Text className="text-sm text-foreground">{name}</Text>
+          <Text className="text-xs text-muted-foreground">{type}</Text>
+        </View>
+      </View>
+      <View className="items-end">
+        <Text className={`text-sm font-semibold ${isLiability ? 'text-red-400' : 'text-primary'}`}>
+          RM {value.toLocaleString()}
+        </Text>
+        <Text className={`text-xs ${isLiability ? 'text-red-400' : 'text-primary'}`}>
+          {isLiability ? `-RM ${monthly}/mo` : `+RM ${monthly}/mo`}
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 export function BalanceSheetCard({
@@ -40,60 +47,93 @@ export function BalanceSheetCard({
   onTabChange,
   onAddAsset,
   onAddLiability,
+  totalAssets,
+  totalLiabilities,
+  netWorth,
 }: BalanceSheetCardProps) {
   const items = activeTab === 'assets' ? assets : liabilities;
   const onAdd = activeTab === 'assets' ? onAddAsset : onAddLiability;
+  const isLiability = activeTab === 'liabilities';
 
   return (
     <View>
-      {/* Tabs */}
-      <View className="flex-row bg-card rounded-2xl p-1 mb-3">
-        <Pressable
-          className={`flex-1 py-2 rounded-xl ${activeTab === 'assets' ? 'bg-primary' : ''}`}
-          onPress={() => onTabChange('assets')}
-        >
-          <Text
-            className={`text-sm font-semibold text-center ${
-              activeTab === 'assets' ? 'text-primary-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            Assets
-          </Text>
-        </Pressable>
-        <Pressable
-          className={`flex-1 py-2 rounded-xl ${activeTab === 'liabilities' ? 'bg-primary' : ''}`}
-          onPress={() => onTabChange('liabilities')}
-        >
-          <Text
-            className={`text-sm font-semibold text-center ${
-              activeTab === 'liabilities' ? 'text-primary-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            Liabilities
-          </Text>
-        </Pressable>
+      <View className="bg-muted/40 px-5 py-3 border-b border-border rounded-t-2xl">
+        <Text className="font-bold tracking-wide text-sm">BALANCE SHEET</Text>
       </View>
-
-      {/* List */}
-      <View className="bg-card border border-border rounded-2xl">
-        {items.map((item, index) => (
-          <View
-            key={item.id}
-            className={`flex-row justify-between items-center py-3 px-4 ${index !== items.length - 1 ? 'border-b border-border' : ''}`}
+      {/* Tabs */}
+      <View className="flex-row gap-1 p-3 border-b border-border bg-card">
+        {(['assets', 'liabilities'] as const).map((tab) => (
+          <Pressable
+            key={tab}
+            onPress={() => onTabChange(tab)}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold capitalize transition-colors ${
+              activeTab === tab ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+            }`}
           >
-            <View>
-              <Text className="text-sm font-medium text-foreground">{item.name}</Text>
-              <Text className="text-xs text-income">{formatMonthly(item.monthly)}</Text>
-            </View>
-            <Text className="text-sm font-semibold text-foreground">{formatCurrency(item.value)}</Text>
-          </View>
+            <Text className={`text-center ${activeTab === tab ? 'text-primary-foreground' : ''}`}>
+              {tab}
+            </Text>
+          </Pressable>
         ))}
+      </View>
+      {/* List */}
+      <View className="bg-card border border-border rounded-b-2xl">
+        <View className="p-4 space-y-1">
+          {items.map((item) => {
+            if (isLiability) {
+              const l = item as Liability;
+              return (
+                <ItemRow
+                  key={l.id}
+                  icon={l.icon}
+                  name={l.name}
+                  type={l.type}
+                  value={l.amountOwed}
+                  monthly={l.monthlyPayment}
+                  isLiability
+                />
+              );
+            }
+            const a = item as Asset;
+            return (
+              <ItemRow
+                key={a.id}
+                icon={a.icon}
+                name={a.name}
+                type={a.type}
+                value={a.value}
+                monthly={a.monthlyIncome}
+                isLiability={false}
+              />
+            );
+          })}
+        </View>
         <Pressable
-          className="flex-row items-center justify-center gap-2 py-3 mt-2 border-t border-dashed border-border"
           onPress={onAdd}
+          className="flex-row items-center justify-center gap-2 py-3 border-t border-dashed border-border"
         >
-          <Text className="text-sm text-primary font-medium">+ Add {activeTab === 'assets' ? 'Asset' : 'Liability'}</Text>
+          <Plus size={16} color="#C5FF00" />
+          <Text className="text-sm text-primary font-medium">
+            Add {activeTab === 'assets' ? 'Asset' : 'Liability'}
+          </Text>
         </Pressable>
+        {/* Totals */}
+        <View className="px-5 py-4 border-t border-border bg-muted/20">
+          <View className="flex-row justify-between text-sm mb-1">
+            <Text className="text-muted-foreground">Total Assets</Text>
+            <Text className="font-semibold text-primary">RM {totalAssets.toLocaleString()}</Text>
+          </View>
+          <View className="flex-row justify-between text-sm mb-3">
+            <Text className="text-muted-foreground">Total Liabilities</Text>
+            <Text className="font-semibold text-red-400">RM {totalLiabilities.toLocaleString()}</Text>
+          </View>
+          <View className="flex-row justify-between items-center border-t border-border pt-3">
+            <Text className="font-bold">Net Worth</Text>
+            <Text className={`text-xl font-bold ${netWorth >= 0 ? 'text-primary' : 'text-red-400'}`}>
+              RM {netWorth.toLocaleString()}
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
