@@ -1,20 +1,8 @@
-import { View, Text, Pressable } from 'react-native';
-import { Trash2, Edit2 } from 'lucide-react-native';
+import React, { View, Text, Pressable } from 'react-native';
+import { Trash2, Edit3, Plus, Check, X } from 'lucide-react-native';
 
-interface Asset {
-  id: string;
-  name: string;
-  value: number;
-  monthly: number;
-}
-
-interface Liability {
-  id: string;
-  name: string;
-  value: number;
-  monthly: number;
-  rate?: string;
-}
+interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
+interface Liability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
 
 interface ManageAssetsLiabilitiesCardProps {
   assets: Asset[];
@@ -24,15 +12,6 @@ interface ManageAssetsLiabilitiesCardProps {
   onEdit: (item: Asset | Liability) => void;
   onDelete: (id: string) => void;
   onAdd: () => void;
-}
-
-function formatCurrency(amount: number) {
-  return `RM ${amount.toLocaleString()}`;
-}
-
-function formatMonthly(monthly: number) {
-  const sign = monthly >= 0 ? '+' : '';
-  return `${sign}${formatCurrency(monthly)}/mo`;
 }
 
 export function ManageAssetsLiabilitiesCard({
@@ -45,64 +24,88 @@ export function ManageAssetsLiabilitiesCard({
   onAdd,
 }: ManageAssetsLiabilitiesCardProps) {
   const items = activeTab === 'assets' ? assets : liabilities;
+  const isLiability = activeTab === 'liabilities';
+  const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
   return (
     <View>
-      {/* Tabs */}
-      <View className="flex-row bg-card rounded-2xl p-1 mb-3">
-        <Pressable
-          className={`flex-1 py-2 rounded-xl ${activeTab === 'assets' ? 'bg-primary' : ''}`}
-          onPress={() => onTabChange('assets')}
-        >
-          <Text
-            className={`text-sm font-semibold text-center ${
-              activeTab === 'assets' ? 'text-primary-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            Assets
-          </Text>
-        </Pressable>
-        <Pressable
-          className={`flex-1 py-2 rounded-xl ${activeTab === 'liabilities' ? 'bg-primary' : ''}`}
-          onPress={() => onTabChange('liabilities')}
-        >
-          <Text
-            className={`text-sm font-semibold text-center ${
-              activeTab === 'liabilities' ? 'text-primary-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            Liabilities
-          </Text>
-        </Pressable>
+      <View className="bg-muted/40 px-5 py-3 border-b border-border rounded-t-2xl">
+        <Text className="font-bold text-sm">Manage Assets & Liabilities</Text>
       </View>
-
-      {/* List */}
-      <View className="bg-card border border-border rounded-2xl">
-        {items.map((item, index) => (
-          <View
-            key={item.id}
-            className={`flex-row justify-between items-center py-3 px-4 ${index !== items.length - 1 ? 'border-b border-border' : ''}`}
+      {/* Tabs */}
+      <View className="flex gap-1 p-3 border-b border-border bg-card">
+        {(['assets', 'liabilities'] as const).map((tab) => (
+          <Pressable
+            key={tab}
+            onPress={() => onTabChange(tab)}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold capitalize transition-colors ${
+              activeTab === tab ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+            }`}
           >
-            <View className="flex-1">
-              <Text className="text-sm font-medium text-foreground">{item.name}</Text>
-              <Text className="text-xs text-income">{formatMonthly(item.monthly)}</Text>
-            </View>
-            <View className="flex-row items-center gap-3">
-              <Text className="text-sm font-semibold text-foreground">{formatCurrency(item.value)}</Text>
-              <Pressable onPress={() => onEdit(item)} className="p-1">
-                <Edit2 size={16} color="#a0a0a0" />
-              </Pressable>
-              <Pressable onPress={() => onDelete(item.id)} className="p-1">
-                <Trash2 size={16} color="#ff4444" />
-              </Pressable>
-            </View>
-          </View>
+            <Text className={`text-center ${activeTab === tab ? 'text-primary-foreground' : ''}`}>
+              {tab}
+            </Text>
+          </Pressable>
         ))}
+      </View>
+      {/* List */}
+      <View className="bg-card border border-border rounded-b-2xl p-4 space-y-2">
+        {items.map((item) => {
+          const isAsset = !isLiability;
+          const v = isAsset ? (item as Asset).value : (item as Liability).amountOwed;
+          const m = isAsset ? (item as Asset).monthlyIncome : (item as Liability).monthlyPayment;
+          const name = isAsset ? (item as Asset).name : (item as Liability).name;
+          const type = isAsset ? (item as Asset).type : (item as Liability).type;
+          const icon = isAsset ? (item as Asset).icon : (item as Liability).icon;
+          return (
+            <View key={item.id} className="bg-background border border-border rounded-xl p-3">
+              <View className="flex-row items-start gap-3">
+                <View className="w-10 h-10 bg-primary/15 rounded-xl items-center justify-center">
+                  <Text className="text-xl">{icon}</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="font-semibold text-sm text-foreground">{name}</Text>
+                  <Text className="text-xs text-muted-foreground">{type}</Text>
+                  <View className="flex-row gap-3 mt-1">
+                    <Text className={`text-sm font-bold ${isAsset ? 'text-primary' : 'text-red-400'}`}>
+                      RM {v.toLocaleString()}
+                    </Text>
+                    <Text className={`text-xs ${isAsset ? 'text-primary' : 'text-red-400'}`}>
+                      {isAsset ? `+RM ${m}/mo` : `-RM ${m}/mo`}
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-row gap-1">
+                  <Pressable onPress={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-muted">
+                    <Edit3 size={16} color="#a0a0a0" />
+                  </Pressable>
+                  {deleteId === item.id ? (
+                    <View className="flex-row gap-1">
+                      <Pressable onPress={() => { onDelete(item.id); setDeleteId(null); }} className="p-1.5 rounded-lg bg-red-500/20">
+                        <Check size={16} color="#ff6b6b" />
+                      </Pressable>
+                      <Pressable onPress={() => setDeleteId(null)} className="p-1.5 rounded-lg bg-muted">
+                        <X size={16} color="#a0a0a0" />
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable onPress={() => setDeleteId(item.id)} className="p-1.5 rounded-lg hover:bg-red-500/20">
+                      <Trash2 size={16} color="#a0a0a0" />
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+            </View>
+          );
+        })}
         <Pressable
-          className="flex-row items-center justify-center gap-2 py-3 mt-2 border-t border-dashed border-border"
           onPress={onAdd}
+          className="py-3 border border-dashed border-border rounded-xl items-center mt-2"
         >
-          <Text className="text-sm text-primary font-medium">+ Add {activeTab === 'assets' ? 'Asset' : 'Liability'}</Text>
+          <View className="flex-row items-center gap-2">
+            <Plus size={16} color="#C5FF00" />
+            <Text className="text-sm text-primary font-medium">Add {activeTab === 'assets' ? 'Asset' : 'Liability'}</Text>
+          </View>
         </Pressable>
       </View>
     </View>
