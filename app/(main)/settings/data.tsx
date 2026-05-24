@@ -134,17 +134,26 @@ export default function DataScreen() {
           </View>
         </View>
 
-        <View className="bg-card border border-border rounded-2xl p-5">
-          <Pressable
-            onPress={handleReset}
-            className="flex-row items-center gap-3 py-3"
-          >
-            <AlertTriangle size={20} color="#ff4444" />
-            <View className="flex-1">
-              <Text className="text-destructive text-sm font-medium">Reset App</Text>
-              <Text className="text-muted-foreground text-xs">Delete all data and start fresh</Text>
+        {/* Danger Zone */}
+        <View className="mb-6">
+          <Text className="text-sm font-medium text-red-400 mb-3 px-2">Danger Zone</Text>
+          <View className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
+            <View className="flex-row items-start gap-3 mb-4">
+              <AlertTriangle size={20} color="#ff4444" className="flex-shrink-0 mt-0.5" />
+              <View className="flex-1">
+                <Text className="font-semibold text-red-400">Reset App</Text>
+                <Text className="text-xs text-muted-foreground mt-1">
+                  This will permanently delete all your transactions, categories, settings and data. This action cannot be undone.
+                </Text>
+              </View>
             </View>
-          </Pressable>
+            <Pressable
+              onPress={() => setShowResetConfirm(true)}
+              className="w-full py-3 bg-red-500/20 text-red-400 border border-red-500/40 rounded-xl font-semibold text-sm"
+            >
+              <Text className="text-red-400 font-semibold text-sm text-center">Reset All Data</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </SafeAreaView>
