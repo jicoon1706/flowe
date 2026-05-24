@@ -35,7 +35,13 @@ export default function DataScreen() {
       setTimeout(() => setExported(false), 3000);
     }, 1500);
   };
-  const handleReset = () => {};
+  const handleReset = () => {
+    if (resetInput.toLowerCase() !== 'reset') return;
+    setShowResetConfirm(false);
+    dispatch({ type: 'RESET_ALL' });
+    router.push('/');
+    setResetInput('');
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -155,6 +161,54 @@ export default function DataScreen() {
             </Pressable>
           </View>
         </View>
+
+        {/* Reset Confirmation Modal */}
+        {showResetConfirm && (
+          <View className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
+            <View className="bg-background border border-border rounded-3xl p-6 w-full max-w-sm">
+              {/* Icon */}
+              <View className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={32} color="#ff4444" />
+              </View>
+
+              {/* Title & Description */}
+              <View className="text-center mb-4">
+                <Text className="text-lg font-bold text-foreground mb-2">Reset App?</Text>
+                <Text className="text-sm text-muted-foreground">
+                  All data will be permanently deleted. Type <Text className="text-red-400 font-mono font-bold">reset</Text> to confirm.
+                </Text>
+              </View>
+
+              {/* Input */}
+              <TextInput
+                value={resetInput}
+                onChangeText={setResetInput}
+                placeholder='Type "reset" to confirm'
+                placeholderTextColor="#a0a0a0"
+                className="w-full bg-card border border-border rounded-xl px-4 py-3 text-center text-foreground font-mono mb-4 focus:border-red-500"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              {/* Buttons */}
+              <View className="flex flex-row gap-3">
+                <Pressable
+                  onPress={() => { setShowResetConfirm(false); setResetInput(''); }}
+                  className="flex-1 py-3 bg-card border border-border rounded-xl"
+                >
+                  <Text className="text-foreground font-semibold text-sm text-center">Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleReset}
+                  disabled={resetInput.toLowerCase() !== 'reset'}
+                  className="flex-1 py-3 bg-red-500 rounded-xl disabled:opacity-40"
+                >
+                  <Text className="text-white font-semibold text-sm text-center">Reset</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
