@@ -1,10 +1,7 @@
 import { View, Text } from 'react-native';
+import { TrendingUp } from 'lucide-react-native';
 
-interface MonthlyDataPoint {
-  month: string;
-  assets: number;
-  liabilities: number;
-}
+interface MonthlyDataPoint { month: string; assets: number; liabilities: number; }
 
 interface MonthlyTrendChartProps {
   data: MonthlyDataPoint[];
@@ -12,34 +9,61 @@ interface MonthlyTrendChartProps {
 }
 
 export function MonthlyTrendChart({ data, netWorthChange }: MonthlyTrendChartProps) {
-  const maxValue = Math.max(...data.map(d => Math.max(d.assets, d.liabilities)));
-  const scale = (value: number) => (value / maxValue) * 80; // max height of 80px
+  const maxValue = Math.max(...data.map((d) => Math.max(d.assets, d.liabilities)));
+  const scale = (value: number) => (value / maxValue) * 96;
 
   return (
     <View>
-      <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3 px-4">
-        Monthly Trend
-      </Text>
-      <View className="bg-card border border-border rounded-2xl items-center py-8 px-4">
-        <Text className="text-sm text-muted-foreground">
-          Net worth grew RM {netWorthChange.toLocaleString()} this month
-        </Text>
-        <View className="flex-row items-end gap-2 mt-4 h-24">
+      <View className="bg-muted/40 px-5 py-3 border-b border-border rounded-t-2xl">
+        <View className="flex-row items-center justify-between">
+          <Text className="font-bold text-sm">Monthly Trend</Text>
+          <View className="flex-row items-center gap-1">
+            <TrendingUp size={14} color="#C5FF00" />
+            <Text className="text-xs text-primary font-semibold">Net worth grew RM {netWorthChange.toLocaleString()} this month</Text>
+          </View>
+        </View>
+      </View>
+      <View className="bg-card border border-border rounded-b-2xl p-4">
+        {/* Bar chart */}
+        <View className="flex-row items-end gap-2 h-28 mb-3">
           {data.map((point, i) => (
-            <View key={i} className="items-center gap-1">
-              <View className="flex-row items-end gap-0.5">
+            <View key={i} className="flex-1 flex flex-col items-center gap-1">
+              <View className="flex flex-row items-end gap-0.5 h-24 w-full justify-center">
                 <View
-                  className="w-4 bg-income rounded-t"
-                  style={{ height: scale(point.assets) }}
+                  className="w-4 rounded-t-lg"
+                  style={{ height: scale(point.assets), backgroundColor: '#C5FF00' + '99' }}
                 />
                 <View
-                  className="w-4 bg-expense rounded-t"
-                  style={{ height: scale(point.liabilities) }}
+                  className="w-4 rounded-t-lg"
+                  style={{ height: scale(point.liabilities), backgroundColor: '#ff6b6b' + '80' }}
                 />
               </View>
               <Text className="text-xs text-muted-foreground">{point.month}</Text>
             </View>
           ))}
+        </View>
+        {/* Legend */}
+        <View className="flex-row gap-4 mb-3">
+          <View className="flex-row items-center gap-1.5">
+            <View className="w-3 h-3 rounded" style={{ backgroundColor: '#C5FF00' + '99' }} />
+            <Text className="text-xs text-muted-foreground">Assets</Text>
+          </View>
+          <View className="flex-row items-center gap-1.5">
+            <View className="w-3 h-3 rounded" style={{ backgroundColor: '#ff6b6b' + '80' }} />
+            <Text className="text-xs text-muted-foreground">Liabilities</Text>
+          </View>
+        </View>
+        {/* Net worth per month */}
+        <View className="grid grid-cols-6 gap-1 border-t border-border pt-3">
+          {data.map((point, i) => {
+            const nw = point.assets - point.liabilities;
+            return (
+              <View key={i} className="text-center">
+                <Text className="text-xs text-primary font-semibold">{(nw / 1000).toFixed(0)}k</Text>
+                <Text className="text-xs text-muted-foreground">{point.month}</Text>
+              </View>
+            );
+          })}
         </View>
       </View>
     </View>
