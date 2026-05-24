@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Camera, RefreshCw, Calendar } from 'lucide-react-native';
+import { X, Camera, RefreshCw, Calendar, ChevronDown, Bell, Check } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { expenseCategories, incomeCategories } from '../../constants/categories';
 import { Button } from '../../components/ui/Button';
@@ -11,6 +12,19 @@ import { AccountSelector } from '../../components/ui/AccountSelector';
 
 type TransactionType = 'expense' | 'income' | 'transfer';
 
+const reminderOptions = [
+  { id: 'none', label: 'No reminder' },
+  { id: 'same_day', label: 'Same day' },
+  { id: '1_day', label: '1 day before' },
+  { id: '3_days', label: '3 days before' },
+  { id: '1_week', label: '1 week before' },
+];
+
+const dateQuickOptions = [
+  { id: 'today', label: 'Today' },
+  { id: 'yesterday', label: 'Yesterday' },
+];
+
 export default function AddTransactionScreen() {
   const router = useRouter();
   const [type, setType] = useState<TransactionType>('expense');
@@ -19,11 +33,36 @@ export default function AddTransactionScreen() {
   const [category, setCategory] = useState('food');
   const [account, setAccount] = useState('1');
   const [toAccount, setToAccount] = useState('2');
+  const [dateOption, setDateOption] = useState<'today' | 'yesterday' | 'custom'>('today');
+  const [customDate, setCustomDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState<'date' | 'custom' | 'start' | 'end'>('date');
   const [recurring, setRecurring] = useState(false);
   const [recurringFreq, setRecurringFreq] = useState('monthly');
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [hasEndDate, setHasEndDate] = useState(false);
+  const [reminder, setReminder] = useState('none');
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [note, setNote] = useState('');
 
   const categories = type === 'expense' ? expenseCategories : incomeCategories;
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const getDisplayDate = () => {
+    if (dateOption === 'today') return 'Today';
+    if (dateOption === 'yesterday') return 'Yesterday';
+    if (dateOption === 'custom' && customDate) return formatDate(customDate);
+    return 'Today';
+  };
+
+  const getReminderLabel = () => {
+    const opt = reminderOptions.find((o) => o.id === reminder);
+    return opt?.label || 'No reminder';
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -113,11 +152,161 @@ export default function AddTransactionScreen() {
             <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
               Date
             </Text>
-            <Pressable className="flex-row items-center gap-3 bg-input-background border border-border rounded-xl px-4 py-3">
+            <Pressable
+              onPress={() => setShowDatePicker(true)}
+              className="flex-row items-center gap-3 bg-input-background border border-border rounded-xl px-4 py-3"
+            >
               <Calendar size={18} color="#a0a0a0" />
-              <Text className="text-base text-foreground">Today</Text>
+              <Text className="text-base text-foreground flex-1">{getDisplayDate()}</Text>
+              <ChevronDown size={18} color="#a0a0a0" />
             </Pressable>
           </View>
+
+          {/* Date Picker Modal with Quick Options + Native Picker */}
+          <Modal visible={showDatePicker && datePickerMode === 'date'} transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
+            <Pressable className="flex-1 bg-black/50 justify-end" onPress={() => setShowDatePicker(false)}>
+              <Pressable className="bg-card rounded-t-3xl p-6 pb-4" onPress={(e) => e.stopPropagation()}>
+                <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
+                <Text className="text-lg font-semibold text-foreground mb-4">Select Date</Text>
+                <View className="gap-2 mb-4">
+                  {dateQuickOptions.map((opt) => (
+                    <Pressable
+                      key={opt.id}
+                      onPress={() => {
+                        const today = new Date();
+                        if (opt.id === 'yesterday') {
+                          today.setDate(today.getDate() - 1);
+                        }
+                        setCustomDate(today);
+                        setDateOption(opt.id as 'today' | 'yesterday');
+                        setShowDatePicker(false);
+                      }}
+                      className={`flex-row items-center justify-between p-4 rounded-xl ${
+                        dateOption === opt.id ? 'bg-primary/10 border border-primary' : 'bg-input-background border border-border'
+                      }`}
+                    >
+                      <Text className="text-sm font-medium text-foreground">{opt.label}</Text>
+                      {dateOption === opt.id && <Check size={20} color="#C5FF00" />}
+                    </Pressable>
+                  ))}
+                  <Pressable
+                    onPress={() => setDatePickerMode('custom')}
+                    className="flex-row items-center justify-between p-4 rounded-xl bg-input-background border border-border"
+                  >
+                    <Text className="text-sm font-medium text-foreground">Pick date</Text>
+                    <Calendar size={18} color="#a0a0a0" />
+                  </Pressable>
+                </View>
+                <Button title="Cancel" onPress={() => setShowDatePicker(false)} variant="secondary" size="md" />
+              </Pressable>
+            </Pressable>
+          </Modal>
+
+          {/* Native DateTimePicker for start date */}
+          {showDatePicker && datePickerMode === 'start' && (
+            <View className="px-4 mb-4">
+              <DateTimePicker
+                value={startDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(_, date) => {
+                  if (Platform.OS === 'android') {
+                    setShowDatePicker(false);
+                    setDatePickerMode('date');
+                  }
+                  if (date) setStartDate(date);
+                }}
+                style={{ height: 216 }}
+              />
+              {Platform.OS === 'ios' && (
+                <Button
+                  title="Done"
+                  onPress={() => {
+                    setShowDatePicker(false);
+                    setDatePickerMode('date');
+                  }}
+                  variant="primary"
+                  size="md"
+                  className="mt-2"
+                />
+              )}
+            </View>
+          )}
+
+          {/* Native DateTimePicker for custom date */}
+          {showDatePicker && datePickerMode === 'custom' && (
+            <View className="px-4 mb-4">
+              <DateTimePicker
+                value={customDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(_, date) => {
+                  if (date) setCustomDate(date);
+                  setDateOption('custom');
+                  if (Platform.OS === 'android') {
+                    setShowDatePicker(false);
+                    setDatePickerMode('date');
+                  }
+                }}
+                style={{ height: 216 }}
+              />
+              {Platform.OS === 'ios' && (
+                <View className="flex-row gap-2 mt-2">
+                  <Button
+                    title="Cancel"
+                    onPress={() => {
+                      setShowDatePicker(false);
+                      setDatePickerMode('date');
+                    }}
+                    variant="secondary"
+                    size="md"
+                    className="flex-1"
+                  />
+                  <Button
+                    title="Done"
+                    onPress={() => {
+                      setShowDatePicker(false);
+                      setDatePickerMode('date');
+                    }}
+                    variant="primary"
+                    size="md"
+                    className="flex-1"
+                  />
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Native DateTimePicker for end date */}
+          {showDatePicker && datePickerMode === 'end' && (
+            <View className="px-4 mb-4">
+              <DateTimePicker
+                value={endDate || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(_, date) => {
+                  if (Platform.OS === 'android') {
+                    setShowDatePicker(false);
+                    setDatePickerMode('date');
+                  }
+                  if (date) setEndDate(date);
+                }}
+                style={{ height: 216 }}
+              />
+              {Platform.OS === 'ios' && (
+                <Button
+                  title="Done"
+                  onPress={() => {
+                    setShowDatePicker(false);
+                    setDatePickerMode('date');
+                  }}
+                  variant="primary"
+                  size="md"
+                  className="mt-2"
+                />
+              )}
+            </View>
+          )}
 
           {/* Recurring Toggle */}
           <Pressable
@@ -144,7 +333,7 @@ export default function AddTransactionScreen() {
           </Pressable>
 
           {recurring && (
-            <View className="mb-4">
+            <View className="mb-4 gap-4">
               <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-2">
                 Frequency
               </Text>
@@ -169,6 +358,104 @@ export default function AddTransactionScreen() {
                   </Pressable>
                 ))}
               </View>
+
+              {/* Start Date */}
+              <View>
+                <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
+                  Start Date
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setDatePickerMode('start');
+                    setShowDatePicker(true);
+                  }}
+                  className="flex-row items-center gap-3 bg-input-background border border-border rounded-xl px-4 py-3"
+                >
+                  <Calendar size={18} color="#a0a0a0" />
+                  <Text className="text-base text-foreground flex-1">{formatDate(startDate)}</Text>
+                  <ChevronDown size={18} color="#a0a0a0" />
+                </Pressable>
+              </View>
+
+              {/* End Date Toggle */}
+              <Pressable
+                onPress={() => setHasEndDate(!hasEndDate)}
+                className="flex-row items-center justify-between bg-input-background border border-border rounded-xl px-4 py-3"
+              >
+                <Text className="text-sm font-medium text-foreground">Has end date</Text>
+                <View
+                  className={`w-11 h-6 rounded-full p-0.5 transition-colors ${
+                    hasEndDate ? 'bg-primary' : 'bg-switch-background'
+                  }`}
+                >
+                  <View
+                    className="w-5 h-5 rounded-full bg-white"
+                    style={{ transform: [{ translateX: hasEndDate ? 20 : 0 }] }}
+                  />
+                </View>
+              </Pressable>
+
+              {/* End Date */}
+              {hasEndDate && (
+                <View>
+                  <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
+                    End Date
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      setDatePickerMode('end');
+                      setShowDatePicker(true);
+                    }}
+                    className="flex-row items-center gap-3 bg-input-background border border-border rounded-xl px-4 py-3"
+                  >
+                    <Calendar size={18} color="#a0a0a0" />
+                    <Text className="text-base text-foreground flex-1">{endDate ? formatDate(endDate) : 'Select end date'}</Text>
+                    <ChevronDown size={18} color="#a0a0a0" />
+                  </Pressable>
+                </View>
+              )}
+
+              {/* Reminder */}
+              <View>
+                <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
+                  Reminder
+                </Text>
+                <Pressable
+                  onPress={() => setShowReminderPicker(true)}
+                  className="flex-row items-center gap-3 bg-input-background border border-border rounded-xl px-4 py-3"
+                >
+                  <Bell size={18} color="#a0a0a0" />
+                  <Text className="text-base text-foreground flex-1">{getReminderLabel()}</Text>
+                  <ChevronDown size={18} color="#a0a0a0" />
+                </Pressable>
+              </View>
+
+              {/* Reminder Picker Modal */}
+              <Modal visible={showReminderPicker} transparent animationType="fade" onRequestClose={() => setShowReminderPicker(false)}>
+                <Pressable className="flex-1 bg-black/50 justify-end" onPress={() => setShowReminderPicker(false)}>
+                  <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
+                    <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
+                    <Text className="text-lg font-semibold text-foreground mb-4">Reminder</Text>
+                    <View className="gap-2">
+                      {reminderOptions.map((opt) => (
+                        <Pressable
+                          key={opt.id}
+                          onPress={() => {
+                            setReminder(opt.id);
+                            setShowReminderPicker(false);
+                          }}
+                          className={`flex-row items-center justify-between p-4 rounded-xl ${
+                            reminder === opt.id ? 'bg-primary/10 border border-primary' : 'bg-input-background border border-border'
+                          }`}
+                        >
+                          <Text className="text-sm font-medium text-foreground">{opt.label}</Text>
+                          {reminder === opt.id && <Check size={20} color="#C5FF00" />}
+                        </Pressable>
+                      ))}
+                    </View>
+                  </Pressable>
+                </Pressable>
+              </Modal>
             </View>
           )}
 

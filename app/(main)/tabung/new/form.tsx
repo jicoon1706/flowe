@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Switch } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, Check } from '../../../../components/ui/icons';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { ChevronLeft, Check, Calendar as CalendarIcon, ChevronDown } from '../../../../components/ui/icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const ICONS = ['🐷', '💰', '🏠', '🎁', '🚗', '🚀', '🌴', '🏢', '🚂', '🎯', '💎', '⭐'];
 const COLORS = ['#6bcf7f', '#ffd93d', '#00d4ff', '#C5FF00', '#f472b6', '#a78bfa', '#34d399', '#fb923c'];
@@ -18,17 +19,50 @@ const TEMPLATE_DEFAULTS: Record<string, { name: string; emoji: string; color: st
 
 export default function TabungFormScreen() {
   const router = useRouter();
-  const { template } = useLocalSearchParams<{ template?: string }>();
-  const templateKey = template || 'custom';
-  const defaults = TEMPLATE_DEFAULTS[templateKey] || TEMPLATE_DEFAULTS.custom;
+  const { template, templateId, templateName, templateEmoji, templateTarget } = useLocalSearchParams<{
+    template?: string;
+    templateId?: string;
+    templateName?: string;
+    templateEmoji?: string;
+    templateTarget?: string;
+  }>();
+
+  // Determine defaults from template params or fall back to key lookup
+  let defaults = TEMPLATE_DEFAULTS.custom;
+  if (templateId && templateName && templateEmoji) {
+    // Template data passed directly via params
+    defaults = {
+      name: templateName,
+      emoji: templateEmoji,
+      color: TEMPLATE_DEFAULTS[templateId]?.color || '#6bcf7f',
+    };
+  } else if (template) {
+    // Fallback: treat template as a key
+    defaults = TEMPLATE_DEFAULTS[template] || TEMPLATE_DEFAULTS.custom;
+  }
 
   const [name, setName] = useState(defaults.name);
-  const [target, setTarget] = useState('');
+  const [target, setTarget] = useState(templateTarget || '');
   const [date, setDate] = useState('');
   const [selectedIcon, setSelectedIcon] = useState(defaults.emoji);
   const [selectedColor, setSelectedColor] = useState(defaults.color);
   const [autoSave, setAutoSave] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Reset form when screen comes into focus (user navigates back)
+  useFocusEffect(
+    useCallback(() => {
+      // Reset to initial defaults from current params
+      setName(defaults.name);
+      setTarget(templateTarget || '');
+      setDate('');
+      setSelectedIcon(defaults.emoji);
+      setSelectedColor(defaults.color);
+      setAutoSave(false);
+      setShowSuccess(false);
+    }, [defaults, templateTarget])
+  );
 
   // Calculate weeks and weekly needed
   const targetNum = parseFloat(target.replace(/,/g, '') || '0');
@@ -79,9 +113,9 @@ export default function TabungFormScreen() {
               className="mt-4 rounded-2xl p-5 border"
               style={{ borderColor: selectedColor + '40', backgroundColor: '#2a2a2a' }}
             >
-              <View className="flex-row items-center mb-3">
+              <View className="flex-row items-center gap-3">
                 <View
-                  className="w-12 h-12 rounded-xl items-center justify-center mr-3"
+                  className="w-12 h-12 rounded-xl items-center justify-center"
                   style={{ backgroundColor: selectedColor + '20' }}
                 >
                   <Text className="text-2xl">{selectedIcon}</Text>
@@ -94,12 +128,6 @@ export default function TabungFormScreen() {
                     {target ? `RM ${target}` : 'RM 0'}
                   </Text>
                 </View>
-              </View>
-              <View className="h-2 bg-muted rounded-full overflow-hidden">
-                <View
-                  className="h-full rounded-full"
-                  style={{ width: '10%', backgroundColor: selectedColor }}
-                />
               </View>
             </View>
 
@@ -129,13 +157,14 @@ export default function TabungFormScreen() {
 
             <View>
               <Text className="text-xs text-muted-foreground mb-1">Target Date</Text>
-              <TextInput
-                className="bg-card border border-border rounded-xl px-4 py-3 text-foreground mb-2"
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#888"
-                value={date}
-                onChangeText={setDate}
-              />
+              <Pressable
+                onPress={() => setShowDatePicker(true)}
+                className="bg-card border border-border rounded-xl px-4 py-3 mb-2"
+              >
+                <Text className={date ? 'text-foreground' : 'text-muted-foreground'}>
+                  {date || 'YYYY-MM-DD'}
+                </Text>
+              </Pressable>
               {weeklyNeeded > 0 && (
                 <Text className="text-xs text-muted-foreground mb-4">
                   Save RM {weeklyNeeded.toFixed(2)} weekly ({weeks} weeks)
@@ -214,6 +243,42 @@ export default function TabungFormScreen() {
             </Pressable>
           </View>
         </>
+      )}
+
+      {/* Date Picker */}
+      {showDatePicker && (
+        <View className="px-4 mb-4">
+          <DateTimePicker
+            value={date ? new Date(date) : new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(_, selectedDate) => {
+              if (selectedDate) {
+                setDate(selectedDate.toISOString().split('T')[0]);
+              }
+              if (Platform.OS === 'android') {
+                setShowDatePicker(false);
+              }
+            }}
+            style={{ height: 216 }}
+          />
+          {Platform.OS === 'ios' && (
+            <View className="flex-row gap-2 mt-2">
+              <Pressable
+                onPress={() => setShowDatePicker(false)}
+                className="flex-1 bg-card border border-border rounded-xl py-3 items-center"
+              >
+                <Text className="text-sm font-medium text-foreground">Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setShowDatePicker(false)}
+                className="flex-1 bg-primary rounded-xl py-3 items-center"
+              >
+                <Text className="text-sm font-semibold text-primary-foreground">Done</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       )}
     </SafeAreaView>
   );

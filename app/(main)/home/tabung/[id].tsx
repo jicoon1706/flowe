@@ -1,8 +1,9 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, Pencil, Plus, Minus } from '../../../../components/ui/icons';
+import Svg, { Circle } from 'react-native-svg';
+import { AlertCircle, Calendar, Check, ChevronLeft, Minus, Pencil, Plus, Target, TrendingUp, X } from '../../../../components/ui/icons';
 
 const MOCK_TABUNG: Record<string, {
   name: string;
@@ -42,6 +43,7 @@ export default function TabungDetailScreen() {
   const [topUpNote, setTopUpNote] = useState('');
   const [withdrawNote, setWithdrawNote] = useState('');
   const [topUpSuccess, setTopUpSuccess] = useState(false);
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
   const [editName, setEditName] = useState(tabung.name);
   const [editTarget, setEditTarget] = useState(tabung.target);
@@ -52,6 +54,12 @@ export default function TabungDetailScreen() {
   const remaining = targetNum - currentNum;
   const weeksLeft = Math.ceil(tabung.daysLeft / 7);
   const weeklyNeeded = weeksLeft > 0 ? remaining / weeksLeft : remaining;
+
+  // SVG circle progress props
+  const size = 144;
+  const strokeWidth = 10;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
 
   const handleConfirmTopUp = () => {
     setTopUpSuccess(true);
@@ -69,16 +77,18 @@ export default function TabungDetailScreen() {
       setWithdrawError('Cannot exceed current saved amount');
       return;
     }
-    setShowWithdraw(false);
-    setWithdrawError('');
-    setWithdrawAmount('');
-    setWithdrawNote('');
+    setWithdrawSuccess(true);
+    setTimeout(() => {
+      setShowWithdraw(false);
+      setWithdrawSuccess(false);
+      setWithdrawError('');
+      setWithdrawAmount('');
+      setWithdrawNote('');
+    }, 1500);
   };
 
   const handleSaveEdit = () => {
     setShowEdit(false);
-    setEditName('');
-    setEditTarget('');
   };
 
   const quickAmounts = [10, 20, 50, 100];
@@ -87,250 +97,343 @@ export default function TabungDetailScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="mr-3">
+        <Pressable onPress={() => router.back()} className="p-2 mr-2">
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
         <Text className="flex-1 text-lg font-semibold text-foreground">{tabung.name}</Text>
-        <Pressable onPress={() => setShowEdit(true)}>
+        <Pressable onPress={() => setShowEdit(true)} className="p-2">
           <Pencil size={22} color="#fff" />
         </Pressable>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Progress Circle */}
-        <View className="items-center py-8">
-          <View className="w-48 h-48 rounded-full border-8 border-border items-center justify-center">
-            <View
-              className="w-40 h-40 rounded-full border-4 items-center justify-center"
-              style={{ borderColor: tabung.color }}
-            >
-              <Text className="text-5xl">{tabung.emoji}</Text>
-              <Text className="text-2xl font-bold text-foreground">{percentage}%</Text>
+        {/* Progress Circle with SVG */}
+        <View className="items-center py-6 mx-4 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-3xl mb-4">
+          <View className="relative w-36 h-36 mb-6 items-center justify-center">
+            <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+              {/* Background circle */}
+              <Circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke="rgba(255,255,255,0.1)"
+                strokeWidth={strokeWidth}
+                fill="none"
+              />
+              {/* Progress circle - starts from top (12 o'clock) */}
+              <Circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke="#C5FF00"
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={`${(percentage / 100) * circumference} ${circumference}`}
+                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              />
+            </Svg>
+            <View className="absolute inset-0 flex flex-col items-center justify-center">
+              <Text className="text-4xl mb-1">{tabung.emoji}</Text>
+              <Text className="text-xl font-bold text-primary">{percentage}%</Text>
             </View>
+          </View>
+
+          <View className="text-center mt-2">
+            <Text className="text-3xl font-bold text-foreground">RM {currentNum.toFixed(2)}</Text>
+            <Text className="text-sm text-muted-foreground">of RM {targetNum.toFixed(2)} goal</Text>
           </View>
         </View>
 
         {/* Stats Grid */}
-        <View className="flex-row mx-4 px-1">
-          <View className="flex-1 bg-card rounded-2xl p-4 items-center border border-border">
-            <Text className="text-xs text-muted-foreground mb-1">Remaining</Text>
+        <View className="flex-row mx-4 px-1 mb-4">
+          <View className="flex-1 bg-card rounded-2xl p-3 items-center border border-border">
+            <View className="mb-1"><Target size={16} color="#C5FF00" /></View>
             <Text className="text-lg font-bold text-foreground">RM {remaining.toFixed(2)}</Text>
+            <Text className="text-xs text-muted-foreground">Remaining</Text>
           </View>
-          <View className="flex-1 bg-card rounded-2xl p-4 items-center mx-2 border border-border">
-            <Text className="text-xs text-muted-foreground mb-1">Days Left</Text>
+          <View className="flex-1 bg-card rounded-2xl p-3 items-center mx-2 border border-border">
+            <View className="mb-1"><Calendar size={16} color="#C5FF00" /></View>
             <Text className="text-lg font-bold text-foreground">{tabung.daysLeft}</Text>
+            <Text className="text-xs text-muted-foreground">Days left</Text>
           </View>
-          <View className="flex-1 bg-card rounded-2xl p-4 items-center border border-border">
-            <Text className="text-xs text-muted-foreground mb-1">Weekly Needed</Text>
+          <View className="flex-1 bg-card rounded-2xl p-3 items-center border border-border">
+            <View className="mb-1"><TrendingUp size={16} color="#C5FF00" /></View>
             <Text className="text-lg font-bold text-foreground">RM {weeklyNeeded.toFixed(2)}</Text>
+            <Text className="text-xs text-muted-foreground">Per week</Text>
           </View>
         </View>
 
         {/* Action Buttons */}
-        <View className="flex-row mx-4 mt-4">
+        <View className="flex-row mx-4 mb-5">
           <Pressable
             onPress={() => setShowTopUp(true)}
-            className="flex-1 bg-primary rounded-2xl py-3 mr-1.5 items-center"
+            className="flex-1 bg-primary rounded-2xl py-4 mr-1.5 justify-center items-center flex-row shadow-lg shadow-primary/20"
           >
-            <Text className="text-sm font-semibold text-primary-foreground">Top Up</Text>
+            <Plus size={20} color="#000" />
+            <Text className="text-sm font-bold text-black ml-2">Top Up</Text>
           </Pressable>
           <Pressable
-            onPress={() => setShowWithdraw(true)}
-            className="flex-1 bg-card rounded-2xl py-3 ml-1.5 items-center border border-border"
+            onPress={() => { setWithdrawError(''); setShowWithdraw(true); }}
+            className="flex-1 bg-card rounded-2xl py-4 ml-1.5 justify-center items-center flex-row border border-border"
           >
-            <Text className="text-sm font-semibold text-foreground">Withdraw</Text>
+            <Minus size={20} color="#fff" />
+            <Text className="text-sm font-bold text-foreground ml-2">Withdraw</Text>
           </Pressable>
         </View>
 
-        {/* History */}
-        <View className="mt-5 mb-4">
-          <Text className="text-sm font-semibold text-foreground px-4 mb-3">History</Text>
-          {tabung.history.map((item) => (
-            <View
-              key={item.id}
-              className="flex-row items-center px-4 py-3 border-b border-border"
-            >
+        {/* Transaction History */}
+        <View className="px-4 mb-4">
+          <Text className="text-sm font-medium text-muted-foreground mb-4">Transaction History</Text>
+          <View className="gap-2">
+            {tabung.history.map((item) => (
               <View
-                className="w-8 h-8 rounded-full items-center justify-center mr-3"
-                style={{ backgroundColor: item.type === 'topup' ? '#22C55E20' : '#EF444420' }}
+                key={item.id}
+                className="bg-card border border-border rounded-xl p-4 flex-row items-center justify-between"
               >
-                {item.type === 'topup' ? (
-                  <Plus size={16} color="#22C55E" />
-                ) : (
-                  <Minus size={16} color="#EF4444" />
-                )}
+                <View className="flex-row items-center">
+                  <View
+                    className={`w-8 h-8 rounded-full items-center justify-center mr-3 ${
+                      item.type === 'withdraw' ? 'bg-red-500/15' : 'bg-primary/15'
+                    }`}
+                  >
+                    {item.type === 'withdraw' ? (
+                      <Minus size={16} color="#EF4444" />
+                    ) : (
+                      <Plus size={16} color="#C5FF00" />
+                    )}
+                  </View>
+                  <View>
+                    <Text className="text-sm font-medium text-foreground">{item.note}</Text>
+                    <Text className="text-xs text-muted-foreground">{item.date}</Text>
+                  </View>
+                </View>
+                <Text
+                  className={`text-sm font-bold ${
+                    item.type === 'withdraw' ? 'text-red-400' : 'text-primary'
+                  }`}
+                >
+                  {item.type === 'withdraw' ? '-' : '+'}RM {item.amount.replace(/[^0-9.]/g, '')}
+                </Text>
               </View>
-              <View className="flex-1">
-                <Text className="text-sm font-medium text-foreground">{item.note}</Text>
-                <Text className="text-xs text-muted-foreground mt-0.5">{item.date}</Text>
-              </View>
-              <Text
-                className={`text-sm font-semibold ${
-                  item.type === 'topup' ? 'text-income' : 'text-expense'
-                }`}
-              >
-                {item.amount}
-              </Text>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
       </ScrollView>
 
       {/* TopUp Modal */}
-      <Modal visible={showTopUp} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-card rounded-t-3xl p-6 pb-10">
-            <Text className="text-lg font-semibold text-foreground mb-4">Top Up</Text>
-            <TextInput
-              className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4"
-              placeholder="Enter amount"
-              placeholderTextColor="#888"
-              keyboardType="numeric"
-              value={topUpAmount}
-              onChangeText={setTopUpAmount}
-            />
-            <View className="flex-row flex-wrap mb-4">
-              {quickAmounts.map((amount) => (
-                <Pressable
-                  key={amount}
-                  onPress={() => setTopUpAmount(amount.toString())}
-                  className="bg-secondary rounded-xl px-4 py-2 mr-2 mb-2"
-                >
-                  <Text className="text-sm text-foreground">RM {amount}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <TextInput
-              className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4"
-              placeholder="Note (optional)"
-              placeholderTextColor="#888"
-              value={topUpNote}
-              onChangeText={setTopUpNote}
-            />
+      <Modal visible={showTopUp} transparent>
+        <View className="flex-1 justify-end bg-black/70">
+          <View className="bg-card rounded-t-3xl p-6 pb-10" onStartShouldSetResponder={() => true}>
             {topUpSuccess ? (
-              <View className="bg-primary/20 rounded-xl p-4 items-center mb-4">
-                <Text className="text-primary font-semibold">Top up successful!</Text>
+              <View className="flex flex-col items-center py-6 gap-3">
+                <View className="w-16 h-16 bg-primary rounded-full items-center justify-center">
+                  <Check size={32} color="#000" />
+                </View>
+                <Text className="text-lg font-bold text-foreground">Top Up Successful!</Text>
+                <Text className="text-sm text-muted-foreground">Your tabung is growing 🌱</Text>
               </View>
-            ) : null}
-            <View className="flex-row">
-              <Pressable
-                onPress={() => {
-                  setShowTopUp(false);
-                  setTopUpAmount('');
-                  setTopUpNote('');
-                  setTopUpSuccess(false);
-                }}
-                className="flex-1 py-3 items-center"
-              >
-                <Text className="text-muted-foreground">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleConfirmTopUp}
-                className="flex-1 bg-primary rounded-2xl py-3 items-center"
-              >
-                <Text className="text-sm font-semibold text-primary-foreground">Confirm Top Up</Text>
-              </Pressable>
-            </View>
+            ) : (
+              <>
+                <View className="flex-row items-center justify-between mb-5">
+                  <Text className="text-lg font-bold text-foreground">Top Up {tabung.name}</Text>
+                  <Pressable onPress={() => setShowTopUp(false)}>
+                    <X size={24} color="#888" />
+                  </Pressable>
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-xs text-muted-foreground mb-1">Amount (RM)</Text>
+                  <TextInput
+                    className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-xl font-bold"
+                    placeholder="0.00"
+                    placeholderTextColor="#888"
+                    keyboardType="numeric"
+                    value={topUpAmount}
+                    onChangeText={setTopUpAmount}
+                  />
+                </View>
+
+                <View className="flex-row flex-wrap mb-4 gap-2">
+                  {quickAmounts.map((amount) => (
+                    <Pressable
+                      key={amount}
+                      onPress={() => setTopUpAmount(amount.toString())}
+                      className={`px-4 py-2 rounded-xl ${
+                        topUpAmount === amount.toString()
+                          ? 'bg-primary'
+                          : 'bg-background border border-border'
+                      }`}
+                    >
+                      <Text
+                        className={`text-sm font-semibold ${
+                          topUpAmount === amount.toString() ? 'text-black' : 'text-muted-foreground'
+                        }`}
+                      >
+                        RM {amount}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <View className="mb-5">
+                  <Text className="text-xs text-muted-foreground mb-1">Note (optional)</Text>
+                  <TextInput
+                    className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                    placeholder="e.g. Weekly savings"
+                    placeholderTextColor="#888"
+                    value={topUpNote}
+                    onChangeText={setTopUpNote}
+                  />
+                </View>
+
+                <Pressable
+                  onPress={handleConfirmTopUp}
+                  className="bg-primary rounded-2xl py-4 items-center"
+                >
+                  <Text className="text-sm font-bold text-black">Confirm Top Up</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
       </Modal>
 
       {/* Withdraw Modal */}
-      <Modal visible={showWithdraw} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-card rounded-t-3xl p-6 pb-10">
-            <Text className="text-lg font-semibold text-foreground mb-4">Withdraw</Text>
-            <TextInput
-              className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-2"
-              placeholder="Enter amount"
-              placeholderTextColor="#888"
-              keyboardType="numeric"
-              value={withdrawAmount}
-              onChangeText={(text) => {
-                setWithdrawAmount(text);
-                setWithdrawError('');
-              }}
-            />
-            {withdrawError ? (
-              <Text className="text-expense text-sm mb-2">{withdrawError}</Text>
-            ) : null}
-            <View className="flex-row gap-2 mb-2">
-              {quickAmounts.map(a => (
-                <Pressable key={a} onPress={() => setWithdrawAmount(a)} className="bg-secondary px-4 py-2 rounded-xl">
-                  <Text className="text-sm text-muted-foreground">RM {a}</Text>
+      <Modal visible={showWithdraw} transparent>
+        <View className="flex-1 justify-end bg-black/70">
+          <View className="bg-card rounded-t-3xl p-6 pb-10" onStartShouldSetResponder={() => true}>
+            {withdrawSuccess ? (
+              <View className="flex flex-col items-center py-6 gap-3">
+                <View className="w-16 h-16 bg-red-500/20 border border-red-500/30 rounded-full items-center justify-center">
+                  <Check size={32} color="#EF4444" />
+                </View>
+                <Text className="text-lg font-bold text-foreground">Withdrawal Successful</Text>
+                <Text className="text-sm text-muted-foreground">Amount removed from your tabung</Text>
+              </View>
+            ) : (
+              <>
+                <View className="flex-row items-center justify-between mb-5">
+                  <Text className="text-lg font-bold text-foreground">Withdraw from {tabung.name}</Text>
+                  <Pressable onPress={() => setShowWithdraw(false)}>
+                    <X size={24} color="#888" />
+                  </Pressable>
+                </View>
+
+                <View className="bg-muted/40 border border-border rounded-xl p-3 mb-4 flex-row items-center">
+                  <Text className="text-sm text-muted-foreground">Available balance:</Text>
+                  <Text className="text-sm font-bold text-primary ml-2">RM {currentNum.toFixed(2)}</Text>
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-xs text-muted-foreground mb-1">Amount (RM)</Text>
+                  <TextInput
+                    className="bg-background border border-border rounded-xl px-4 py-3 text-foreground text-xl font-bold"
+                    placeholder="0.00"
+                    placeholderTextColor="#888"
+                    keyboardType="numeric"
+                    value={withdrawAmount}
+                    onChangeText={(text) => {
+                      setWithdrawAmount(text);
+                      setWithdrawError('');
+                    }}
+                  />
+                  {withdrawError ? (
+                    <View className="flex-row items-center gap-1.5 mt-2">
+                      <AlertCircle size={14} color="#EF4444" />
+                      <Text className="text-xs text-red-400">{withdrawError}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View className="flex-row flex-wrap mb-4 gap-2">
+                  {quickAmounts.filter((a) => parseFloat(a.toString()) <= currentNum).map((amount) => (
+                    <Pressable
+                      key={amount}
+                      onPress={() => {
+                        setWithdrawAmount(amount.toString());
+                        setWithdrawError('');
+                      }}
+                      className={`px-4 py-2 rounded-xl ${
+                        withdrawAmount === amount.toString()
+                          ? 'bg-red-500/20 border border-red-500/40'
+                          : 'bg-background border border-border'
+                      }`}
+                    >
+                      <Text
+                        className={`text-sm font-semibold ${
+                          withdrawAmount === amount.toString() ? 'text-red-400' : 'text-muted-foreground'
+                        }`}
+                      >
+                        RM {amount}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <View className="mb-5">
+                  <Text className="text-xs text-muted-foreground mb-1">Note (optional)</Text>
+                  <TextInput
+                    className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                    placeholder="e.g. Emergency use"
+                    placeholderTextColor="#888"
+                    value={withdrawNote}
+                    onChangeText={setWithdrawNote}
+                  />
+                </View>
+
+                <Pressable
+                  onPress={handleConfirmWithdraw}
+                  className="bg-red-500/20 border border-red-500/30 rounded-2xl py-4 items-center"
+                >
+                  <Text className="text-sm font-bold text-red-400">Confirm Withdrawal</Text>
                 </Pressable>
-              ))}
-            </View>
-            <TextInput
-              className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4 mt-2"
-              placeholder="Note (optional)"
-              placeholderTextColor="#888"
-              value={withdrawNote}
-              onChangeText={setWithdrawNote}
-            />
-            <View className="flex-row">
-              <Pressable
-                onPress={() => {
-                  setShowWithdraw(false);
-                  setWithdrawAmount('');
-                  setWithdrawNote('');
-                  setWithdrawError('');
-                }}
-                className="flex-1 py-3 items-center"
-              >
-                <Text className="text-muted-foreground">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleConfirmWithdraw}
-                className="flex-1 bg-primary rounded-2xl py-3 items-center"
-              >
-                <Text className="text-sm font-semibold text-primary-foreground">Confirm Withdraw</Text>
-              </Pressable>
-            </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
 
       {/* Edit Goal Modal */}
-      <Modal visible={showEdit} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-card rounded-t-3xl p-6 pb-10">
-            <Text className="text-lg font-semibold text-foreground mb-4">Edit Goal</Text>
-            <Text className="text-xs text-muted-foreground mb-1">Name</Text>
-            <TextInput
-              className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4"
-              placeholder="Tabung name"
-              placeholderTextColor="#888"
-              value={editName}
-              onChangeText={setEditName}
-            />
-            <Text className="text-xs text-muted-foreground mb-1">Target Amount</Text>
-            <TextInput
-              className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4"
-              placeholder="Target"
-              placeholderTextColor="#888"
-              keyboardType="numeric"
-              value={editTarget}
-              onChangeText={setEditTarget}
-            />
-            <View className="flex-row">
-              <Pressable
-                onPress={() => {
-                  setShowEdit(false);
-                  setEditName(tabung.name);
-                  setEditTarget(tabung.target);
-                }}
-                className="flex-1 py-3 items-center"
-              >
-                <Text className="text-muted-foreground">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleSaveEdit}
-                className="flex-1 bg-primary rounded-2xl py-3 items-center"
-              >
-                <Text className="text-sm font-semibold text-primary-foreground">Save</Text>
+      <Modal visible={showEdit} transparent>
+        <View className="flex-1 justify-end bg-black/70">
+          <View className="bg-card rounded-t-3xl p-6 pb-10" onStartShouldSetResponder={() => true}>
+            <View className="flex-row items-center justify-between mb-5">
+              <Text className="text-lg font-bold text-foreground">Edit Goal</Text>
+              <Pressable onPress={() => setShowEdit(false)}>
+                <X size={24} color="#888" />
               </Pressable>
             </View>
+
+            <View className="mb-4">
+              <Text className="text-xs text-muted-foreground mb-1">Tabung Name</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                placeholder="Tabung name"
+                placeholderTextColor="#888"
+                value={editName}
+                onChangeText={setEditName}
+              />
+            </View>
+
+            <View className="mb-5">
+              <Text className="text-xs text-muted-foreground mb-1">Target Amount (RM)</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                placeholder="Target"
+                placeholderTextColor="#888"
+                keyboardType="numeric"
+                value={editTarget}
+                onChangeText={(text) => setEditTarget(text.replace(/[^0-9.]/g, ''))}
+              />
+            </View>
+
+            <Pressable
+              onPress={handleSaveEdit}
+              className="bg-primary rounded-2xl py-4 items-center"
+            >
+              <Text className="text-sm font-bold text-black">Save Changes</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>

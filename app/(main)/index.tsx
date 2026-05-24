@@ -53,7 +53,7 @@ export default function HomeScreen() {
         }} />
         <RecentTransactions
           onSeeAll={() => router.push('/calendar')}
-          onTransactionPress={(id) => router.push('/transaction-detail')}
+          onTransactionPress={(id) => console.log('Transaction pressed:', id)}
         />
       </ScrollView>
     </SafeAreaView>

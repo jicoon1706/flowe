@@ -15,13 +15,23 @@ const MONTHLY_DATA = [
 ];
 
 const CATEGORIES = [
-  { name: 'Food & Drink', amount: 700, color: '#C5FF00' },
-  { name: 'Transport', amount: 350, color: '#00d4ff' },
-  { name: 'Bills', amount: 900, color: '#ff6b6b' },
-  { name: 'Shopping', amount: 500, color: '#ffd93d' },
-  { name: 'Entertainment', amount: 200, color: '#a78bfa' },
-  { name: 'Health', amount: 80, color: '#6bcf7f' },
-  { name: 'Others', amount: 70, color: '#94a3b8' },
+  { name: 'Food & Drink', amount: 700, color: '#C5FF00', emoji: '🍔' },
+  { name: 'Transport', amount: 350, color: '#00d4ff', emoji: '🚗' },
+  { name: 'Bills', amount: 900, color: '#ff6b6b', emoji: '🧾' },
+  { name: 'Shopping', amount: 500, color: '#ffd93d', emoji: '🛍️' },
+  { name: 'Entertainment', amount: 200, color: '#a78bfa', emoji: '🎬' },
+  { name: 'Health', amount: 80, color: '#6bcf7f', emoji: '💊' },
+  { name: 'Others', amount: 70, color: '#94a3b8', emoji: '📦' },
+];
+
+const INCOME_CATEGORIES = [
+  { name: 'Salary', amount: 4000, color: '#22C55E', emoji: '💼' },
+  { name: 'Freelance', amount: 800, color: '#3B82F6', emoji: '💻' },
+  { name: 'Gift', amount: 200, color: '#EC4899', emoji: '🎁' },
+  { name: 'Allowance', amount: 300, color: '#F59E0B', emoji: '💰' },
+  { name: 'Investment', amount: 150, color: '#6366F1', emoji: '📈' },
+  { name: 'Rental', amount: 0, color: '#14B8A6', emoji: '🏠' },
+  { name: 'Others', amount: 50, color: '#6B7280', emoji: '📦' },
 ];
 
 export default function AnalysisScreen() {
@@ -42,7 +52,6 @@ export default function AnalysisScreen() {
       ? "Good progress! You're building healthy financial habits."
       : 'Excellent! Your savings rate is impressive. Keep reinvesting in assets.';
 
-  const maxCategoryAmount = Math.max(...CATEGORIES.map((c) => c.amount));
   const maxChartValue = 6000;
   const chartBarMaxHeight = 96;
 
@@ -235,40 +244,155 @@ export default function AnalysisScreen() {
             </Pressable>
           </View>
 
+          {/* Category Donut Chart */}
+          <View className="flex-row items-center mb-4">
+            {/* Donut Chart */}
+            <View className="w-36 h-36 relative items-center justify-center">
+              {toggleMode === 'expense' ? (
+                <>
+                  <View className="absolute w-28 h-28 rounded-full border-8 border-background" />
+                  {CATEGORIES.filter(c => c.amount > 0).map((cat, idx) => {
+                    const total = CATEGORIES.reduce((sum, c) => sum + c.amount, 0);
+                    const pct = cat.amount / total;
+                    const rotation = idx * 45 - 90;
+                    return (
+                      <View
+                        key={cat.name}
+                        className="absolute w-28 h-28 rounded-full border-8 border-transparent"
+                        style={{
+                          borderTopColor: cat.color,
+                          borderRightColor: pct > 0.25 ? cat.color : 'transparent',
+                          borderBottomColor: pct > 0.5 ? cat.color : 'transparent',
+                          borderLeftColor: pct > 0.75 ? cat.color : 'transparent',
+                          transform: [{ rotate: `${rotation}deg` }],
+                        }}
+                      />
+                    );
+                  })}
+                  <View className="items-center">
+                    <Text className="text-xs text-muted-foreground">Total</Text>
+                    <Text className="text-base font-bold text-foreground">RM {data.expenses.toLocaleString('en-US')}</Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View className="absolute w-28 h-28 rounded-full border-8 border-background" />
+                  {INCOME_CATEGORIES.filter(c => c.amount > 0).map((cat, idx) => {
+                    const total = INCOME_CATEGORIES.reduce((sum, c) => sum + c.amount, 0);
+                    const pct = cat.amount / total;
+                    const rotation = idx * 45 - 90;
+                    return (
+                      <View
+                        key={cat.name}
+                        className="absolute w-28 h-28 rounded-full border-8 border-transparent"
+                        style={{
+                          borderTopColor: cat.color,
+                          borderRightColor: pct > 0.25 ? cat.color : 'transparent',
+                          borderBottomColor: pct > 0.5 ? cat.color : 'transparent',
+                          borderLeftColor: pct > 0.75 ? cat.color : 'transparent',
+                          transform: [{ rotate: `${rotation}deg` }],
+                        }}
+                      />
+                    );
+                  })}
+                  <View className="items-center">
+                    <Text className="text-xs text-muted-foreground">Total</Text>
+                    <Text className="text-base font-bold text-foreground">RM {data.income.toLocaleString('en-US')}</Text>
+                  </View>
+                </>
+              )}
+            </View>
+            {/* Legend */}
+            <View className="flex-1 ml-4 gap-1">
+              {(toggleMode === 'expense' ? CATEGORIES : INCOME_CATEGORIES).slice(0, 4).map((cat) => (
+                <View key={cat.name} className="flex-row items-center gap-2">
+                  <View className="w-3 h-3 rounded" style={{ backgroundColor: cat.color }} />
+                  <Text className="text-xs text-muted-foreground flex-1" numberOfLines={1}>{cat.name}</Text>
+                  <Text className="text-xs text-foreground font-medium">
+                    {Math.round((cat.amount / (toggleMode === 'expense' ? data.expenses : data.income)) * 100)}%
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
           <Text className="text-sm font-semibold text-foreground mb-3">
             {toggleMode === 'expense' ? 'Expense Breakdown' : 'Income Breakdown'}
           </Text>
 
           {toggleMode === 'expense' ? (
-            <View className="gap-3">
+            <View className="gap-2">
               {CATEGORIES.map((category) => {
-                const progressWidth = (category.amount / maxCategoryAmount) * 100;
+                const total = data.expenses;
+                const pct = total > 0 ? Math.round((category.amount / total) * 100) : 0;
                 return (
-                  <View key={category.name}>
-                    <View className="flex-row justify-between mb-1">
-                      <Text className="text-sm text-foreground">{category.name}</Text>
-                      <Text className="text-sm font-medium text-foreground">
-                        RM {category.amount.toLocaleString('en-US')}
-                      </Text>
+                  <View
+                    key={category.name}
+                    className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3"
+                  >
+                    <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center mr-3">
+                      <Text className="text-base">{category.emoji}</Text>
                     </View>
-                    <View className="h-2 bg-background rounded-full overflow-hidden">
-                      <View
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${progressWidth}%`,
-                          backgroundColor: category.color,
-                        }}
-                      />
+                    <View className="flex-1">
+                      <View className="flex-row items-center justify-between mb-2">
+                        <Text className="text-sm font-medium text-foreground">{category.name}</Text>
+                        <Text className="text-sm font-semibold text-foreground">
+                          RM {category.amount.toLocaleString('en-US')}
+                        </Text>
+                      </View>
+                      <View className="flex-row items-center gap-2">
+                        <View className="flex-1 h-2 bg-background rounded-full overflow-hidden">
+                          <View
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${pct}%`,
+                              backgroundColor: category.color,
+                            }}
+                          />
+                        </View>
+                        <Text className="text-xs text-muted-foreground">{pct}%</Text>
+                      </View>
                     </View>
                   </View>
                 );
               })}
             </View>
           ) : (
-            <View className="py-6 items-center">
-              <Text className="text-sm text-muted-foreground">
-                No income categories tracked
-              </Text>
+            <View className="gap-2">
+              {INCOME_CATEGORIES.map((category) => {
+                const total = data.income;
+                const pct = total > 0 ? Math.round((category.amount / total) * 100) : 0;
+                return (
+                  <View
+                    key={category.name}
+                    className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3"
+                  >
+                    <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center mr-3">
+                      <Text className="text-base">{category.emoji}</Text>
+                    </View>
+                    <View className="flex-1">
+                      <View className="flex-row items-center justify-between mb-2">
+                        <Text className="text-sm font-medium text-foreground">{category.name}</Text>
+                        <Text className="text-sm font-semibold text-foreground">
+                          RM {category.amount.toLocaleString('en-US')}
+                        </Text>
+                      </View>
+                      <View className="flex-row items-center gap-2">
+                        <View className="flex-1 h-2 bg-background rounded-full overflow-hidden">
+                          <View
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${pct}%`,
+                              backgroundColor: category.color,
+                            }}
+                          />
+                        </View>
+                        <Text className="text-xs text-muted-foreground">{pct}%</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           )}
         </View>

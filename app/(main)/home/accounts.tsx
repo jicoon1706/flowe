@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Plus, PiggyBank } from '../../../components/ui/icons';
-import { Landmark, Wallet } from 'lucide-react-native';
+import { ChevronLeft, Plus, PiggyBank, Landmark, Wallet, X, Check } from '../../../components/ui/icons';
 
 const ALL_ACCOUNTS = [
   { id: '1', type: 'bank' as const, name: 'Maybank', balance: '3,200.00', bankColor: '#ffd93d', last4: '4521' },
@@ -16,6 +15,18 @@ type FilterType = 'All' | 'Bank' | 'Tabung' | 'Investment';
 export default function AccountsScreen() {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<FilterType>('All');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newAccType, setNewAccType] = useState<'bank' | 'wallet'>('bank');
+  const [newAccName, setNewAccName] = useState('');
+  const [newAccBalance, setNewAccBalance] = useState('');
+
+  const handleAddAccount = () => {
+    // TODO: Add account logic
+    setShowAddModal(false);
+    setNewAccName('');
+    setNewAccBalance('');
+    setNewAccType('bank');
+  };
 
   const visibleAccounts = ALL_ACCOUNTS.filter((a) => {
     if (activeFilter === 'All') return true;
@@ -51,9 +62,8 @@ export default function AccountsScreen() {
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
         <Text className="flex-1 text-lg font-semibold text-foreground">Accounts</Text>
-        <Pressable className="flex-row items-center">
-          <Plus size={20} color="#C5FF00" />
-          <Text className="text-sm font-semibold text-primary ml-1">Add</Text>
+        <Pressable onPress={() => setShowAddModal(true)} className="w-10 h-10 rounded-full items-center justify-center bg-primary">
+          <Plus size={20} color="#000" />
         </Pressable>
       </View>
 
@@ -198,6 +208,91 @@ export default function AccountsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Add Account Modal */}
+      <Modal
+        visible={showAddModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <Pressable className="flex-1 bg-black/50 justify-end" onPress={() => setShowAddModal(false)}>
+          <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
+            <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
+
+            {/* Header with Close */}
+            <View className="flex-row items-center justify-between mb-5">
+              <Text className="text-lg font-semibold text-foreground">Add Account</Text>
+              <Pressable onPress={() => setShowAddModal(false)}>
+                <X size={24} color="#666" />
+              </Pressable>
+            </View>
+
+            {/* Bank / Wallet Toggle */}
+            <View className="flex-row gap-2 mb-4">
+              <Pressable
+                onPress={() => setNewAccType('bank')}
+                className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl border font-semibold text-sm ${
+                  newAccType === 'bank'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-input-background border-border text-muted-foreground'
+                }`}
+              >
+                <Landmark size={18} color={newAccType === 'bank' ? '#000' : '#666'} />
+                <Text className={newAccType === 'bank' ? 'text-black' : 'text-muted-foreground'}>Bank</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setNewAccType('wallet')}
+                className={`flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl border font-semibold text-sm ${
+                  newAccType === 'wallet'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-input-background border-border text-muted-foreground'
+                }`}
+              >
+                <Wallet size={18} color={newAccType === 'wallet' ? '#000' : '#666'} />
+                <Text className={newAccType === 'wallet' ? 'text-black' : 'text-muted-foreground'}>Wallet</Text>
+              </Pressable>
+            </View>
+
+            {/* Form Fields */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-muted-foreground mb-2">Account Name</Text>
+              <View className="bg-input-background border border-border rounded-xl px-4 py-3">
+                <TextInput
+                  className="text-foreground"
+                  placeholder="e.g. Maybank"
+                  placeholderTextColor="#666"
+                  value={newAccName}
+                  onChangeText={setNewAccName}
+                />
+              </View>
+            </View>
+
+            <View className="mb-6">
+              <Text className="text-sm font-medium text-muted-foreground mb-2">Current Balance (RM)</Text>
+              <View className="bg-input-background border border-border rounded-xl px-4 py-3">
+                <TextInput
+                  className="text-foreground"
+                  placeholder="0.00"
+                  placeholderTextColor="#666"
+                  keyboardType="decimal-pad"
+                  value={newAccBalance}
+                  onChangeText={setNewAccBalance}
+                />
+              </View>
+            </View>
+
+            {/* Add Account Button */}
+            <Pressable
+              onPress={handleAddAccount}
+              className="flex-row items-center justify-center py-4 bg-primary rounded-2xl"
+            >
+              <Check size={20} color="#000" />
+              <Text className="text-base font-bold text-black ml-2">Add Account</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }

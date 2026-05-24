@@ -46,6 +46,7 @@ export const Paperclip = (props: Props) => <MaterialIcons name="attach-file" siz
 export const Clock = (props: Props) => <MaterialIcons name="schedule" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const X = (props: Props) => <MaterialIcons name="close" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const User = (props: Props) => <MaterialIcons name="person" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Landmark = (props: Props) => <MaterialIcons name="account-balance" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Wallet = (props: Props) => <MaterialIcons name="account-balance-wallet" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const DollarSign = (props: Props) => <MaterialIcons name="attach-money" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Calendar = (props: Props) => <MaterialIcons name="event" size={props.size ?? 24} color={props.color ?? '#fff'} />;
@@ -60,12 +61,14 @@ export const CheckCircle = (props: Props) => <MaterialIcons name="check-circle" 
 export const ExternalLink = (props: Props) => <MaterialIcons name="open-in-new" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const FilePlus = (props: Props) => <MaterialIcons name="add-circle-outline" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const RefreshCw = (props: Props) => <MaterialIcons name="refresh" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Receipt = (props: Props) => <MaterialIcons name="receipt" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Download = (props: Props) => <MaterialIcons name="file-download" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Fingerprint = (props: Props) => <MaterialIcons name="fingerprint" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Database = (props: Props) => <MaterialIcons name="storage" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Play = (props: Props) => <MaterialIcons name="play-arrow" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Pause = (props: Props) => <MaterialIcons name="pause" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const PiggyBank = (props: Props) => <MaterialIcons name="savings" size={props.size ?? 24} color={props.color ?? '#fff'} />;
-type IconName = 'help-outline' | 'notifications' | 'notifications-off' | 'lock' | 'lock-open' | 'visibility' | 'visibility-off' | 'add' | 'remove' | 'content-copy' | 'arrow-back' | 'arrow-forward' | 'arrow-upward' | 'arrow-downward' | 'chevron-left' | 'chevron-right' | 'expand-more' | 'expand-less' | 'home' | 'settings' | 'favorite' | 'share' | 'delete' | 'delete-sweep' | 'edit' | 'add-circle' | 'remove-circle' | 'repeat' | 'info' | 'folder' | 'trending-up' | 'trending-down' | 'attach-file' | 'schedule' | 'close' | 'person' | 'account-balance-wallet' | 'attach-money' | 'event' | 'date-range' | 'auto-awesome' | 'more-vert' | 'document-scanner' | 'error-outline' | 'swap-horiz' | 'check' | 'check-circle' | 'open-in-new' | 'add-circle-outline' | 'refresh' | 'file-download' | 'fingerprint' | 'storage' | 'play-arrow' | 'pause' | 'savings';
+export const Target = (props: Props) => <MaterialIcons name="gps-fixed" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+type IconName = 'help-outline' | 'notifications' | 'notifications-off' | 'lock' | 'lock-open' | 'visibility' | 'visibility-off' | 'add' | 'remove' | 'content-copy' | 'arrow-back' | 'arrow-forward' | 'arrow-upward' | 'arrow-downward' | 'chevron-left' | 'chevron-right' | 'expand-more' | 'expand-less' | 'home' | 'settings' | 'favorite' | 'share' | 'delete' | 'delete-sweep' | 'edit' | 'add-circle' | 'remove-circle' | 'repeat' | 'info' | 'folder' | 'trending-up' | 'trending-down' | 'attach-file' | 'schedule' | 'close' | 'person' | 'account-balance-wallet' | 'attach-money' | 'event' | 'date-range' | 'auto-awesome' | 'more-vert' | 'document-scanner' | 'error-outline' | 'swap-horiz' | 'check' | 'check-circle' | 'open-in-new' | 'add-circle-outline' | 'refresh' | 'receipt' | 'file-download' | 'fingerprint' | 'storage' | 'play-arrow' | 'pause' | 'savings' | 'gps-fixed';
 
 export const Icon = (props: Props & { name?: IconName }) => <MaterialIcons name={props.name ?? 'help-outline'} size={props.size ?? 24} color={props.color ?? '#fff'} />;

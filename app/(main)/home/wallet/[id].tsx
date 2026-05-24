@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, Eye, EyeOff, Pencil } from '../../../../components/ui/icons';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, RefreshCw, Receipt } from '../../../../components/ui/icons';
 
 const MOCK_WALLETS: Record<string, {
   name: string;
@@ -10,7 +10,7 @@ const MOCK_WALLETS: Record<string, {
   color: string;
   income: string;
   expense: string;
-  history: { id: string; name: string; amount: string; type: 'income' | 'expense'; category: string; date: string }[];
+  history: { id: string; name: string; amount: string; type: 'income' | 'expense'; category: string; date: string; recurring: boolean; emoji: string }[];
 }> = {
   '4': {
     name: 'Cash',
@@ -19,8 +19,9 @@ const MOCK_WALLETS: Record<string, {
     income: '0.00',
     expense: '150.00',
     history: [
-      { id: 'w1', name: 'Lunch', amount: '-12.00', type: 'expense', category: 'Food & Drink', date: 'May 6, 2026' },
-      { id: 'w2', name: 'Grab', amount: '-24.50', type: 'expense', category: 'Transport', date: 'May 5, 2026' },
+      { id: 'w1', name: 'Lunch', amount: '-12.00', type: 'expense', category: 'Food & Drink', date: 'Today', recurring: false, emoji: '🍔' },
+      { id: 'w2', name: 'Grab', amount: '-24.50', type: 'expense', category: 'Transport', date: 'Yesterday', recurring: false, emoji: '🚗' },
+      { id: 'w3', name: 'Salary', amount: '+3,500.00', type: 'income', category: 'Income', date: '1 May', recurring: true, emoji: '💼' },
     ],
   },
 };
@@ -94,25 +95,44 @@ export default function WalletDetailScreen() {
 
         {/* Transaction History */}
         <View className="mt-5 mb-4">
-          <Text className="text-sm font-semibold text-foreground px-4 mb-3">Transaction History</Text>
-          {wallet.history.map((tx) => (
-            <View
-              key={tx.id}
-              className="flex-row items-center px-4 py-3 border-b border-border"
-            >
-              <View className="flex-1">
-                <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
-                <Text className="text-xs text-muted-foreground mt-0.5">{tx.category} • {tx.date}</Text>
-              </View>
-              <Text
-                className={`text-sm font-semibold ${
-                  tx.type === 'income' ? 'text-income' : 'text-expense'
-                }`}
+          <View className="flex-row items-center justify-between px-4 mb-3">
+            <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Transaction History</Text>
+            <Pressable>
+              <Text className="text-xs text-primary font-medium">See All</Text>
+            </Pressable>
+          </View>
+          <View className="gap-2 px-4">
+            {wallet.history.map((tx) => (
+              <Pressable
+                key={tx.id}
+                className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
               >
-                {tx.amount}
-              </Text>
-            </View>
-          ))}
+                <View className="flex-row items-center gap-3">
+                  <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
+                    <Text className="text-base">{tx.emoji}</Text>
+                  </View>
+                  <View>
+                    <View className="flex-row items-center gap-1.5">
+                      <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
+                      {tx.recurring && <RefreshCw size={10} color="#a0a0a0" />}
+                      {tx.type === 'expense' && <Receipt size={10} color="#a0a0a0" />}
+                    </View>
+                    <Text className="text-xs text-muted-foreground">{tx.date}</Text>
+                  </View>
+                </View>
+                <View className="flex-row items-center gap-2">
+                  <Text
+                    className={`text-sm font-semibold ${
+                      tx.type === 'income' ? 'text-income' : 'text-expense'
+                    }`}
+                  >
+                    {tx.amount}
+                  </Text>
+                  <ChevronRight size={16} color="#a0a0a0" />
+                </View>
+              </Pressable>
+            ))}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

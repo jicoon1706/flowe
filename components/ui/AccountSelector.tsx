@@ -1,5 +1,6 @@
-import { View, Text, Pressable } from 'react-native';
-import { ChevronDown } from 'lucide-react-native';
+import React from 'react';
+import { View, Text, Pressable, Modal } from 'react-native';
+import { ChevronDown, Check } from 'lucide-react-native';
 
 interface Account {
   id: string;
@@ -27,6 +28,7 @@ export function AccountSelector({
   label = 'Account',
   accounts = defaultAccounts,
 }: AccountSelectorProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
   const selected = accounts.find((a) => a.id === value) || accounts[0];
 
   return (
@@ -40,11 +42,7 @@ export function AccountSelector({
         accessible
         accessibilityLabel={`Selected account: ${selected.name}`}
         accessibilityRole="button"
-        onPress={() => {
-          const currentIndex = accounts.findIndex((a) => a.id === value);
-          const nextIndex = (currentIndex + 1) % accounts.length;
-          onChange(accounts[nextIndex].id);
-        }}
+        onPress={() => setIsOpen(true)}
         className="flex-row items-center justify-between bg-input-background border border-border rounded-xl px-4 py-3"
       >
         <View className="flex-row items-center gap-3">
@@ -56,6 +54,46 @@ export function AccountSelector({
         </View>
         <ChevronDown size={18} color="#a0a0a0" />
       </Pressable>
+
+      <Modal
+        visible={isOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsOpen(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/50 justify-end"
+          onPress={() => setIsOpen(false)}
+        >
+          <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
+            <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
+            <Text className="text-lg font-semibold text-foreground mb-4">Select Account</Text>
+            <View className="gap-2">
+              {accounts.map((account) => (
+                <Pressable
+                  key={account.id}
+                  onPress={() => {
+                    onChange(account.id);
+                    setIsOpen(false);
+                  }}
+                  className={`flex-row items-center justify-between p-4 rounded-xl ${
+                    account.id === value ? 'bg-primary/10 border border-primary' : 'bg-input-background border border-border'
+                  }`}
+                >
+                  <View className="flex-row items-center gap-3">
+                    <View className="w-8 h-8 rounded-lg" style={{ backgroundColor: account.color + '30' }} />
+                    <View>
+                      <Text className="text-sm font-medium text-foreground">{account.name}</Text>
+                      <Text className="text-xs text-muted-foreground">RM {account.balance}</Text>
+                    </View>
+                  </View>
+                  {account.id === value && <Check size={20} color="#C5FF00" />}
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

@@ -147,14 +147,13 @@ export default function CalendarScreen() {
                     <View
                       className={`
                         w-8 h-8 rounded-full items-center justify-center
-                        ${isSelected ? 'bg-primary' : ''}
-                        ${isToday && !isSelected ? 'border border-primary' : ''}
+                        ${isSelected ? 'bg-primary' : isToday ? 'border-2 border-primary' : ''}
                       `}
                     >
                       <Text
                         className={`
                           text-sm font-medium
-                          ${isSelected ? 'text-primary-foreground' : 'text-foreground'}
+                          ${isSelected ? 'text-primary-foreground' : isToday ? 'text-primary' : 'text-foreground'}
                         `}
                       >
                         {item.day}
