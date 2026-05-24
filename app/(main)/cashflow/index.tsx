@@ -5,60 +5,87 @@ import { Info, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import React from 'react';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { FinancialClassBadge } from '../../../components/cashflow/FinancialClassBadge';
-import { CashFlowStatsGrid } from '../../../components/cashflow/CashFlowStatsGrid';
 import { CashFlowDiagram } from '../../../components/cashflow/CashFlowDiagram';
 import { IncomeStatementCard } from '../../../components/cashflow/IncomeStatementCard';
 import { BalanceSheetCard } from '../../../components/cashflow/BalanceSheetCard';
 import { MonthlyTrendChart } from '../../../components/cashflow/MonthlyTrendChart';
 import { ManageAssetsLiabilitiesCard } from '../../../components/cashflow/ManageAssetsLiabilitiesCard';
 
-// Mock data - will connect to Supabase Edge Functions later
-const financialClass = {
-  emoji: '💎',
-  label: 'Rich Pattern',
-  description: 'Your passive income exceeds your expenses',
-  pattern: 'rich' as const,
-};
+// ─── Mock data (to be replaced by Supabase hookup) ───────────────────────────
+const MONTHS = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026'];
 
-const stats = {
-  assets: 45000,
-  liabilities: 12000,
-  passiveIncome: 2500,
-  netWorth: 33000,
-};
-
-const incomeStatement = [
-  { label: 'Salary', amount: '4,230.00' },
-  { label: 'Freelance', amount: '500.00' },
-  { label: 'Passive Income', amount: '2,500.00', isHighlight: true },
-  { label: 'Total Income', amount: '7,230.00', isBold: true },
-  { label: 'Expenses', amount: '-2,145.00', isExpense: true },
-  { label: 'Net Cash Flow', amount: '+5,085.00', isPositive: true },
+const INCOME_ITEMS = [
+  { label: 'Salary', amount: 3500 },
+  { label: 'Freelance', amount: 600 },
 ];
 
-const assets = [
-  { id: '1', name: 'Maybank Savings', value: 15000, monthly: 200 },
-  { id: '2', name: 'Tabung Raya', value: 5000, monthly: 400 },
-  { id: '3', name: 'ASB', value: 25000, monthly: 50 },
+const EXPENSE_ITEMS = [
+  { label: 'Bills & Utilities', amount: 350 },
+  { label: 'Food', amount: 450 },
+  { label: 'Transport', amount: 200 },
+  { label: 'Mortgage Payment', amount: 1200 },
+  { label: 'Car Loan', amount: 500 },
 ];
 
-const liabilities = [
-  { id: '1', name: 'Car Loan', value: 12000, monthly: -450, rate: '2.5%' },
+const INITIAL_ASSETS = [
+  { id: 'a1', name: 'Rumah Taman Melati', type: 'Real Estate', icon: '🏠', value: 250000, monthlyIncome: 500 },
+  { id: 'a2', name: 'Bursa Stocks Portfolio', type: 'Stocks / ETF', icon: '📈', value: 15000, monthlyIncome: 200 },
+  { id: 'a3', name: 'Amanah Saham Bumiputera', type: 'ASB / ASB2', icon: '🐷', value: 10000, monthlyIncome: 0 },
+  { id: 'a4', name: 'Fixed Deposit Maybank', type: 'Fixed Deposit', icon: '🏦', value: 5000, monthlyIncome: 0 },
 ];
 
-const monthlyTrend = [
-  { month: 'Jan', assets: 40000, liabilities: 30000 },
-  { month: 'Feb', assets: 42000, liabilities: 28000 },
-  { month: 'Mar', assets: 43500, liabilities: 25000 },
-  { month: 'Apr', assets: 44000, liabilities: 22000 },
-  { month: 'May', assets: 45000, liabilities: 18000 },
-  { month: 'Jun', assets: 46500, liabilities: 15000 },
+const INITIAL_LIABILITIES = [
+  { id: 'l1', name: 'Housing Loan CIMB', type: 'Mortgage', icon: '🏦', amountOwed: 180000, monthlyPayment: 1200 },
+  { id: 'l2', name: 'Car Loan Maybank', type: 'Car Loan', icon: '🚗', amountOwed: 25000, monthlyPayment: 500 },
+  { id: 'l3', name: 'Credit Card CIMB', type: 'Credit Card', icon: '💳', amountOwed: 3000, monthlyPayment: 300 },
+  { id: 'l4', name: 'PTPTN', type: 'Study Loan', icon: '🎓', amountOwed: 12000, monthlyPayment: 150 },
 ];
 
+const MONTHLY_TREND = [
+  { month: 'Dec', assets: 260000, liabilities: 228000 },
+  { month: 'Jan', assets: 262000, liabilities: 226000 },
+  { month: 'Feb', assets: 265000, liabilities: 224000 },
+  { month: 'Mar', assets: 268000, liabilities: 222000 },
+  { month: 'Apr', assets: 272000, liabilities: 221000 },
+  { month: 'May', assets: 280000, liabilities: 220000 },
+];
+
+// ─── Types ───────────────────────────────────────────────────────────────────────
+type FinancialClass = 'poor' | 'middle' | 'rich';
+
+interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
+interface Liability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
+
+// ─── Main screen ────────────────────────────────────────────────────────────────
 export default function CashFlowScreen() {
   const router = useRouter();
+  const [monthIndex, setMonthIndex] = React.useState(4); // May 2026
+  const [assets, setAssets] = React.useState<Asset[]>(INITIAL_ASSETS);
+  const [liabilities, setLiabilities] = React.useState<Liability[]>(INITIAL_LIABILITIES);
   const [balanceSheetTab, setBalanceSheetTab] = React.useState<'assets' | 'liabilities'>('assets');
   const [manageTab, setManageTab] = React.useState<'assets' | 'liabilities'>('assets');
+
+  // ─── Computed ────────────────────────────────────────────────────────────────
+  const totalIncome = INCOME_ITEMS.reduce((s, i) => s + i.amount, 0);
+  const passiveFromAssets = assets.reduce((s, a) => s + a.monthlyIncome, 0);
+  const allIncome = totalIncome + passiveFromAssets;
+  const totalExpenses = EXPENSE_ITEMS.reduce((s, e) => s + e.amount, 0);
+  const netCashFlow = allIncome - totalExpenses;
+  const totalAssets = assets.reduce((s, a) => s + a.value, 0);
+  const totalLiabilities = liabilities.reduce((s, l) => s + l.amountOwed, 0);
+  const netWorth = totalAssets - totalLiabilities;
+
+  const financialClass: FinancialClass =
+    assets.length === 0 && passiveFromAssets === 0
+      ? 'poor'
+      : passiveFromAssets >= totalExpenses
+      ? 'rich'
+      : 'middle';
+
+  const prevMonth = monthIndex > 0 ? MONTHLY_TREND[monthIndex - 1] : null;
+  const currMonth = MONTHLY_TREND[monthIndex];
+  const netWorthChange = (currMonth?.assets ?? 0) - (currMonth?.liabilities ?? 0)
+    - ((prevMonth?.assets ?? 0) - (prevMonth?.liabilities ?? 0));
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -70,14 +97,14 @@ export default function CashFlowScreen() {
           </Pressable>
         }
       />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
         {/* Month Navigator */}
         <View className="flex-row items-center justify-between px-4 py-3">
-          <Pressable accessible accessibilityLabel="Previous month" className="p-2">
+          <Pressable onPress={() => setMonthIndex((i) => Math.max(0, i - 1))} className="p-2">
             <ChevronLeft size={24} color="#ffffff" />
           </Pressable>
-          <Text className="text-lg font-semibold text-foreground">May 2025</Text>
-          <Pressable accessible accessibilityLabel="Next month" className="p-2">
+          <Text className="text-lg font-semibold text-foreground">{MONTHS[monthIndex]}</Text>
+          <Pressable onPress={() => setMonthIndex((i) => Math.min(MONTHS.length - 1, i + 1))} className="p-2">
             <ChevronRight size={24} color="#ffffff" />
           </Pressable>
         </View>
@@ -85,28 +112,41 @@ export default function CashFlowScreen() {
         {/* Financial Class Badge */}
         <View className="px-4 mb-4">
           <FinancialClassBadge
-            emoji={financialClass.emoji}
-            label={financialClass.label}
-            description={financialClass.description}
+            financialClass={financialClass}
+            totalAssets={totalAssets}
+            totalLiabilities={totalLiabilities}
+            passiveIncome={passiveFromAssets}
+            netWorth={netWorth}
+            totalIncome={allIncome}
+            totalExpenses={totalExpenses}
           />
-        </View>
-
-        {/* Stats Grid */}
-        <View className="px-4 mb-4">
-          <CashFlowStatsGrid stats={stats} />
         </View>
 
         {/* Cash Flow Diagram */}
         <View className="px-4 mb-4">
-          <CashFlowDiagram pattern={financialClass.pattern} income={7230} expenses={2145} />
+          <CashFlowDiagram
+            financialClass={financialClass}
+            totalIncome={allIncome}
+            passiveIncome={passiveFromAssets}
+            totalExpenses={totalExpenses}
+            totalAssets={totalAssets}
+            totalLiabilities={totalLiabilities}
+          />
         </View>
 
         {/* Income Statement */}
         <View className="px-4 mb-4">
-          <IncomeStatementCard items={incomeStatement} />
+          <IncomeStatementCard
+            incomeItems={INCOME_ITEMS}
+            expenseItems={EXPENSE_ITEMS}
+            passiveFromAssets={passiveFromAssets}
+            totalIncome={allIncome}
+            totalExpenses={totalExpenses}
+            netCashFlow={netCashFlow}
+          />
         </View>
 
-        {/* Balance Sheet Card */}
+        {/* Balance Sheet */}
         <View className="px-4 mb-4">
           <BalanceSheetCard
             assets={assets}
@@ -115,12 +155,15 @@ export default function CashFlowScreen() {
             onTabChange={setBalanceSheetTab}
             onAddAsset={() => {}}
             onAddLiability={() => {}}
+            totalAssets={totalAssets}
+            totalLiabilities={totalLiabilities}
+            netWorth={netWorth}
           />
         </View>
 
-        {/* Monthly Trend Chart */}
+        {/* Monthly Trend */}
         <View className="px-4 mb-4">
-          <MonthlyTrendChart data={monthlyTrend} netWorthChange={1500} />
+          <MonthlyTrendChart data={MONTHLY_TREND} netWorthChange={netWorthChange} />
         </View>
 
         {/* Manage Assets & Liabilities */}
@@ -131,7 +174,10 @@ export default function CashFlowScreen() {
             activeTab={manageTab}
             onTabChange={setManageTab}
             onEdit={() => {}}
-            onDelete={() => {}}
+            onDelete={(id) => {
+              setAssets((prev) => prev.filter((a) => a.id !== id));
+              setLiabilities((prev) => prev.filter((l) => l.id !== id));
+            }}
             onAdd={() => {}}
           />
         </View>
