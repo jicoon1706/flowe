@@ -1,5 +1,6 @@
-import React, { View, Text, Pressable } from 'react-native';
-import { Trash2, Edit3, Plus, Check, X } from 'lucide-react-native';
+import { View, Text, Pressable } from 'react-native';
+import { useState } from 'react';
+import { Trash, Pencil, Plus, Check, X } from 'lucide-react-native';
 
 interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
 interface Liability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
@@ -25,7 +26,8 @@ export function ManageAssetsLiabilitiesCard({
 }: ManageAssetsLiabilitiesCardProps) {
   const items = activeTab === 'assets' ? assets : liabilities;
   const isLiability = activeTab === 'liabilities';
-  const [deleteId, setDeleteId] = React.useState<string | null>(null);
+  const accentColor = isLiability ? '#ff6b6b' : '#C5FF00';
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   return (
     <View>
@@ -58,7 +60,7 @@ export function ManageAssetsLiabilitiesCard({
           const type = isAsset ? (item as Asset).type : (item as Liability).type;
           const icon = isAsset ? (item as Asset).icon : (item as Liability).icon;
           return (
-            <View key={item.id} className="bg-background border border-border rounded-xl p-3">
+            <View key={item.id} className="bg-background border border-border border-l-2 rounded-xl p-3" style={{ borderLeftColor: accentColor }}>
               <View className="flex-row items-start gap-3">
                 <View className="w-10 h-10 bg-primary/15 rounded-xl items-center justify-center">
                   <Text className="text-xl">{icon}</Text>
@@ -77,12 +79,12 @@ export function ManageAssetsLiabilitiesCard({
                 </View>
                 <View className="flex-row gap-1">
                   <Pressable onPress={() => onEdit(item)} className="p-1.5 rounded-lg hover:bg-muted">
-                    <Edit3 size={16} color="#a0a0a0" />
+                    <Pencil size={16} color="#a0a0a0" />
                   </Pressable>
                   {deleteId === item.id ? (
                     <View className="flex-row gap-1">
-                      <Pressable onPress={() => { onDelete(item.id); setDeleteId(null); }} className="p-1.5 rounded-lg bg-red-500/20">
-                        <Check size={16} color="#ff6b6b" />
+                      <Pressable onPress={() => { onDelete(item.id); setDeleteId(null); }} className="p-1.5 rounded-lg bg-red-500">
+                        <Check size={16} color="#ffffff" />
                       </Pressable>
                       <Pressable onPress={() => setDeleteId(null)} className="p-1.5 rounded-lg bg-muted">
                         <X size={16} color="#a0a0a0" />
@@ -90,7 +92,7 @@ export function ManageAssetsLiabilitiesCard({
                     </View>
                   ) : (
                     <Pressable onPress={() => setDeleteId(item.id)} className="p-1.5 rounded-lg hover:bg-red-500/20">
-                      <Trash2 size={16} color="#a0a0a0" />
+                      <Trash size={16} color="#a0a0a0" />
                     </Pressable>
                   )}
                 </View>
@@ -100,12 +102,10 @@ export function ManageAssetsLiabilitiesCard({
         })}
         <Pressable
           onPress={onAdd}
-          className="py-3 border border-dashed border-border rounded-xl items-center mt-2"
+          className="flex-row items-center justify-center gap-2 py-3 bg-primary/10 rounded-xl"
         >
-          <View className="flex-row items-center gap-2">
-            <Plus size={16} color="#C5FF00" />
-            <Text className="text-sm text-primary font-medium">Add {activeTab === 'assets' ? 'Asset' : 'Liability'}</Text>
-          </View>
+          <Plus size={16} color="#C5FF00" />
+          <Text className="text-sm text-primary font-semibold">Add {activeTab === 'assets' ? 'Asset' : 'Liability'}</Text>
         </Pressable>
       </View>
     </View>
