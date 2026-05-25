@@ -26,7 +26,7 @@ export function PinDots({ length, error }: { length: number; error?: boolean }) 
             key={i}
             className={`w-4 h-4 rounded-full border-2 ${
               error ? 'border-destructive bg-destructive' :
-              filled ? 'border-primary bg-primary' : 'border-muted-foreground/50'
+              filled ? 'border-primary bg-primary scale-110' : 'border-muted-foreground/50'
             }`}
           />
         );
