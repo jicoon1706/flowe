@@ -17,7 +17,11 @@ export default function ConfirmPin() {
 
   useEffect(() => {
     if (pin.length === 6) {
-      if (pin === firstPin) {
+      if (!firstPin) {
+        setError(true);
+        const t = setTimeout(() => { setError(false); setPin(''); }, 700);
+        return () => clearTimeout(t);
+      } else if (pin === firstPin) {
         dispatch({ type: 'SET_PIN', pin });
         router.replace('/(auth)/fingerprint');
       } else {
@@ -27,6 +31,11 @@ export default function ConfirmPin() {
       }
     }
   }, [pin]);
+
+  function resetAndGoBack() {
+    setPin('');
+    router.replace('/(auth)/create-pin');
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -39,7 +48,7 @@ export default function ConfirmPin() {
         <Text className="text-muted-foreground text-sm mt-1">Re-enter the same 6-digit PIN</Text>
         <PinDots length={pin.length} error={error} />
         {error && <Text className="text-destructive text-xs mt-2">PINs do not match. Try again.</Text>}
-        <Pressable onPress={() => router.back()} className="mt-6 py-3">
+        <Pressable onPress={resetAndGoBack} className="mt-6 py-3">
           <Text className="text-muted-foreground text-sm">← Choose a different PIN</Text>
         </Pressable>
       </View>

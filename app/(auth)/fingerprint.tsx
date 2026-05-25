@@ -15,10 +15,16 @@ export default function Fingerprint() {
   const [scanning, setScanning] = useState(false);
   const scale = useSharedValue(1);
 
-  useEffect(() => {
-    scale.value = withRepeat(withTiming(1.15, { duration: 900 }), -1, true);
-  }, []);
   const pulse = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  // Pulse animation only runs when actively scanning
+  useEffect(() => {
+    if (scanning) {
+      scale.value = withRepeat(withTiming(1.15, { duration: 900 }), -1, true);
+    } else {
+      scale.value = withTiming(1, { duration: 200 });
+    }
+  }, [scanning]);
 
   async function enable() {
     setScanning(true);
