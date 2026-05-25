@@ -3,7 +3,6 @@ import { View, ActivityIndicator, Text, Pressable } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import './global.css';
-import { supabase } from '../src/lib/supabase';
 import { authRepository } from '../src/repositories';
 import { flags } from '../src/lib/secureStore';
 import { OnboardingProvider } from '../context/OnboardingContext';
@@ -39,7 +38,7 @@ export default function RootLayout() {
     if (state === 'auth' && top !== '(auth)') router.replace('/(auth)/welcome');
     if (state === 'onboarding' && top !== '(onboarding)') router.replace('/(onboarding)/name');
     if (state === 'main' && top !== '(main)') router.replace('/(main)');
-  }, [state, segments]);
+  }, [state, segments, router]);
 
   if (state === 'loading') {
     return (
@@ -51,7 +50,7 @@ export default function RootLayout() {
   if (state === 'error') {
     return (
       <View className="flex-1 bg-background items-center justify-center px-6">
-        <Text className="text-foreground text-lg mb-4">Couldn't connect</Text>
+        <Text className="text-foreground text-lg mb-4">Could not connect</Text>
         <Pressable className="bg-primary rounded-2xl py-3 px-6" onPress={resolve}>
           <Text className="text-primary-foreground font-semibold">Retry</Text>
         </Pressable>
