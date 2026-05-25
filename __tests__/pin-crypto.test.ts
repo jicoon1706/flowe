@@ -12,4 +12,11 @@ describe('hashPin', () => {
     const h = await hashPin('123456');
     expect(h).toBe('hashed:123456');
   });
+
+  it('uses SHA-256 algorithm', async () => {
+    const CryptoDigestAlgorithm = require('expo-crypto').CryptoDigestAlgorithm;
+    const digestStringAsync = require('expo-crypto').digestStringAsync;
+    await hashPin('123456');
+    expect(digestStringAsync).toHaveBeenCalledWith(CryptoDigestAlgorithm.SHA256, '123456');
+  });
 });
