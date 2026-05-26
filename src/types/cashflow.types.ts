@@ -7,6 +7,9 @@ export interface CashflowSummary {
   total_income: number;
   total_expenses: number;
   net_cash_flow: number;
+  income?: Array<{ name: string; amount: number }>;
+  expenses?: Array<{ name: string; amount: number }>;
+  monthly_trend?: Array<{ month: string; assets: number; liabilities: number }>;
 }
 
 export interface CategoryBreakdown {

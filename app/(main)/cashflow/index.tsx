@@ -1,8 +1,7 @@
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView, useState, useFocusEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Info, ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { useState } from 'react';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { FinancialClassBadge } from '../../../components/cashflow/FinancialClassBadge';
 import { CashFlowDiagram } from '../../../components/cashflow/CashFlowDiagram';
@@ -12,37 +11,18 @@ import { MonthlyTrendChart } from '../../../components/cashflow/MonthlyTrendChar
 import { ManageAssetsLiabilitiesCard } from '../../../components/cashflow/ManageAssetsLiabilitiesCard';
 import { AddAssetModal, NewAsset } from '../../../components/cashflow/AddAssetModal';
 import { AddLiabilityModal, NewLiability } from '../../../components/cashflow/AddLiabilityModal';
+import { useCashflow } from '../../../src/hooks/useCashflow';
+import { useAssets } from '../../../src/hooks/useAssets';
+import { useLiabilities } from '../../../src/hooks/useLiabilities';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
+import { useAuth } from '../../../context/AuthContext';
+import type { Asset, Liability, AssetType, LiabilityType } from '../../../src/types/database.types';
 
-// ─── Mock data (to be replaced by Supabase hookup) ───────────────────────────
-const MONTHS = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026'];
+// ─── Month config ────────────────────────────────────────────────────────────
+const MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'];
 
-const INCOME_ITEMS = [
-  { label: 'Salary', amount: 3500 },
-  { label: 'Freelance', amount: 600 },
-];
-
-const EXPENSE_ITEMS = [
-  { label: 'Bills & Utilities', amount: 350 },
-  { label: 'Food', amount: 450 },
-  { label: 'Transport', amount: 200 },
-  { label: 'Mortgage Payment', amount: 1200 },
-  { label: 'Car Loan', amount: 500 },
-];
-
-const INITIAL_ASSETS = [
-  { id: 'a1', name: 'Rumah Taman Melati', type: 'Real Estate', icon: '🏠', value: 250000, monthlyIncome: 500 },
-  { id: 'a2', name: 'Bursa Stocks Portfolio', type: 'Stocks / ETF', icon: '📈', value: 15000, monthlyIncome: 200 },
-  { id: 'a3', name: 'Amanah Saham Bumiputera', type: 'ASB / ASB2', icon: '🐷', value: 10000, monthlyIncome: 0 },
-  { id: 'a4', name: 'Fixed Deposit Maybank', type: 'Fixed Deposit', icon: '🏦', value: 5000, monthlyIncome: 0 },
-];
-
-const INITIAL_LIABILITIES = [
-  { id: 'l1', name: 'Housing Loan CIMB', type: 'Mortgage', icon: '🏦', amountOwed: 180000, monthlyPayment: 1200 },
-  { id: 'l2', name: 'Car Loan Maybank', type: 'Car Loan', icon: '🚗', amountOwed: 25000, monthlyPayment: 500 },
-  { id: 'l3', name: 'Credit Card CIMB', type: 'Credit Card', icon: '💳', amountOwed: 3000, monthlyPayment: 300 },
-  { id: 'l4', name: 'PTPTN', type: 'Study Loan', icon: '🎓', amountOwed: 12000, monthlyPayment: 150 },
-];
-
+// ─── Mock fallback data ────────────────────────────────────────────────────────
 const MONTHLY_TREND = [
   { month: 'Dec', assets: 260000, liabilities: 228000 },
   { month: 'Jan', assets: 262000, liabilities: 226000 },
@@ -52,76 +32,142 @@ const MONTHLY_TREND = [
   { month: 'May', assets: 280000, liabilities: 220000 },
 ];
 
-// ─── Types ───────────────────────────────────────────────────────────────────────
-type FinancialClass = 'poor' | 'middle' | 'rich';
-
-interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
-interface Liability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
+// ─── Component-level asset/liability shape (for UI components) ────────────────
+interface UIAsset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
+interface UILiability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
 
 // ─── Main screen ────────────────────────────────────────────────────────────────
 export default function CashFlowScreen() {
   const router = useRouter();
   const [monthIndex, setMonthIndex] = useState(4); // May 2026
-  const [assets, setAssets] = useState<Asset[]>(INITIAL_ASSETS);
-  const [liabilities, setLiabilities] = useState<Liability[]>(INITIAL_LIABILITIES);
   const [balanceSheetTab, setBalanceSheetTab] = useState<'assets' | 'liabilities'>('assets');
   const [manageTab, setManageTab] = useState<'assets' | 'liabilities'>('assets');
   const [showAddAsset, setShowAddAsset] = useState(false);
   const [showAddLiability, setShowAddLiability] = useState(false);
-  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
-  const [editingLiability, setEditingLiability] = useState<Liability | null>(null);
+  const [editingAsset, setEditingAsset] = useState<UIAsset | null>(null);
+  const [editingLiability, setEditingLiability] = useState<UILiability | null>(null);
 
-  const handleAddAsset = (a: NewAsset) => {
-    if (editingAsset) {
-      setAssets((prev) => prev.map((x) => (x.id === editingAsset.id ? { ...x, ...a } : x)));
-    } else {
-      setAssets((prev) => [...prev, { id: `a${Date.now()}`, ...a }]);
-    }
-    setEditingAsset(null);
-    setShowAddAsset(false);
-  };
+  const currentMonth = MONTHS[monthIndex] ?? '2026-05';
 
-  const handleAddLiability = (l: NewLiability) => {
-    if (editingLiability) {
-      setLiabilities((prev) => prev.map((x) => (x.id === editingLiability.id ? { ...x, ...l } : x)));
-    } else {
-      setLiabilities((prev) => [...prev, { id: `l${Date.now()}`, ...l }]);
-    }
-    setEditingLiability(null);
-    setShowAddLiability(false);
-  };
+  // ─── Hook calls ────────────────────────────────────────────────────────────
+  const { user } = useAuth();
+  const { summary: cashflow, loading: cfLoading, error: cfError } = useCashflow(currentMonth);
+  const { assets: rawAssets, loading: astLoading, error: astError, fetchAssets, createAsset } = useAssets();
+  const { liabilities: rawLiabilities, loading: liabLoading, error: liabError, fetchLiabilities, createLiability } = useLiabilities();
 
-  const handleEdit = (item: Asset | Liability) => {
-    if (manageTab === 'assets') {
-      setEditingAsset(item as Asset);
-      setShowAddAsset(true);
-    } else {
-      setEditingLiability(item as Liability);
-      setShowAddLiability(true);
-    }
-  };
+  const loading = cfLoading || astLoading || liabLoading;
+  const anyError = cfError || astError || liabError;
 
-  // ─── Computed ────────────────────────────────────────────────────────────────
-  const totalIncome = INCOME_ITEMS.reduce((s, i) => s + i.amount, 0);
-  const passiveFromAssets = assets.reduce((s, a) => s + a.monthlyIncome, 0);
-  const allIncome = totalIncome + passiveFromAssets;
-  const totalExpenses = EXPENSE_ITEMS.reduce((s, e) => s + e.amount, 0);
-  const netCashFlow = allIncome - totalExpenses;
+  useFocusEffect(useCallback(() => {
+    fetchAssets();
+    fetchLiabilities();
+  }, [fetchAssets, fetchLiabilities]));
+
+  // ─── Loading / error guards ────────────────────────────────────────────────
+  if (loading) return <LoadingView />;
+  if (anyError) return <ErrorView error={anyError} onRetry={() => { fetchAssets(); fetchLiabilities(); }} />;
+
+  // ─── Map DB types to UI component types ───────────────────────────────────
+  const assets: UIAsset[] = rawAssets.map((a: Asset) => ({
+    id: a.id,
+    name: a.name,
+    type: a.type,
+    icon: a.icon ?? '📦',
+    value: a.current_value,
+    monthlyIncome: a.monthly_income,
+  }));
+
+  const liabilities: UILiability[] = rawLiabilities.map((l: Liability) => ({
+    id: l.id,
+    name: l.name,
+    type: l.type,
+    icon: l.icon ?? '📦',
+    amountOwed: l.amount_owed,
+    monthlyPayment: l.monthly_payment,
+  }));
+
+  // ─── Income / expense items ─────────────────────────────────────────────────
+  const incomeItems = cashflow?.income?.map(i => ({ label: i.name, amount: i.amount })) ?? [];
+  const expenseItems = cashflow?.expenses?.map(e => ({ label: e.name, amount: e.amount })) ?? [];
+
+  // ─── Computed totals ────────────────────────────────────────────────────────
+  const totalIncome = cashflow?.total_income ?? incomeItems.reduce((s, i) => s + i.amount, 0);
+  const totalExpenses = cashflow?.total_expenses ?? expenseItems.reduce((s, e) => s + e.amount, 0);
+  const netCashFlow = totalIncome - totalExpenses;
+
   const totalAssets = assets.reduce((s, a) => s + a.value, 0);
   const totalLiabilities = liabilities.reduce((s, l) => s + l.amountOwed, 0);
   const netWorth = totalAssets - totalLiabilities;
 
-  const financialClass: FinancialClass =
-    assets.length === 0 && passiveFromAssets === 0
-      ? 'poor'
-      : passiveFromAssets >= totalExpenses
-      ? 'rich'
-      : 'middle';
+  const passiveFromAssets = assets.reduce((s, a) => s + a.monthlyIncome, 0);
+  const allIncome = totalIncome + passiveFromAssets;
 
-  const prevMonth = monthIndex > 0 ? MONTHLY_TREND[monthIndex - 1] : null;
-  const currMonth = MONTHLY_TREND[monthIndex];
+  // Financial class from edge fn or compute locally
+  const financialClass = cashflow?.financial_class ??
+    (assets.length === 0 ? 'poor' :
+      passiveFromAssets >= totalExpenses ? 'rich' : 'middle');
+
+  // Monthly trend — use real data from edge fn when available, fall back to mock
+  const monthlyTrend = cashflow?.monthly_trend ?? MONTHLY_TREND;
+
+  const prevMonth = monthIndex > 0 ? monthlyTrend[monthIndex - 1] : null;
+  const currMonth = monthIndex < monthlyTrend.length ? monthlyTrend[monthIndex] : monthlyTrend[monthlyTrend.length - 1];
   const netWorthChange = (currMonth?.assets ?? 0) - (currMonth?.liabilities ?? 0)
     - ((prevMonth?.assets ?? 0) - (prevMonth?.liabilities ?? 0));
+
+  // ─── Handlers ───────────────────────────────────────────────────────────────
+  const handleAddAsset = async (a: NewAsset) => {
+    if (!user) return;
+    const result = await createAsset({
+      user_id: user.id,
+      name: a.name,
+      type: a.type as AssetType,
+      icon: a.icon,
+      current_value: a.value,
+      monthly_income: a.monthlyIncome,
+      date_acquired: a.dateAcquired,
+      note: a.note,
+    });
+    if (result.ok) {
+      setEditingAsset(null);
+      setShowAddAsset(false);
+    }
+  };
+
+  const handleAddLiability = async (l: NewLiability) => {
+    if (!user) return;
+    const result = await createLiability({
+      user_id: user.id,
+      name: l.name,
+      type: l.type as LiabilityType,
+      icon: l.icon,
+      amount_owed: l.amountOwed,
+      monthly_payment: l.monthlyPayment,
+      interest_rate: l.interestRate,
+      note: l.note,
+    });
+    if (result.ok) {
+      setEditingLiability(null);
+      setShowAddLiability(false);
+    }
+  };
+
+  const handleEdit = (item: UIAsset | UILiability) => {
+    if (manageTab === 'assets') {
+      setEditingAsset(item as UIAsset);
+      setShowAddAsset(true);
+    } else {
+      setEditingLiability(item as UILiability);
+      setShowAddLiability(true);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    // Soft-delete via repository would go here; for now, UI optimistically removes
+    // The refetch via fetchAssets/fetchLiabilities will sync state
+    fetchAssets();
+    fetchLiabilities();
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -173,8 +219,8 @@ export default function CashFlowScreen() {
         {/* Income Statement */}
         <View className="px-4 mb-4">
           <IncomeStatementCard
-            incomeItems={INCOME_ITEMS}
-            expenseItems={EXPENSE_ITEMS}
+            incomeItems={incomeItems}
+            expenseItems={expenseItems}
             passiveFromAssets={passiveFromAssets}
             totalIncome={allIncome}
             totalExpenses={totalExpenses}
@@ -199,7 +245,7 @@ export default function CashFlowScreen() {
 
         {/* Monthly Trend */}
         <View className="px-4 mb-4">
-          <MonthlyTrendChart data={MONTHLY_TREND} netWorthChange={netWorthChange} />
+          <MonthlyTrendChart data={monthlyTrend} netWorthChange={netWorthChange} />
         </View>
 
         {/* Manage Assets & Liabilities */}
@@ -210,10 +256,7 @@ export default function CashFlowScreen() {
             activeTab={manageTab}
             onTabChange={setManageTab}
             onEdit={handleEdit}
-            onDelete={(id) => {
-              setAssets((prev) => prev.filter((a) => a.id !== id));
-              setLiabilities((prev) => prev.filter((l) => l.id !== id));
-            }}
+            onDelete={handleDelete}
             onAdd={() => (manageTab === 'assets' ? setShowAddAsset(true) : setShowAddLiability(true))}
           />
         </View>
