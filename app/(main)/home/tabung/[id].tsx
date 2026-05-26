@@ -4,36 +4,17 @@ import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { AlertCircle, Calendar, Check, ChevronLeft, Minus, Pencil, Plus, Target, TrendingUp, X } from '../../../../components/ui/icons';
-
-const MOCK_TABUNG: Record<string, {
-  name: string;
-  emoji: string;
-  current: string;
-  target: string;
-  color: string;
-  daysLeft: number;
-  history: { id: string; type: 'topup' | 'withdraw'; amount: string; note: string; date: string }[];
-}> = {
-  '2': {
-    name: 'Tabung Raya',
-    emoji: '🎉',
-    current: '850.00',
-    target: '5,000.00',
-    color: '#6bcf7f',
-    daysLeft: 45,
-    history: [
-      { id: 'h1', type: 'topup', amount: '+500.00', note: 'Monthly savings', date: 'May 1, 2026' },
-      { id: 'h2', type: 'topup', amount: '+200.00', note: 'Extra savings', date: 'Apr 15, 2026' },
-      { id: 'h3', type: 'withdraw', amount: '-100.00', note: 'Emergency', date: 'Apr 10, 2026' },
-    ],
-  },
-};
+import { useAccounts } from '../../../../src/hooks/useAccounts';
+import { transactionsRepository } from '../../../../src/repositories/transactions.repository';
+import { LoadingView } from '../../../../components/ui/LoadingView';
+import { ErrorView } from '../../../../components/ui/ErrorView';
+import { useAuth } from '../../../../context/AuthContext';
 
 export default function TabungDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const tabungId = typeof id === 'string' ? id : '2';
-  const tabung = MOCK_TABUNG[tabungId] ?? MOCK_TABUNG['2'];
+  const { user } = useAuth();
+  const { accounts, loading, error, fetchAccounts } = useAccounts();
 
   const [showTopUp, setShowTopUp] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
@@ -45,14 +26,28 @@ export default function TabungDetailScreen() {
   const [topUpSuccess, setTopUpSuccess] = useState(false);
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
-  const [editName, setEditName] = useState(tabung.name);
-  const [editTarget, setEditTarget] = useState(tabung.target);
+  const [editName, setEditName] = useState('');
+  const [editTarget, setEditTarget] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const currentNum = parseFloat(tabung.current.replace(/,/g, ''));
-  const targetNum = parseFloat(tabung.target.replace(/,/g, ''));
-  const percentage = Math.min(100, Math.round((currentNum / targetNum) * 100));
-  const remaining = targetNum - currentNum;
-  const weeksLeft = Math.ceil(tabung.daysLeft / 7);
+  const tabungId = typeof id === 'string' ? id : '';
+  const account = accounts.find((a) => a.id === tabungId) ?? accounts[0];
+  const tabungData = (account as any)?.tabung_accounts;
+
+  const savedAmount = tabungData?.saved_amount ?? 0;
+  const targetAmount = tabungData?.target_amount ?? 0;
+  const tabungColor = account?.color ?? '#6bcf7f';
+  const tabungEmoji = account?.icon ?? '🎉';
+
+  const currentNum = savedAmount;
+  const targetNum = targetAmount;
+  const percentage = targetNum > 0 ? Math.min(100, Math.round((currentNum / targetNum) * 100)) : 0;
+  const remaining = Math.max(0, targetNum - currentNum);
+
+  const fromDate = tabungData?.from_date ? new Date(tabungData.from_date) : new Date();
+  const toDate = tabungData?.to_date ? new Date(tabungData.to_date) : new Date();
+  const daysLeft = Math.max(0, Math.ceil((toDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const weeksLeft = Math.ceil(daysLeft / 7);
   const weeklyNeeded = weeksLeft > 0 ? remaining / weeksLeft : remaining;
 
   // SVG circle progress props
@@ -61,37 +56,78 @@ export default function TabungDetailScreen() {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
-  const handleConfirmTopUp = () => {
-    setTopUpSuccess(true);
-    setTimeout(() => {
-      setShowTopUp(false);
-      setTopUpSuccess(false);
-      setTopUpAmount('');
-      setTopUpNote('');
-    }, 1500);
+  const handleConfirmTopUp = async () => {
+    const amountNum = parseFloat(topUpAmount.replace(/,/g, ''));
+    if (!amountNum || !user || !account) return;
+    setActionLoading(true);
+    const result = await transactionsRepository.create({
+      user_id: user.id,
+      type: 'tabung_topup',
+      name: 'Tabung Top Up',
+      amount: amountNum,
+      to_account_id: account.id,
+      date: new Date().toISOString().split('T')[0],
+      note: topUpNote || undefined,
+    });
+    setActionLoading(false);
+    if (result.ok) {
+      setTopUpSuccess(true);
+      await fetchAccounts();
+      setTimeout(() => {
+        setShowTopUp(false);
+        setTopUpSuccess(false);
+        setTopUpAmount('');
+        setTopUpNote('');
+      }, 1500);
+    }
   };
 
-  const handleConfirmWithdraw = () => {
+  const handleConfirmWithdraw = async () => {
     const withdrawNum = parseFloat(withdrawAmount.replace(/,/g, ''));
     if (withdrawNum > currentNum) {
       setWithdrawError('Cannot exceed current saved amount');
       return;
     }
-    setWithdrawSuccess(true);
-    setTimeout(() => {
-      setShowWithdraw(false);
-      setWithdrawSuccess(false);
-      setWithdrawError('');
-      setWithdrawAmount('');
-      setWithdrawNote('');
-    }, 1500);
+    if (!user || !account) return;
+    setActionLoading(true);
+    const result = await transactionsRepository.create({
+      user_id: user.id,
+      type: 'tabung_withdraw',
+      name: 'Tabung Withdrawal',
+      amount: withdrawNum,
+      to_account_id: account.id,
+      date: new Date().toISOString().split('T')[0],
+      note: withdrawNote || undefined,
+    });
+    setActionLoading(false);
+    if (result.ok) {
+      setWithdrawSuccess(true);
+      await fetchAccounts();
+      setTimeout(() => {
+        setShowWithdraw(false);
+        setWithdrawSuccess(false);
+        setWithdrawError('');
+        setWithdrawAmount('');
+        setWithdrawNote('');
+      }, 1500);
+    }
   };
 
   const handleSaveEdit = () => {
     setShowEdit(false);
   };
 
+  const handleOpenEdit = () => {
+    setEditName(account?.name ?? '');
+    setEditTarget(targetNum.toString());
+    setShowEdit(true);
+  };
+
   const quickAmounts = [10, 20, 50, 100];
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={fetchAccounts} />;
+  if (!account) return null;
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -100,8 +136,8 @@ export default function TabungDetailScreen() {
         <Pressable onPress={() => router.back()} className="p-2 mr-2">
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
-        <Text className="flex-1 text-lg font-semibold text-foreground">{tabung.name}</Text>
-        <Pressable onPress={() => setShowEdit(true)} className="p-2">
+        <Text className="flex-1 text-lg font-semibold text-foreground">{account.name}</Text>
+        <Pressable onPress={handleOpenEdit} className="p-2">
           <Pencil size={22} color="#fff" />
         </Pressable>
       </View>
@@ -134,7 +170,7 @@ export default function TabungDetailScreen() {
               />
             </Svg>
             <View className="absolute inset-0 flex flex-col items-center justify-center">
-              <Text className="text-4xl mb-1">{tabung.emoji}</Text>
+              <Text className="text-4xl mb-1">{tabungEmoji}</Text>
               <Text className="text-xl font-bold text-primary">{percentage}%</Text>
             </View>
           </View>
@@ -154,7 +190,7 @@ export default function TabungDetailScreen() {
           </View>
           <View className="flex-1 bg-card rounded-2xl p-3 items-center mx-2 border border-border">
             <View className="mb-1"><Calendar size={16} color="#C5FF00" /></View>
-            <Text className="text-lg font-bold text-foreground">{tabung.daysLeft}</Text>
+            <Text className="text-lg font-bold text-foreground">{daysLeft}</Text>
             <Text className="text-xs text-muted-foreground">Days left</Text>
           </View>
           <View className="flex-1 bg-card rounded-2xl p-3 items-center border border-border">
@@ -185,39 +221,7 @@ export default function TabungDetailScreen() {
         {/* Transaction History */}
         <View className="px-4 mb-4">
           <Text className="text-sm font-medium text-muted-foreground mb-4">Transaction History</Text>
-          <View className="gap-2">
-            {tabung.history.map((item) => (
-              <View
-                key={item.id}
-                className="bg-card border border-border rounded-xl p-4 flex-row items-center justify-between"
-              >
-                <View className="flex-row items-center">
-                  <View
-                    className={`w-8 h-8 rounded-full items-center justify-center mr-3 ${
-                      item.type === 'withdraw' ? 'bg-red-500/15' : 'bg-primary/15'
-                    }`}
-                  >
-                    {item.type === 'withdraw' ? (
-                      <Minus size={16} color="#EF4444" />
-                    ) : (
-                      <Plus size={16} color="#C5FF00" />
-                    )}
-                  </View>
-                  <View>
-                    <Text className="text-sm font-medium text-foreground">{item.note}</Text>
-                    <Text className="text-xs text-muted-foreground">{item.date}</Text>
-                  </View>
-                </View>
-                <Text
-                  className={`text-sm font-bold ${
-                    item.type === 'withdraw' ? 'text-red-400' : 'text-primary'
-                  }`}
-                >
-                  {item.type === 'withdraw' ? '-' : '+'}RM {item.amount.replace(/[^0-9.]/g, '')}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <Text className="text-sm text-muted-foreground text-center py-4">Top-up history will appear here</Text>
         </View>
       </ScrollView>
 
@@ -231,12 +235,12 @@ export default function TabungDetailScreen() {
                   <Check size={32} color="#000" />
                 </View>
                 <Text className="text-lg font-bold text-foreground">Top Up Successful!</Text>
-                <Text className="text-sm text-muted-foreground">Your tabung is growing 🌱</Text>
+                <Text className="text-sm text-muted-foreground">Your tabung is growing</Text>
               </View>
             ) : (
               <>
                 <View className="flex-row items-center justify-between mb-5">
-                  <Text className="text-lg font-bold text-foreground">Top Up {tabung.name}</Text>
+                  <Text className="text-lg font-bold text-foreground">Top Up {account.name}</Text>
                   <Pressable onPress={() => setShowTopUp(false)}>
                     <X size={24} color="#888" />
                   </Pressable>
@@ -289,9 +293,10 @@ export default function TabungDetailScreen() {
 
                 <Pressable
                   onPress={handleConfirmTopUp}
+                  disabled={actionLoading}
                   className="bg-primary rounded-2xl py-4 items-center"
                 >
-                  <Text className="text-sm font-bold text-black">Confirm Top Up</Text>
+                  <Text className="text-sm font-bold text-black">{actionLoading ? 'Processing...' : 'Confirm Top Up'}</Text>
                 </Pressable>
               </>
             )}
@@ -314,7 +319,7 @@ export default function TabungDetailScreen() {
             ) : (
               <>
                 <View className="flex-row items-center justify-between mb-5">
-                  <Text className="text-lg font-bold text-foreground">Withdraw from {tabung.name}</Text>
+                  <Text className="text-lg font-bold text-foreground">Withdraw from {account.name}</Text>
                   <Pressable onPress={() => setShowWithdraw(false)}>
                     <X size={24} color="#888" />
                   </Pressable>
@@ -384,9 +389,10 @@ export default function TabungDetailScreen() {
 
                 <Pressable
                   onPress={handleConfirmWithdraw}
+                  disabled={actionLoading}
                   className="bg-red-500/20 border border-red-500/30 rounded-2xl py-4 items-center"
                 >
-                  <Text className="text-sm font-bold text-red-400">Confirm Withdrawal</Text>
+                  <Text className="text-sm font-bold text-red-400">{actionLoading ? 'Processing...' : 'Confirm Withdrawal'}</Text>
                 </Pressable>
               </>
             )}
