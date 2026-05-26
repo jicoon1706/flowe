@@ -10,7 +10,7 @@ export function backspace(current: string): string {
   return current.slice(0, -1);
 }
 
-const KEYS: Array<{ kind: 'digit' | 'blank' | 'del'; value?: string }> = [
+const KEYS: { kind: 'digit' | 'blank' | 'del'; value?: string }[] = [
   { kind: 'digit', value: '1' }, { kind: 'digit', value: '2' }, { kind: 'digit', value: '3' },
   { kind: 'digit', value: '4' }, { kind: 'digit', value: '5' }, { kind: 'digit', value: '6' },
   { kind: 'digit', value: '7' }, { kind: 'digit', value: '8' }, { kind: 'digit', value: '9' },
@@ -39,9 +39,9 @@ export function PinPad({
             onPress={() => press(k)}
             accessibilityRole="button"
             accessibilityLabel={k.kind === 'del' ? 'Delete' : `Number ${k.value}`}
-            className="w-1/3 h-20 items-center justify-center"
+            className="w-1/3 h-20 items-center justify-center px-2 active:opacity-60"
           >
-            <View className="bg-card rounded-2xl w-full mx-1 h-16 items-center justify-center active:opacity-70">
+            <View className="bg-card rounded-2xl w-full h-16 items-center justify-center">
               {k.kind === 'digit' ? (
                 <Text className="text-foreground text-2xl font-semibold">{k.value}</Text>
               ) : (

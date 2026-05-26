@@ -1,4 +1,4 @@
-import { Pressable, View, Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
 
 export function TypeChip({
   label, emoji, active, onPress,

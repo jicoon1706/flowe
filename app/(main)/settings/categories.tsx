@@ -1,10 +1,14 @@
+import { useState, useCallback } from 'react';
 import { View, Text, Pressable, Modal, TextInput } from 'react-native';
-import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { expenseCategories, incomeCategories } from '../../../constants/categories';
 import { Plus, X } from '../../../components/ui/icons';
+import { useAuth } from '../../../context/AuthContext';
+import { useCustomCategories } from '../../../src/hooks/useCustomCategories';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
 
 const PRESET_COLORS = [
   '#F97316', '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444',
@@ -15,20 +19,41 @@ const PRESET_EMOJIS = ['🍔', '🚗', '🧾', '🛍️', '💊', '🎬', '📦'
 
 export default function CategoriesScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { categories: customCats, loading, error, fetchCategories, createCategory } = useCustomCategories();
   const [tab, setTab] = useState<'expense' | 'income'>('expense');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newEmoji, setNewEmoji] = useState('📦');
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#6B7280');
 
-  const categories = tab === 'expense' ? expenseCategories : incomeCategories;
+  useFocusEffect(useCallback(() => {
+    if (user) fetchCategories(user.id);
+  }, [user, fetchCategories]));
 
-  const handleAddCategory = () => {
-    console.log('Add category:', { emoji: newEmoji, name: newName, color: newColor, type: tab });
-    setShowAddModal(false);
-    setNewEmoji('📦');
-    setNewName('');
-    setNewColor('#6B7280');
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => user && fetchCategories(user.id)} />;
+
+  const builtIn = tab === 'expense' ? expenseCategories : incomeCategories;
+  const customForTab = customCats.filter(c => c.type === tab);
+  const categories = [...builtIn, ...customForTab];
+
+  const handleAddCategory = async () => {
+    if (!newName.trim() || !user) return;
+    const result = await createCategory({
+      user_id: user.id,
+      name: newName.trim(),
+      emoji: newEmoji,
+      color: newColor,
+      type: tab,
+    });
+    if (result.ok) {
+      setShowAddModal(false);
+      setNewEmoji('📦');
+      setNewName('');
+      setNewColor('#6B7280');
+      await fetchCategories(user.id);
+    }
   };
 
   const renderAddModal = () => (

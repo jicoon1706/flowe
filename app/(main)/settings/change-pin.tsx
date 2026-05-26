@@ -1,14 +1,17 @@
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Alert } from 'react-native';
 import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Numpad } from '../../../components/ui/Numpad';
-
-const MOCK_PIN = '123456';
+import { useAuth } from '../../../context/AuthContext';
+import { authConfigRepository } from '../../../src/repositories/authConfig.repository';
+import { supabase } from '../../../src/lib/supabase';
+import { hashPin } from '../../../src/lib/pinCrypto';
 
 export default function ChangePinScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -18,22 +21,32 @@ export default function ChangePinScreen() {
   const pins = [currentPin, newPin, confirmPin];
   const setPins = [setCurrentPin, setNewPin, setConfirmPin];
 
-  const handlePinChange = (value: string) => {
+  const handlePinChange = async (value: string) => {
     setError('');
     setPins[step](value);
     if (value.length === 6) {
-      setTimeout(() => {
+      setTimeout(async () => {
         if (step === 0) {
-          if (value === MOCK_PIN) {
-            setStep(1);
-          } else {
-            setError('Incorrect PIN');
-            setCurrentPin('');
-          }
+          // Verify current PIN against stored hash
+          if (!user) { setError('Not authenticated'); setCurrentPin(''); return; }
+          const { data, error: fetchErr } = await supabase
+            .from('auth_config')
+            .select('pin_hash')
+            .eq('user_id', user.id)
+            .single();
+          if (fetchErr || !data) { setError('PIN not set up'); setCurrentPin(''); return; }
+          const hashedInput = await hashPin(value);
+          if (hashedInput !== data.pin_hash) { setError('Incorrect PIN'); setCurrentPin(''); return; }
+          setStep(1);
         } else if (step === 1) {
           setStep(2);
         } else {
           if (value === newPin) {
+            // Save new PIN
+            if (!user) return;
+            const newHash = await hashPin(value);
+            await authConfigRepository.upsert({ userId: user.id, pinHash: newHash, fingerprintEnabled: false });
+            Alert.alert('PIN Changed', 'Your PIN has been updated successfully.');
             router.back();
           } else {
             setError('PINs don\'t match. Try again.');

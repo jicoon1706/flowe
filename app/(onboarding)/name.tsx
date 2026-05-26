@@ -29,7 +29,7 @@ export default function Name() {
           </View>
         </View>
         <Text className="text-foreground text-3xl font-bold text-center">What should we{'\n'}call you?</Text>
-        <Text className="text-muted-foreground text-sm text-center mt-2">We'll use your name to personalise your experience</Text>
+        <Text className="text-muted-foreground text-sm text-center mt-2">We&apos;ll use your name to personalise your experience</Text>
         <View className="bg-card border-2 border-primary rounded-2xl mt-8 flex-row items-center px-4">
           <TextInput
             value={value}

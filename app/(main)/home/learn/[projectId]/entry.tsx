@@ -1,32 +1,37 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, Pencil, Trash2, X } from '../../../../../components/ui/icons';
-
-interface Entry {
-  id: string;
-  text: string;
-  images: string[];
-  timeAgo: string;
-}
-
-const MOCK_ENTRY: Entry = {
-  id: 'e1',
-  text: 'S&P 500 index fund provides diversified exposure to US large-cap equities with low expense ratios. Warren Buffett recommends this for most investors who don\'t have time to analyze individual companies. The fund has historically returned about 10% annually before inflation.',
-  images: [],
-  timeAgo: '2 hours ago',
-};
+import { useAuth } from '../../../../../context/AuthContext';
+import { useLearn } from '../../../../../src/hooks/useLearn';
+import { LoadingView } from '../../../../../components/ui/LoadingView';
+import { ErrorView } from '../../../../../components/ui/ErrorView';
+import { learnRepository } from '../../../../../src/repositories/learn.repository';
+import type { LearnEntry } from '../../../../../src/types';
 
 export default function EntryDetailScreen() {
   const router = useRouter();
   const { projectId, entryId } = useLocalSearchParams<{ projectId: string; entryId: string }>();
-  const [entry] = useState<Entry>(MOCK_ENTRY);
+  const { entries, loading, error, fetchEntries } = useLearn();
   const [showMenu, setShowMenu] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<number | null>(null);
 
-  const handleDelete = () => {
+  useFocusEffect(useCallback(() => {
+    if (projectId) fetchEntries(projectId);
+  }, [projectId, fetchEntries]));
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => projectId && fetchEntries(projectId)} />;
+
+  const entry: LearnEntry | undefined = entries.find((e: LearnEntry) => e.id === entryId);
+  const entryText = entry?.body ?? '';
+  const entryImages = (entry?.learn_entry_images ?? []) as any[];
+  const entryTime = entry?.created_at ? new Date(entry.created_at).toLocaleString() : '';
+
+  const handleDelete = async () => {
+    if (entryId) await learnRepository.deleteEntry(entryId);
     router.back();
     router.back();
   };
@@ -47,21 +52,21 @@ export default function EntryDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-4">
         {/* Entry Text */}
         <View className="mt-4 mb-4">
-          <Text className="text-sm text-muted-foreground mb-2">{entry.timeAgo}</Text>
-          <Text className="text-base text-foreground leading-relaxed">{entry.text}</Text>
+          <Text className="text-sm text-muted-foreground mb-2">{entryTime}</Text>
+          <Text className="text-base text-foreground leading-relaxed">{entryText}</Text>
         </View>
 
         {/* Image Grid */}
-        {entry.images.length > 0 && (
+        {entryImages.length > 0 && (
           <View className="flex-row flex-wrap mb-6">
-            {entry.images.map((img, index) => (
+            {entryImages.map((img: any, index: number) => (
               <Pressable
                 key={index}
                 onPress={() => setLightboxImage(index)}
                 className="w-[48%] aspect-square rounded-xl bg-muted mb-2 mr-[4%]"
               >
                 <Image
-                  source={{ uri: img }}
+                  source={{ uri: img.storage_path }}
                   className="w-full h-full rounded-xl"
                 />
               </Pressable>
@@ -154,9 +159,9 @@ export default function EntryDetailScreen() {
           >
             <X size={24} color="#fff" />
           </Pressable>
-          {lightboxImage !== null && entry.images[lightboxImage] && (
+          {lightboxImage !== null && entryImages[lightboxImage] && (
             <Image
-              source={{ uri: entry.images[lightboxImage] }}
+              source={{ uri: entryImages[lightboxImage].storage_path }}
               className="w-80 h-80 rounded-xl"
             />
           )}

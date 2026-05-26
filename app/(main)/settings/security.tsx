@@ -1,24 +1,51 @@
 import { View, Text } from 'react-native';
+import { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Shield } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Toggle } from '../../../components/ui/Toggle';
 import { Chip } from '../../../components/ui/Chip';
-import { useSettings } from '@/context/SettingsContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useSettings } from '../../../src/hooks/useSettings';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
 
 const AUTO_LOCK_OPTIONS = ['1 min', '5 min', '15 min', 'Never'] as const;
 
 export default function SecurityScreen() {
   const router = useRouter();
-  const { state, dispatch } = useSettings();
+  const { user } = useAuth();
+  const { settings, loading, error, fetchSettings, updateSettings } = useSettings();
+  const [localFingerprint, setLocalFingerprint] = useState(false);
+  const [localAutoLock, setLocalAutoLock] = useState<string>('5 min');
 
-  const toggleFingerprint = (val: boolean) => {
-    dispatch({ type: 'UPDATE_SECURITY', payload: { fingerprintEnabled: val } });
+  useFocusEffect(useCallback(() => {
+    if (user) fetchSettings(user.id);
+  }, [user, fetchSettings]));
+
+  useFocusEffect(useCallback(() => {
+    if (settings?.security) {
+      setLocalFingerprint(settings.security.fingerprintEnabled);
+      setLocalAutoLock(settings.security.autoLockTimer);
+    }
+  }, [settings]));
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => user && fetchSettings(user.id)} />;
+
+  const toggleFingerprint = async (val: boolean) => {
+    setLocalFingerprint(val);
+    if (user) {
+      await updateSettings(user.id, { security: { fingerprintEnabled: val, autoLockTimer: localAutoLock } });
+    }
   };
 
-  const setAutoLock = (timer: typeof AUTO_LOCK_OPTIONS[number]) => {
-    dispatch({ type: 'UPDATE_SECURITY', payload: { autoLockTimer: timer } });
+  const setAutoLock = async (timer: typeof AUTO_LOCK_OPTIONS[number]) => {
+    setLocalAutoLock(timer);
+    if (user) {
+      await updateSettings(user.id, { security: { fingerprintEnabled: localFingerprint, autoLockTimer: timer } });
+    }
   };
 
   return (
@@ -33,7 +60,7 @@ export default function SecurityScreen() {
               <Text className="text-foreground text-base">Fingerprint</Text>
             </View>
             <Toggle
-              value={state.security.fingerprintEnabled}
+              value={localFingerprint}
               onValueChange={toggleFingerprint}
             />
           </View>
@@ -48,7 +75,7 @@ export default function SecurityScreen() {
                 <Chip
                   key={opt}
                   label={opt}
-                  selected={state.security.autoLockTimer === opt}
+                  selected={localAutoLock === opt}
                   onPress={() => setAutoLock(opt)}
                 />
               ))}

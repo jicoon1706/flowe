@@ -1,4 +1,5 @@
 import { useSettings } from '@/context/SettingsContext';
+import { useAuth } from '../../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { AlertTriangle, Bell, ChevronRight, Database, Heart, Settings, Shield, User } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
@@ -10,6 +11,7 @@ import { SettingsRow } from '../../../components/ui/SettingsRow';
 export default function SettingsScreen() {
   const router = useRouter();
   const { state } = useSettings();
+  const { user, signOut } = useAuth();
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>

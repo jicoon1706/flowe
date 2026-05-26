@@ -69,11 +69,11 @@ export default function CalendarScreen() {
     .reduce((sum, t) => sum + Number(t.amount), 0);
   const monthlyNet = monthlyIncome - monthlyExpenses;
 
-  const calendarDays: Array<{
+  const calendarDays: {
     day: number;
     hasTransaction: boolean;
     types: string[];
-  }> = [];
+  }[] = [];
 
   // Empty cells before first day
   for (let i = 0; i < startDayOfWeek; i++) {

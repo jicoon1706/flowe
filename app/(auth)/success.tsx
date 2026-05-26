@@ -7,6 +7,7 @@ import { authRepository, authConfigRepository } from '../../src/repositories';
 import { hashPin } from '../../src/lib/pinCrypto';
 import { flags } from '../../src/lib/secureStore';
 import { useOnboarding } from '../../context/OnboardingContext';
+import { refreshGate } from '../_layout';
 
 type Status = 'saving' | 'ready' | 'error';
 
@@ -18,16 +19,28 @@ export default function Success() {
   async function persist() {
     setStatus('saving');
     if (!state.pin) { setStatus('error'); return; }
-    const userRes = await authRepository.getUser();
-    if (!userRes.ok || !userRes.data) { setStatus('error'); return; }
     const pinHash = await hashPin(state.pin);
-    const upsert = await authConfigRepository.upsert({
-      userId: userRes.data.id,
-      pinHash,
-      fingerprintEnabled: state.fingerprintEnabled,
-    });
-    if (!upsert.ok) { setStatus('error'); return; }
-    await flags.setPin(pinHash, state.fingerprintEnabled);
+
+    const userRes = await authRepository.getUser();
+    if (userRes.ok && userRes.data) {
+      const upsert = await authConfigRepository.upsert({
+        userId: userRes.data.id,
+        pinHash,
+        fingerprintEnabled: state.fingerprintEnabled,
+      });
+      if (!upsert.ok) console.warn('[success] auth_config upsert failed:', upsert.error);
+    } else {
+      console.warn('[success] no auth user — saving PIN locally only');
+    }
+
+    try {
+      await flags.setPin(pinHash, state.fingerprintEnabled);
+    } catch (e) {
+      console.warn('[success] secure-store setPin failed:', e);
+      setStatus('error');
+      return;
+    }
+    refreshGate();
     dispatch({ type: 'CLEAR_PIN' });
     setStatus('ready');
   }

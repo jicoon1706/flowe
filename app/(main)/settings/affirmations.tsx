@@ -1,37 +1,58 @@
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Heart, Plus, X } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Chip } from '../../../components/ui/Chip';
 import { Toggle } from '../../../components/ui/Toggle';
-import { useSettings } from '@/context/SettingsContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useAffirmations } from '../../../src/hooks/useAffirmations';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
 
 const CATEGORIES = ['All', 'Saving', 'Investing', 'Mindset', 'Awareness'] as const;
 
 export default function AffirmationsScreen() {
   const router = useRouter();
-  const { state, dispatch } = useSettings();
-
-  const update = (payload: Partial<typeof state.affirmations>) => {
-    dispatch({ type: 'UPDATE_AFFIRMATIONS', payload });
-  };
-
+  const { user } = useAuth();
+  const { userAffirmations, loading, error, fetchUserAffirmations, addUserAffirmation } = useAffirmations();
+  const [showOnHome, setShowOnHome] = useState(false);
+  const [dailyReminder, setDailyReminder] = useState('08:00');
+  const [categoryPreference, setCategoryPreference] = useState<string>('All');
+  const [words, setWords] = useState<{ id: string; text: string; category: string }[]>([]);
   const [inputText, setInputText] = useState('');
 
-  const addWord = () => {
-    if (inputText.trim()) {
-      dispatch({
-        type: 'ADD_AFFIRMATION_WORD',
-        payload: { id: Date.now().toString(), text: inputText.trim(), category: (state.affirmations.categoryPreference === 'All' ? 'Mindset' : state.affirmations.categoryPreference) as 'Saving' | 'Investing' | 'Mindset' | 'Awareness' }
-      });
-      setInputText('');
-    }
+  useFocusEffect(useCallback(() => {
+    if (user) fetchUserAffirmations(user.id);
+  }, [user, fetchUserAffirmations]));
+
+  useFocusEffect(useCallback(() => {
+    setWords(userAffirmations.map(w => ({ id: w.id, text: w.text, category: w.category })));
+  }, [userAffirmations]));
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => user && fetchUserAffirmations(user.id)} />;
+
+  const update = (patch: { showOnHome?: boolean; dailyReminder?: string; categoryPreference?: string }) => {
+    if (patch.showOnHome !== undefined) setShowOnHome(patch.showOnHome);
+    if (patch.dailyReminder !== undefined) setDailyReminder(patch.dailyReminder);
+    if (patch.categoryPreference !== undefined) setCategoryPreference(patch.categoryPreference);
   };
 
-  const removeWord = (id: string) => {
-    dispatch({ type: 'REMOVE_AFFIRMATION_WORD', payload: id });
+  const addWord = async () => {
+    if (!inputText.trim() || !user) return;
+    const cat = categoryPreference === 'All' ? 'Mindset' : categoryPreference;
+    const result = await addUserAffirmation(user.id, inputText.trim(), cat as any);
+    if (result.ok) {
+      await fetchUserAffirmations(user.id);
+    }
+    setInputText('');
+  };
+
+  const removeWord = (_id: string) => {
+    // Optimistic remove (delete handled elsewhere if needed)
+    setWords(prev => prev.filter(w => w.id !== _id));
   };
 
   return (
@@ -46,7 +67,7 @@ export default function AffirmationsScreen() {
               <Text className="text-foreground text-base">Show on Home</Text>
             </View>
             <Toggle
-              value={state.affirmations.showOnHome}
+              value={showOnHome}
               onValueChange={v => update({ showOnHome: v })}
             />
           </View>
@@ -59,7 +80,7 @@ export default function AffirmationsScreen() {
             <View className="flex-row items-center gap-2">
               <View className="bg-input-background border border-border rounded-xl px-4 py-2">
                 <TextInput
-                  value={state.affirmations.dailyReminder}
+                  value={dailyReminder}
                   onChangeText={v => update({ dailyReminder: v })}
                   className="text-foreground text-sm outline-none"
                   placeholder="08:00"
@@ -81,7 +102,7 @@ export default function AffirmationsScreen() {
                 <Chip
                   key={cat}
                   label={cat}
-                  selected={state.affirmations.categoryPreference === cat}
+                  selected={categoryPreference === cat}
                   onPress={() => update({ categoryPreference: cat })}
                 />
               ))}
@@ -115,7 +136,7 @@ export default function AffirmationsScreen() {
           <View className="py-3">
             <Text className="text-foreground text-base mb-3">Your Affirmations</Text>
             <View className="flex-row flex-wrap gap-2">
-              {state.affirmations.words.map(word => (
+              {words.map(word => (
                 <View key={word.id} className="bg-card border border-border rounded-xl px-3 py-2 flex-row items-center gap-2">
                   <Text className="text-foreground text-sm">{word.text}</Text>
                   <View className="bg-primary/20 rounded-lg px-2 py-0.5">

@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, Pressable, TextInput, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Download, AlertTriangle, Database, FileText, Check, Trash2 } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { useSettings } from '@/context/SettingsContext';
+import { useAssets } from '../../../src/hooks/useAssets';
+import { useLiabilities } from '../../../src/hooks/useLiabilities';
+import { useTransactions } from '../../../src/hooks/useTransactions';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
 
 type ExportFormat = 'csv' | 'pdf';
 type DateRange = '1m' | '3m' | '1y' | 'all';
@@ -18,7 +22,16 @@ const DATE_RANGE_LABELS: Record<DateRange, string> = {
 
 export default function DataScreen() {
   const router = useRouter();
-  const { dispatch } = useSettings();
+  const now = new Date();
+  const { assets, loading: assetsLoading, error: assetsError, fetchAssets } = useAssets();
+  const { liabilities, loading: liabLoading, error: liabError, fetchLiabilities } = useLiabilities();
+  const { transactions, loading: txLoading, error: txError, fetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+
+  useFocusEffect(useCallback(() => {
+    fetchAssets();
+    fetchLiabilities();
+    fetch();
+  }, []));
 
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
   const [dateRange, setDateRange] = useState<DateRange>('1m');
@@ -64,18 +77,18 @@ export default function DataScreen() {
 
           <View className="flex-row">
             <View className="flex-1 bg-muted rounded-xl py-4 items-center">
-              <Text className="text-2xl font-bold text-primary">248</Text>
+              <Text className="text-2xl font-bold text-primary">{transactions.length}</Text>
               <Text className="text-xs text-muted-foreground mt-1">Transactions</Text>
             </View>
             <View className="w-3" />
             <View className="flex-1 bg-muted rounded-xl py-4 items-center">
-              <Text className="text-2xl font-bold text-primary">12</Text>
-              <Text className="text-xs text-muted-foreground mt-1">Categories</Text>
+              <Text className="text-2xl font-bold text-primary">{assets.length}</Text>
+              <Text className="text-xs text-muted-foreground mt-1">Assets</Text>
             </View>
             <View className="w-3" />
             <View className="flex-1 bg-muted rounded-xl py-4 items-center">
-              <Text className="text-2xl font-bold text-primary">5</Text>
-              <Text className="text-xs text-muted-foreground mt-1">Recurring</Text>
+              <Text className="text-2xl font-bold text-primary">{liabilities.length}</Text>
+              <Text className="text-xs text-muted-foreground mt-1">Liabilities</Text>
             </View>
           </View>
         </View>

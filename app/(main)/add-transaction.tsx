@@ -1,12 +1,11 @@
-import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform , Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Camera, RefreshCw, Calendar, ChevronDown, Bell, Check } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect, useCallback } from 'expo-router';
-import { Alert } from 'react-native';
 import { expenseCategories, incomeCategories } from '../../constants/categories';
 import { Button } from '../../components/ui/Button';
 import { AmountInput } from '../../components/ui/AmountInput';
@@ -80,17 +79,17 @@ export default function AddTransactionScreen() {
   const now = new Date();
   const { accounts, loading: acctsLoading, error: acctsError, fetchAccounts } = useAccounts();
   const { loading: txLoading, error: txError, create } = useTransactions(now.getFullYear(), now.getMonth() + 1);
-  const { customCategories, loading: catLoading, error: catError, fetchCustomCategories } = useCustomCategories();
+  const { categories: customCategories, loading: catLoading, error: catError, fetchCategories: fetchCustomCategories } = useCustomCategories();
 
   const categories = type === 'expense' ? expenseCategories : incomeCategories;
 
   useFocusEffect(useCallback(() => {
     fetchAccounts();
-    fetchCustomCategories();
-  }, [fetchAccounts, fetchCustomCategories]));
+    if (user) fetchCustomCategories(user.id);
+  }, [fetchAccounts, fetchCustomCategories, user]));
 
   if (acctsLoading || catLoading) return <LoadingView />;
-  if (acctsError || catError) return <ErrorView error={acctsError ?? catError!} onRetry={() => { fetchAccounts(); fetchCustomCategories(); }} />;
+  if (acctsError || catError) return <ErrorView error={acctsError ?? catError!} onRetry={() => { fetchAccounts(); if (user) fetchCustomCategories(user.id); }} />;
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });

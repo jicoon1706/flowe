@@ -1,14 +1,35 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, X, FilePlus } from '../../../../../components/ui/icons';
+import { useAuth } from '../../../../../context/AuthContext';
+import { useLearn } from '../../../../../src/hooks/useLearn';
+import { LoadingView } from '../../../../../components/ui/LoadingView';
+import { ErrorView } from '../../../../../components/ui/ErrorView';
+import { learnRepository } from '../../../../../src/repositories/learn.repository';
 
 export default function AddEntryScreen() {
   const router = useRouter();
-  useLocalSearchParams<{ projectId: string }>();
+  const { user } = useAuth();
+  const { projectId, entryId } = useLocalSearchParams<{ projectId: string; entryId?: string }>();
+  const { loading, error, createEntry, fetchEntries } = useLearn();
   const [text, setText] = useState('');
   const [images, setImages] = useState<string[]>([]);
+
+  useFocusEffect(useCallback(() => {
+    if (entryId) {
+      // Load existing entry for edit
+      learnRepository.fetchEntries(projectId!).then(result => {
+        if (result.ok) {
+          const entry = result.data.find((e: any) => e.id === entryId);
+          if (entry) setText(entry.body ?? '');
+        }
+      });
+    }
+  }, [entryId, projectId]));
+
+  if (loading) return <LoadingView />;
 
   const canSave = text.trim().length > 0 || images.length > 0;
 
@@ -16,8 +37,13 @@ export default function AddEntryScreen() {
     setImages(images.filter((_, i) => i !== index));
   };
 
-  const handleSave = () => {
-    if (!canSave) return;
+  const handleSave = async () => {
+    if (!canSave || !user) return;
+    if (entryId) {
+      await learnRepository.updateEntry(entryId, text);
+    } else {
+      await createEntry(projectId!, user.id, text);
+    }
     router.back();
   };
 

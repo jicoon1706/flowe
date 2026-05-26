@@ -1,6 +1,7 @@
-import { View, Text, Pressable, ScrollView, useState, useFocusEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Info, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { FinancialClassBadge } from '../../../components/cashflow/FinancialClassBadge';
@@ -11,7 +12,7 @@ import { MonthlyTrendChart } from '../../../components/cashflow/MonthlyTrendChar
 import { ManageAssetsLiabilitiesCard } from '../../../components/cashflow/ManageAssetsLiabilitiesCard';
 import { AddAssetModal, NewAsset } from '../../../components/cashflow/AddAssetModal';
 import { AddLiabilityModal, NewLiability } from '../../../components/cashflow/AddLiabilityModal';
-import { useCashflow } from '../../../src/hooks/useCashflow';
+import { useTransactions } from '../../../src/hooks/useTransactions';
 import { useAssets } from '../../../src/hooks/useAssets';
 import { useLiabilities } from '../../../src/hooks/useLiabilities';
 import { LoadingView } from '../../../components/ui/LoadingView';
@@ -48,15 +49,18 @@ export default function CashFlowScreen() {
   const [editingLiability, setEditingLiability] = useState<UILiability | null>(null);
 
   const currentMonth = MONTHS[monthIndex] ?? '2026-05';
+  const [yearStr, monthStr] = currentMonth.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
 
   // ─── Hook calls ────────────────────────────────────────────────────────────
   const { user } = useAuth();
-  const { summary: cashflow, loading: cfLoading, error: cfError } = useCashflow(currentMonth);
+  const { income: incomeTxns, expenses: expenseTxns, loading: txLoading, error: txError, refetch: refetchTxns } = useTransactions(year, month);
   const { assets: rawAssets, loading: astLoading, error: astError, fetchAssets, createAsset } = useAssets();
   const { liabilities: rawLiabilities, loading: liabLoading, error: liabError, fetchLiabilities, createLiability } = useLiabilities();
 
-  const loading = cfLoading || astLoading || liabLoading;
-  const anyError = cfError || astError || liabError;
+  const loading = txLoading || astLoading || liabLoading;
+  const anyError = txError || astError || liabError;
 
   useFocusEffect(useCallback(() => {
     fetchAssets();
@@ -65,7 +69,7 @@ export default function CashFlowScreen() {
 
   // ─── Loading / error guards ────────────────────────────────────────────────
   if (loading) return <LoadingView />;
-  if (anyError) return <ErrorView error={anyError} onRetry={() => { fetchAssets(); fetchLiabilities(); }} />;
+  if (anyError) return <ErrorView error={anyError} onRetry={() => { fetchAssets(); fetchLiabilities(); refetchTxns(); }} />;
 
   // ─── Map DB types to UI component types ───────────────────────────────────
   const assets: UIAsset[] = rawAssets.map((a: Asset) => ({
@@ -86,13 +90,13 @@ export default function CashFlowScreen() {
     monthlyPayment: l.monthly_payment,
   }));
 
-  // ─── Income / expense items ─────────────────────────────────────────────────
-  const incomeItems = cashflow?.income?.map(i => ({ label: i.name, amount: i.amount })) ?? [];
-  const expenseItems = cashflow?.expenses?.map(e => ({ label: e.name, amount: e.amount })) ?? [];
+  // ─── Income / expense items (from local transactions) ──────────────────────
+  const incomeItems = incomeTxns.map(t => ({ label: t.name || t.category || 'Income', amount: Number(t.amount) }));
+  const expenseItems = expenseTxns.map(t => ({ label: t.name || t.category || 'Expense', amount: Number(t.amount) }));
 
   // ─── Computed totals ────────────────────────────────────────────────────────
-  const totalIncome = cashflow?.total_income ?? incomeItems.reduce((s, i) => s + i.amount, 0);
-  const totalExpenses = cashflow?.total_expenses ?? expenseItems.reduce((s, e) => s + e.amount, 0);
+  const totalIncome = incomeItems.reduce((s, i) => s + i.amount, 0);
+  const totalExpenses = expenseItems.reduce((s, e) => s + e.amount, 0);
   const netCashFlow = totalIncome - totalExpenses;
 
   const totalAssets = assets.reduce((s, a) => s + a.value, 0);
@@ -102,13 +106,10 @@ export default function CashFlowScreen() {
   const passiveFromAssets = assets.reduce((s, a) => s + a.monthlyIncome, 0);
   const allIncome = totalIncome + passiveFromAssets;
 
-  // Financial class from edge fn or compute locally
-  const financialClass = cashflow?.financial_class ??
-    (assets.length === 0 ? 'poor' :
-      passiveFromAssets >= totalExpenses ? 'rich' : 'middle');
+  const financialClass = assets.length === 0 ? 'poor' :
+    passiveFromAssets >= totalExpenses ? 'rich' : 'middle';
 
-  // Monthly trend — use real data from edge fn when available, fall back to mock
-  const monthlyTrend = cashflow?.monthly_trend ?? MONTHLY_TREND;
+  const monthlyTrend = MONTHLY_TREND;
 
   const prevMonth = monthIndex > 0 ? monthlyTrend[monthIndex - 1] : null;
   const currMonth = monthIndex < monthlyTrend.length ? monthlyTrend[monthIndex] : monthlyTrend[monthlyTrend.length - 1];

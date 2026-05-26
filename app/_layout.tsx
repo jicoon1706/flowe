@@ -29,7 +29,7 @@ export default function RootLayout() {
 
     if (!session) {
       const anon = await authRepository.signInAnonymously();
-      if (!anon.ok) {
+      if (!anon.ok && anon.error.code !== 'anonymous_provider_disabled') {
         console.warn('[gate] signInAnonymously failed (continuing offline):', anon.error);
       }
     }
@@ -49,17 +49,10 @@ export default function RootLayout() {
     if (state === 'loading' || state === 'error') return;
     const top = segments[0];
     if (state === 'auth' && top !== '(auth)') router.replace('/(auth)/welcome');
-    if (state === 'onboarding' && top !== '(onboarding)') router.replace('/(onboarding)/name');
-    if (state === 'main' && top !== '(main)') router.replace('/(main)');
+    else if (state === 'onboarding' && top !== '(onboarding)') router.replace('/(onboarding)/name');
+    else if (state === 'main' && top !== '(main)') router.replace('/(main)');
   }, [state, segments, router]);
 
-  if (state === 'loading') {
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator color="#C5FF00" />
-      </View>
-    );
-  }
   if (state === 'error') {
     return (
       <View className="flex-1 bg-background items-center justify-center px-6">
@@ -80,6 +73,14 @@ export default function RootLayout() {
           <Stack.Screen name="(onboarding)" />
           <Stack.Screen name="(main)" />
         </Stack>
+        {state === 'loading' && (
+          <View
+            className="bg-background items-center justify-center"
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          >
+            <ActivityIndicator color="#C5FF00" />
+          </View>
+        )}
       </OnboardingProvider>
     </AuthProvider>
   );

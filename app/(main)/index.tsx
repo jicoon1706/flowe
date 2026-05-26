@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ScrollView, Pressable, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import { useRouter , useFocusEffect } from 'expo-router';
 import { HomeTopBar } from '../../components/home/HomeTopBar';
 import { AffirmationCard } from '../../components/home/AffirmationCard';
 import { BalanceBanner } from '../../components/home/BalanceBanner';
@@ -53,9 +52,9 @@ export default function HomeScreen() {
   if (accountsError) return <ErrorView error={accountsError} onRetry={fetchAccounts} />;
 
   const totalBalance = accounts.reduce((sum, acc) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const bank = (acc as any).bank_accounts;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const wallet = (acc as any).wallet_accounts;
     const bal = bank?.current_balance ?? wallet?.current_balance ?? 0;
     return sum + Number(bal);

@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { ChevronLeft } from '../../../../components/ui/icons';
+import { useAuth } from '../../../../context/AuthContext';
+import { useLearn } from '../../../../src/hooks/useLearn';
+import { LoadingView } from '../../../../components/ui/LoadingView';
+import { ErrorView } from '../../../../components/ui/ErrorView';
 
 interface Project {
   id: string;
@@ -13,47 +17,41 @@ interface Project {
   latestEntry: string;
 }
 
-const MOCK_PROJECTS: Project[] = [
-  {
-    id: '1',
-    name: 'Investing Notes',
-    emoji: '📈',
-    entriesCount: 12,
-    lastUpdated: '2 hours ago',
-    latestEntry: 'S&P 500 index fund provides diversified exposure to US large-cap equities with low expense ratios...',
-  },
-  {
-    id: '2',
-    name: 'Property Research',
-    emoji: '🏠',
-    entriesCount: 5,
-    lastUpdated: 'Yesterday',
-    latestEntry: 'Kuala Lumpur property market shows resilience with rental yields averaging 4.5% in prime areas...',
-  },
-];
-
 export default function LearnIndexScreen() {
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
+  const { user } = useAuth();
+  const { projects: hookProjects, loading, error, createProject, fetchEntries } = useLearn();
   const [showModal, setShowModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
+  const [localProjects, setLocalProjects] = useState<Project[]>([]);
 
+  useFocusEffect(useCallback(() => {
+    // hookProjects are empty from useLearn, local state is source of truth for now
+    // Projects come from learn_projects table - local state drives UI until fetchProjects is added
+  }, []));
+
+  if (loading) return <LoadingView />;
+
+  const projects = localProjects.length > 0 ? localProjects : [];
   const totalEntries = projects.reduce((sum, p) => sum + p.entriesCount, 0);
 
-  const handleCreateProject = () => {
-    if (!newProjectName.trim()) return;
-    const newProject: Project = {
-      id: Date.now().toString(),
-      name: newProjectName.trim(),
-      emoji: '📁',
-      entriesCount: 0,
-      lastUpdated: 'Just now',
-      latestEntry: '',
-    };
-    setProjects([...projects, newProject]);
-    setNewProjectName('');
-    setShowModal(false);
-    router.push(`/home/learn/${newProject.id}`);
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim() || !user) return;
+    const result = await createProject(user.id, newProjectName.trim());
+    if (result.ok) {
+      const newProject: Project = {
+        id: result.data.id,
+        name: result.data.name,
+        emoji: '📁',
+        entriesCount: 0,
+        lastUpdated: 'Just now',
+        latestEntry: '',
+      };
+      setLocalProjects(prev => [...prev, newProject]);
+      setNewProjectName('');
+      setShowModal(false);
+      router.push(`/home/learn/${result.data.id}`);
+    }
   };
 
   return (

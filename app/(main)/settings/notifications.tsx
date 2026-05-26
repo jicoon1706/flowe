@@ -1,12 +1,16 @@
 import { View } from 'react-native';
+import { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Bell } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { SettingsGroup } from '../../../components/ui/SettingsGroup';
 import { SettingsRow } from '../../../components/ui/SettingsRow';
 import { Toggle } from '../../../components/ui/Toggle';
-import { useSettings } from '@/context/SettingsContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useSettings } from '../../../src/hooks/useSettings';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
 
 const GROUPS = {
   Alerts: ['cashflow', 'alert', 'milestone'] as const,
@@ -22,10 +26,29 @@ const LABELS: Record<string, string> = {
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { state, dispatch } = useSettings();
+  const { user } = useAuth();
+  const { settings, loading, error, fetchSettings, updateSettings } = useSettings();
+  const [localToggles, setLocalToggles] = useState<Record<string, boolean>>({});
 
-  const toggle = (key: string) => (val: boolean) => {
-    dispatch({ type: 'UPDATE_NOTIFICATIONS', payload: { [key]: val } });
+  useFocusEffect(useCallback(() => {
+    if (user) fetchSettings(user.id);
+  }, [user, fetchSettings]));
+
+  useFocusEffect(useCallback(() => {
+    if (settings?.notifications) {
+      setLocalToggles({ ...settings.notifications });
+    }
+  }, [settings]));
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => user && fetchSettings(user.id)} />;
+
+  const toggle = (key: string) => async (val: boolean) => {
+    const updated = { ...localToggles, [key]: val };
+    setLocalToggles(updated);
+    if (user && settings) {
+      await updateSettings(user.id, { notifications: updated as any });
+    }
   };
 
   return (
@@ -43,7 +66,7 @@ export default function NotificationsScreen() {
                   hasChevron={false}
                   rightElement={
                     <Toggle
-                      value={state.notifications[key as keyof typeof state.notifications]}
+                      value={localToggles[key] ?? false}
                       onValueChange={toggle(key)}
                     />
                   }

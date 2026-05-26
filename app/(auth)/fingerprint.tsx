@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useState , useEffect } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
-import { useEffect } from 'react';
 import { ProgressDots } from '../../components/ui/ProgressDots';
 import { useOnboarding } from '../../context/OnboardingContext';
 

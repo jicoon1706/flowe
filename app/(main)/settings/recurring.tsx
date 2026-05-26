@@ -1,92 +1,77 @@
-import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, TextInput, Platform } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, Pressable, ScrollView, Modal, TextInput, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Plus, Repeat, Pause, Play, X, ChevronDown, Calendar } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { useRecurring } from '../../../src/hooks/useRecurring';
+import { useAccounts } from '../../../src/hooks/useAccounts';
+import { useAuth } from '../../../context/AuthContext';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
+import * as Haptics from 'expo-haptics';
 
-interface RecurringItem {
-  id: string;
-  name: string;
-  amount: number;
-  frequency: 'Weekly' | 'Monthly' | 'Yearly';
-  paused: boolean;
-  account: string;
-  nextDate: Date;
-}
-
-const today = new Date();
-const getNextDate = (base: Date, freq: 'Weekly' | 'Monthly' | 'Yearly'): Date => {
-  const d = new Date(base);
-  if (freq === 'Weekly') d.setDate(d.getDate() + 7);
-  else if (freq === 'Monthly') d.setMonth(d.getMonth() + 1);
-  else d.setFullYear(d.getFullYear() + 1);
-  return d;
-};
-
-const MOCK_RECURRING: RecurringItem[] = [
-  { id: '1', name: 'Unifi', amount: 89, frequency: 'Monthly', paused: false, account: 'Maybank', nextDate: getNextDate(today, 'Monthly') },
-  { id: '2', name: 'Netflix', amount: 53, frequency: 'Monthly', paused: false, account: 'Maybank', nextDate: getNextDate(today, 'Monthly') },
-  { id: '3', name: 'Axiata', amount: 30, frequency: 'Monthly', paused: true, account: 'Maybank', nextDate: getNextDate(today, 'Monthly') },
-];
-
-const ACCOUNTS = [
-  { id: '1', name: 'Maybank', color: '#ffd93d' },
-  { id: '2', name: 'Tabung Raya', color: '#6bcf7f' },
-  { id: '3', name: 'Cash', color: '#00d4ff' },
-];
-
-const FREQUENCIES = ['Weekly', 'Monthly', 'Yearly'];
+const FREQUENCIES = ['Weekly', 'Monthly', 'Yearly'] as const;
 
 export default function RecurringScreen() {
   const router = useRouter();
-  const [recurringList, setRecurringList] = useState<RecurringItem[]>(MOCK_RECURRING);
+  const { user } = useAuth();
+  const { accounts } = useAccounts();
+  const { recurringRules, loading, error, fetchRecurring, createRecurring, updateStatus } = useRecurring();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [showFreqPicker, setShowFreqPicker] = useState(false);
   const [showNextDatePicker, setShowNextDatePicker] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAmount, setNewAmount] = useState('');
-  const [newFrequency, setNewFrequency] = useState<'Weekly' | 'Monthly' | 'Yearly'>('Monthly');
-  const [newAccount, setNewAccount] = useState('Maybank');
-  const [newNextDate, setNewNextDate] = useState<Date>(getNextDate(today, 'Monthly'));
+  const [newFrequency, setNewFrequency] = useState<typeof FREQUENCIES[number]>('Monthly');
+  const [newAccountId, setNewAccountId] = useState('');
+  const [newNextDate, setNewNextDate] = useState(new Date());
 
-  const activePayments = recurringList.filter(p => !p.paused);
-  const totalActive = activePayments.reduce((sum, p) => sum + p.amount, 0);
+  useFocusEffect(useCallback(() => { fetchRecurring(); }, [fetchRecurring]));
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={fetchRecurring} />;
+
+  const activePayments = recurringRules.filter(p => p.status !== 'paused');
+  const totalActive = activePayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const togglePause = (id: string) => {
-    setRecurringList(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, paused: !item.paused } : item
-      )
-    );
+  const togglePause = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'paused' ? 'active' : 'paused';
+    await updateStatus(id, newStatus as 'active' | 'paused' | 'ended');
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   };
 
-  const handleAddPayment = () => {
-    if (!newName.trim() || !newAmount.trim()) return;
-
-    const newItem: RecurringItem = {
-      id: Date.now().toString(),
-      name: newName.trim(),
+  const handleAddPayment = async () => {
+    if (!newName.trim() || !newAmount.trim() || !user) {
+      Alert.alert('Missing fields', 'Please enter a name and amount.');
+      return;
+    }
+    const result = await createRecurring({
+      user_id: user.id,
+      transaction_name: newName.trim(),
       amount: parseFloat(newAmount),
-      frequency: newFrequency,
-      paused: false,
-      account: newAccount,
-      nextDate: newNextDate,
-    };
-
-    setRecurringList(prev => [...prev, newItem]);
-    setShowAddModal(false);
-    setNewName('');
-    setNewAmount('');
-    setNewFrequency('Monthly');
-    setNewAccount('Maybank');
-    setNewNextDate(getNextDate(today, 'Monthly'));
+      frequency: newFrequency.toLowerCase() as 'weekly' | 'monthly' | 'yearly',
+      start_date: newNextDate.toISOString(),
+      account_id: newAccountId || accounts[0]?.id,
+    });
+    if (result.ok) {
+      setShowAddModal(false);
+      setNewName('');
+      setNewAmount('');
+      setNewFrequency('Monthly');
+      setNewAccountId('');
+      setNewNextDate(new Date());
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } else {
+      Alert.alert('Failed', result.error.message);
+    }
   };
 
   const AddButton = (
@@ -97,6 +82,10 @@ export default function RecurringScreen() {
       <Plus size={20} color="#000000" />
     </Pressable>
   );
+
+  const selectedAccount = accounts.find(a => a.id === newAccountId) ?? accounts[0];
+  const accountColor = (selectedAccount as any)?.color ?? '#6B7280';
+  const accountName = (selectedAccount as any)?.name ?? 'Select Account';
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -118,40 +107,40 @@ export default function RecurringScreen() {
 
         {/* Recurring List */}
         <View className="gap-2">
-          {recurringList.map((item) => (
+          {recurringRules.map((item) => (
             <Pressable
               key={item.id}
-              onPress={() => togglePause(item.id)}
+              onPress={() => togglePause(item.id, item.status)}
               className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
             >
               <View className="flex-row items-center gap-3">
-                <View className={`w-9 h-9 rounded-xl ${item.paused ? 'bg-muted' : 'bg-primary/10'} items-center justify-center`}>
-                  <Repeat size={18} color={item.paused ? '#a0a0a0' : '#C5FF00'} />
+                <View className={`w-9 h-9 rounded-xl ${item.status === 'paused' ? 'bg-muted' : 'bg-primary/10'} items-center justify-center`}>
+                  <Repeat size={18} color={item.status === 'paused' ? '#a0a0a0' : '#C5FF00'} />
                 </View>
                 <View>
                   <View className="flex-row items-center gap-2">
-                    <Text className="text-sm font-medium text-foreground">{item.name}</Text>
-                    {item.paused && (
+                    <Text className="text-sm font-medium text-foreground">{item.transaction_name}</Text>
+                    {item.status === 'paused' && (
                       <View className="bg-muted rounded-full px-2 py-0.5">
                         <Text className="text-muted-foreground text-xs">Paused</Text>
                       </View>
                     )}
                   </View>
                   <View className="flex-row items-center gap-2 mt-0.5">
-                    <Text className="text-xs text-muted-foreground">RM {item.amount.toFixed(2)}</Text>
+                    <Text className="text-xs text-muted-foreground">RM {Number(item.amount).toFixed(2)}</Text>
                     <Text className="text-xs text-muted-foreground">·</Text>
-                    <Text className="text-xs text-muted-foreground">{item.frequency}</Text>
+                    <Text className="text-xs text-muted-foreground capitalize">{item.frequency}</Text>
                     <Text className="text-xs text-muted-foreground">·</Text>
                     <View className="flex-row items-center gap-1">
                       <Calendar size={10} color="#a0a0a0" />
-                      <Text className="text-xs text-muted-foreground">{formatDate(item.nextDate)}</Text>
+                      <Text className="text-xs text-muted-foreground">{formatDate(item.start_date)}</Text>
                     </View>
                   </View>
                 </View>
               </View>
               <View className="flex-row items-center gap-2">
-                <View className={`p-2 rounded-full ${item.paused ? 'bg-muted' : 'bg-primary/10'}`}>
-                  {item.paused ? (
+                <View className={`p-2 rounded-full ${item.status === 'paused' ? 'bg-muted' : 'bg-primary/10'}`}>
+                  {item.status === 'paused' ? (
                     <Play size={14} color="#a0a0a0" />
                   ) : (
                     <Pause size={14} color="#C5FF00" />
@@ -162,7 +151,7 @@ export default function RecurringScreen() {
           ))}
         </View>
 
-        {recurringList.length === 0 && (
+        {recurringRules.length === 0 && (
           <View className="items-center justify-center py-12">
             <Repeat size={48} color="#404040" />
             <Text className="text-muted-foreground text-sm mt-4">No recurring payments yet</Text>
@@ -239,7 +228,7 @@ export default function RecurringScreen() {
                     <Pressable
                       key={freq}
                       onPress={() => {
-                        setNewFrequency(freq as 'Weekly' | 'Monthly' | 'Yearly');
+                        setNewFrequency(freq);
                         setShowFreqPicker(false);
                       }}
                       className={`px-4 py-3 ${idx !== 0 ? 'border-t border-border' : ''}`}
@@ -260,7 +249,7 @@ export default function RecurringScreen() {
               >
                 <View className="flex-row items-center gap-2">
                   <Calendar size={16} color="#a0a0a0" />
-                  <Text className="text-foreground">{formatDate(newNextDate)}</Text>
+                  <Text className="text-foreground">{formatDate(newNextDate.toISOString())}</Text>
                 </View>
                 <ChevronDown size={18} color="#a0a0a0" />
               </Pressable>
@@ -299,26 +288,30 @@ export default function RecurringScreen() {
                 className="bg-background border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
               >
                 <View className="flex-row items-center gap-2">
-                  <View className="w-3 h-3 rounded-full" style={{ backgroundColor: ACCOUNTS.find(a => a.name === newAccount)?.color }} />
-                  <Text className="text-foreground">{newAccount}</Text>
+                  <View className="w-3 h-3 rounded-full" style={{ backgroundColor: accountColor }} />
+                  <Text className="text-foreground">{accountName}</Text>
                 </View>
                 <ChevronDown size={18} color="#a0a0a0" />
               </Pressable>
               {showAccountPicker && (
                 <View className="mt-2 bg-background border border-border rounded-xl overflow-hidden">
-                  {ACCOUNTS.map((account, i) => (
-                    <Pressable
-                      key={account.id}
-                      onPress={() => {
-                        setNewAccount(account.name);
-                        setShowAccountPicker(false);
-                      }}
-                      className={`px-4 py-3 flex-row items-center gap-2 ${i !== 0 ? 'border-t border-border' : ''}`}
-                    >
-                      <View className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
-                      <Text className="text-foreground">{account.name}</Text>
-                    </Pressable>
-                  ))}
+                  {accounts.map((account, i) => {
+                    const accColor = (account as any).color ?? '#6B7280';
+                    const accName = account.name;
+                    return (
+                      <Pressable
+                        key={account.id}
+                        onPress={() => {
+                          setNewAccountId(account.id);
+                          setShowAccountPicker(false);
+                        }}
+                        className={`px-4 py-3 flex-row items-center gap-2 ${i !== 0 ? 'border-t border-border' : ''}`}
+                      >
+                        <View className="w-3 h-3 rounded-full" style={{ backgroundColor: accColor }} />
+                        <Text className="text-foreground">{accName}</Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               )}
             </View>

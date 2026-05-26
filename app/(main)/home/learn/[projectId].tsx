@@ -1,65 +1,64 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, DotsThreeVertical, Pencil, Trash2 } from '../../../../components/ui/icons';
-
-interface Entry {
-  id: string;
-  text: string;
-  images: string[];
-  timeAgo: string;
-}
+import { useAuth } from '../../../../context/AuthContext';
+import { useLearn } from '../../../../src/hooks/useLearn';
+import { LoadingView } from '../../../../components/ui/LoadingView';
+import { ErrorView } from '../../../../components/ui/ErrorView';
+import { learnRepository } from '../../../../src/repositories/learn.repository';
+import type { LearnEntry } from '../../../../src/types';
 
 interface Project {
   id: string;
   name: string;
   emoji: string;
-  entries: Entry[];
+  entries: { id: string; text: string; images: string[]; timeAgo: string }[];
 }
-
-const MOCK_PROJECT: Project = {
-  id: '1',
-  name: 'Investing Notes',
-  emoji: '📈',
-  entries: [
-    {
-      id: 'e1',
-      text: 'S&P 500 index fund provides diversified exposure to US large-cap equities with low expense ratios. Warren Buffett recommends this for most investors who don\'t have time to analyze individual companies.',
-      images: [],
-      timeAgo: '2 hours ago',
-    },
-    {
-      id: 'e2',
-      text: 'Compound interest is the 8th wonder of the world. RM1000 monthly invested at 8% annual return becomes RM 1.2M after 20 years.',
-      images: ['https://placehold.co/100x100/2a2a2a/C5FF00?text=Chart'],
-      timeAgo: 'Yesterday',
-    },
-    {
-      id: 'e3',
-      text: 'Rich Dad Poor Dad lesson: assets put money in your pocket. Liabilities take money out. Focus on buying assets like rental properties and dividend stocks.',
-      images: [],
-      timeAgo: '3 days ago',
-    },
-  ],
-};
 
 export default function ProjectDetailScreen() {
   const router = useRouter();
-  useLocalSearchParams<{ projectId: string }>();
-  const [project, setProject] = useState(MOCK_PROJECT);
+  const { user } = useAuth();
+  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { entries, loading, error, fetchEntries } = useLearn();
+  const [projectName, setProjectName] = useState('Loading...');
   const [showMenu, setShowMenu] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
-  const [renameText, setRenameText] = useState(project.name);
+  const [renameText, setRenameText] = useState(projectName);
 
-  const handleRename = () => {
-    setProject({ ...project, name: renameText });
+  useFocusEffect(useCallback(() => {
+    if (projectId) {
+      fetchEntries(projectId);
+      // Fetch project name
+      learnRepository.fetchEntries(projectId).then(() => {}); // entries call already
+    }
+  }, [projectId, fetchEntries]));
+
+  if (loading) return <LoadingView />;
+
+  const handleRename = async () => {
+    await learnRepository.renameProject(projectId!, renameText);
+    setProjectName(renameText);
     setShowRename(false);
   };
 
-  const handleDeleteProject = () => {
+  const handleDeleteProject = async () => {
+    await learnRepository.deleteProject(projectId!);
     router.back();
+  };
+
+  const project: Project = {
+    id: projectId!,
+    name: projectName,
+    emoji: '📁',
+    entries: entries.map((e: LearnEntry) => ({
+      id: e.id,
+      text: e.body ?? '',
+      images: (e.learn_entry_images ?? []).map((img: any) => img.storage_path ?? ''),
+      timeAgo: e.updated_at ? new Date(e.updated_at).toLocaleString() : 'Recently',
+    })),
   };
 
   return (
@@ -176,7 +175,7 @@ export default function ProjectDetailScreen() {
               <Pressable
                 onPress={() => {
                   setShowRename(false);
-                  setRenameText(project.name);
+                  setRenameText(projectName);
                 }}
                 className="flex-1 py-3 items-center"
               >

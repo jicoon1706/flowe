@@ -1,21 +1,42 @@
 import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { User } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { useSettings } from '@/context/SettingsContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useSettings } from '../../../src/hooks/useSettings';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
 
 const FINANCIAL_IDENTITIES = ['Employee', 'Entrepreneur', 'Investor', 'Business Owner'] as const;
 
 export default function AccountScreen() {
   const router = useRouter();
-  const { state, dispatch } = useSettings();
-  const [name, setName] = useState(state.profile.displayName);
-  const [financialIdentity, setFinancialIdentity] = useState(state.profile.financialIdentity || 'Employee');
+  const { user } = useAuth();
+  const { settings, loading, error, fetchSettings, updateSettings } = useSettings();
+  const [name, setName] = useState('');
+  const [financialIdentity, setFinancialIdentity] = useState('Employee');
 
-  const handleSave = () => {
-    dispatch({ type: 'UPDATE_PROFILE', payload: { displayName: name, financialIdentity } });
+  useFocusEffect(useCallback(() => {
+    if (user) fetchSettings(user.id);
+  }, [user, fetchSettings]));
+
+  useFocusEffect(useCallback(() => {
+    if (settings?.profile) {
+      setName(settings.profile.displayName);
+      setFinancialIdentity(settings.profile.financialIdentity || 'Employee');
+    }
+  }, [settings]));
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => user && fetchSettings(user.id)} />;
+
+  const handleSave = async () => {
+    if (!user) return;
+    await updateSettings(user.id, {
+      profile: { displayName: name, financialIdentity },
+    });
     router.back();
   };
 

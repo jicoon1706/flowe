@@ -22,11 +22,11 @@ export function AccountCards({ accounts, onAccountPress }: AccountCardsProps) {
         {accounts.map((account) => {
           const color = account.color ?? '#a0a0a0';
           const name = account.name;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const bank = (account as any).bank_accounts;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const tabung = (account as any).tabung_accounts;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const wallet = (account as any).wallet_accounts;
           const balance = bank?.current_balance ?? wallet?.current_balance ?? 0;
           const saved = tabung?.saved_amount ?? 0;

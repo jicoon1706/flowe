@@ -40,17 +40,23 @@ export function AccountSelector({
       )}
       <Pressable
         accessible
-        accessibilityLabel={`Selected account: ${selected.name}`}
+        accessibilityLabel={selected ? `Selected account: ${selected.name}` : 'No account selected'}
         accessibilityRole="button"
-        onPress={() => setIsOpen(true)}
+        onPress={() => accounts.length > 0 && setIsOpen(true)}
         className="flex-row items-center justify-between bg-input-background border border-border rounded-xl px-4 py-3"
       >
         <View className="flex-row items-center gap-3">
-          <View className="w-6 h-6 rounded-lg" style={{ backgroundColor: selected.color + '30' }} />
-          <View>
-            <Text className="text-sm font-medium text-foreground">{selected.name}</Text>
-            <Text className="text-xs text-muted-foreground">RM {selected.balance}</Text>
-          </View>
+          {selected ? (
+            <>
+              <View className="w-6 h-6 rounded-lg" style={{ backgroundColor: selected.color + '30' }} />
+              <View>
+                <Text className="text-sm font-medium text-foreground">{selected.name}</Text>
+                <Text className="text-xs text-muted-foreground">RM {selected.balance}</Text>
+              </View>
+            </>
+          ) : (
+            <Text className="text-sm text-muted-foreground">No accounts yet</Text>
+          )}
         </View>
         <ChevronDown size={18} color="#a0a0a0" />
       </Pressable>
