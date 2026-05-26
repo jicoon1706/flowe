@@ -6,8 +6,12 @@ import './global.css';
 import { authRepository } from '../src/repositories';
 import { flags } from '../src/lib/secureStore';
 import { OnboardingProvider } from '../context/OnboardingContext';
+import { AuthProvider } from '../context/AuthContext';
 
 type GateState = 'loading' | 'error' | 'auth' | 'onboarding' | 'main';
+
+let _refreshGate: (() => void) | null = null;
+export function refreshGate() { _refreshGate?.(); }
 
 export default function RootLayout() {
   const [state, setState] = useState<GateState>('loading');
@@ -16,21 +20,30 @@ export default function RootLayout() {
 
   async function resolve() {
     setState('loading');
-    const sessionResult = await authRepository.getSession();
-    if (!sessionResult.ok) { setState('error'); return; }
-    let session = sessionResult.data;
-    if (!session) {
-      const anon = await authRepository.signInAnonymously();
-      if (!anon.ok) { setState('error'); return; }
-    }
     const pinSet = await flags.pinSet();
     const onboardingDone = await flags.onboardingDone();
+
+    const sessionResult = await authRepository.getSession();
+    let session = sessionResult.ok ? sessionResult.data : null;
+    if (!sessionResult.ok) console.warn('[gate] getSession failed:', sessionResult.error);
+
+    if (!session) {
+      const anon = await authRepository.signInAnonymously();
+      if (!anon.ok) {
+        console.warn('[gate] signInAnonymously failed (continuing offline):', anon.error);
+      }
+    }
+
     if (!pinSet) setState('auth');
     else if (!onboardingDone) setState('onboarding');
     else setState('main');
   }
 
-  useEffect(() => { resolve(); }, []);
+  useEffect(() => {
+    _refreshGate = resolve;
+    resolve();
+    return () => { _refreshGate = null; };
+  }, []);
 
   useEffect(() => {
     if (state === 'loading' || state === 'error') return;
@@ -59,13 +72,15 @@ export default function RootLayout() {
   }
 
   return (
-    <OnboardingProvider>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(onboarding)" />
-        <Stack.Screen name="(main)" />
-      </Stack>
-    </OnboardingProvider>
+    <AuthProvider>
+      <OnboardingProvider>
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(onboarding)" />
+          <Stack.Screen name="(main)" />
+        </Stack>
+      </OnboardingProvider>
+    </AuthProvider>
   );
 }
