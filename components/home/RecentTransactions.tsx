@@ -2,26 +2,59 @@ import { View, Text, Pressable } from 'react-native';
 import { useState } from 'react';
 import { RefreshCw, Image, ChevronRight } from 'lucide-react-native';
 import { TransactionDetail, TransactionData } from './TransactionDetail';
+import type { Transaction } from '../../src/types/database.types';
 
-const transactions: TransactionData[] = [
-  { id: '1', name: 'Makan Siang', category: 'Food', categoryIcon: '🍔', amount: '-12.50', type: 'expense', date: 'Today', recurring: true, recurringFreq: 'monthly', account: 'Maybank', note: 'Lunch with colleagues' },
-  { id: '2', name: 'Salary', category: 'Income', categoryIcon: '💼', amount: '+3,500.00', type: 'income', date: 'Yesterday', recurring: true, recurringFreq: 'monthly', account: 'Maybank', startDate: '1 May 2026', reminder: 'Same day' },
-  { id: '3', name: 'Grab', category: 'Transport', categoryIcon: '🚗', amount: '-8.00', type: 'expense', date: 'Yesterday', recurring: false, account: 'Maybank' },
-  { id: '4', name: 'Unifi', category: 'Bills', categoryIcon: '🧾', amount: '-89.00', type: 'expense', date: '19 May', recurring: true, recurringFreq: 'monthly', account: 'CIMB', startDate: '1 Jun 2025', reminder: '1 day before' },
-  { id: '5', name: 'Transfer to Tabung', category: 'Transfer', categoryIcon: '🔄', amount: '-100.00', type: 'transfer', date: '18 May', recurring: false, account: 'Maybank', toAccount: 'Tabung Raya' },
-];
+const CATEGORY_ICONS: Record<string, string> = {
+  Food: '🍔', Transport: '🚗', Bills: '🧾', Income: '💼', Transfer: '🔄',
+};
 
 interface RecentTransactionsProps {
+  transactions?: Transaction[];
   onSeeAll: () => void;
   onTransactionPress?: (id: string) => void;
 }
 
-export function RecentTransactions({ onSeeAll, onTransactionPress }: RecentTransactionsProps) {
+function formatTxDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const txDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (txDate.getTime() === today.getTime()) return 'Today';
+  if (txDate.getTime() === yesterday.getTime()) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+export function RecentTransactions({ transactions, onSeeAll, onTransactionPress }: RecentTransactionsProps) {
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionData | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const handleTransactionPress = (tx: TransactionData) => {
-    setSelectedTransaction(tx);
+  const txs: Transaction[] = transactions ?? [];
+  const displayTxs = txs.slice(0, 5);
+
+  const handleTransactionPress = (tx: Transaction) => {
+    const data: TransactionData = {
+      id: tx.id,
+      name: tx.name,
+      category: tx.category ?? 'Other',
+      categoryIcon: CATEGORY_ICONS[tx.category ?? 'Other'] ?? '📦',
+      const isExpense = tx.type === 'expense' || tx.type === 'tabung_topup';
+      amount: (isExpense ? '-' : '+') + tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+      type: tx.type as 'expense' | 'income' | 'transfer',
+      date: formatTxDate(tx.date),
+      recurring: tx.is_recurring,
+      recurringFreq: (tx as any).recurring?.frequency,
+      startDate: (tx as any).recurring?.start_date,
+      endDate: (tx as any).recurring?.end_date,
+      reminder: (tx as any).recurring?.reminder_enabled ? 'Enabled' : undefined,
+      note: tx.note,
+      hasReceipt: !!tx.receipt_url,
+      account: (tx as any).from_account?.name,
+      toAccount: (tx as any).to_account?.name,
+    };
+    setSelectedTransaction(data);
     setModalVisible(true);
     onTransactionPress?.(tx.id);
   };
@@ -38,7 +71,7 @@ export function RecentTransactions({ onSeeAll, onTransactionPress }: RecentTrans
           </Pressable>
         </View>
         <View className="gap-2">
-          {transactions.map((tx) => (
+          {displayTxs.map((tx) => (
             <Pressable
               key={tx.id}
               onPress={() => handleTransactionPress(tx)}
@@ -46,24 +79,24 @@ export function RecentTransactions({ onSeeAll, onTransactionPress }: RecentTrans
             >
               <View className="flex-row items-center gap-3">
                 <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
-                  <Text className="text-base">{tx.categoryIcon}</Text>
+                  <Text className="text-base">{CATEGORY_ICONS[tx.category ?? 'Other'] ?? '📦'}</Text>
                 </View>
                 <View>
                   <View className="flex-row items-center gap-1.5">
                     <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
-                    {tx.recurring && <RefreshCw size={10} color="#a0a0a0" />}
-                    {tx.type === 'expense' && tx.hasReceipt && <Image size={10} color="#a0a0a0" />}
+                    {tx.is_recurring && <RefreshCw size={10} color="#a0a0a0" />}
+                    {tx.receipt_url && <Image size={10} color="#a0a0a0" />}
                   </View>
-                  <Text className="text-xs text-muted-foreground">{tx.date}</Text>
+                  <Text className="text-xs text-muted-foreground">{formatTxDate(tx.date)}</Text>
                 </View>
               </View>
               <View className="flex-row items-center gap-2">
                 <Text
                   className={`text-sm font-semibold ${
-                    tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : tx.type === 'transfer' ? 'text-[#00d4ff]' : 'text-primary'
+                    tx.type === 'income' ? 'text-income' : tx.type === 'expense' || tx.type === 'tabung_topup' ? 'text-expense' : tx.type === 'transfer' ? 'text-[#00d4ff]' : 'text-primary'
                   }`}
                 >
-                  {tx.amount}
+                  {((tx.type === 'expense' || tx.type === 'tabung_topup') ? '-' : '+') + tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </Text>
                 <ChevronRight size={16} color="#a0a0a0" />
               </View>
