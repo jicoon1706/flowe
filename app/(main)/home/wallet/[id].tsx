@@ -1,38 +1,46 @@
-import { useState } from 'react';
+import { useState, useFocusEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, RefreshCw, Receipt } from '../../../../components/ui/icons';
+import { useAccounts } from '../../../../src/hooks/useAccounts';
+import { useTransactions } from '../../../../src/hooks/useTransactions';
+import { LoadingView } from '../../../../components/ui/LoadingView';
+import { ErrorView } from '../../../../components/ui/ErrorView';
 
-const MOCK_WALLETS: Record<string, {
-  name: string;
-  balance: string;
-  color: string;
-  income: string;
-  expense: string;
-  history: { id: string; name: string; amount: string; type: 'income' | 'expense'; category: string; date: string; recurring: boolean; emoji: string }[];
-}> = {
-  '4': {
-    name: 'Cash',
-    balance: '200.00',
-    color: '#00d4ff',
-    income: '0.00',
-    expense: '150.00',
-    history: [
-      { id: 'w1', name: 'Lunch', amount: '-12.00', type: 'expense', category: 'Food & Drink', date: 'Today', recurring: false, emoji: '🍔' },
-      { id: 'w2', name: 'Grab', amount: '-24.50', type: 'expense', category: 'Transport', date: 'Yesterday', recurring: false, emoji: '🚗' },
-      { id: 'w3', name: 'Salary', amount: '+3,500.00', type: 'income', category: 'Income', date: '1 May', recurring: true, emoji: '💼' },
-    ],
-  },
-};
+function getCategoryEmoji(category: string): string {
+  const map: Record<string, string> = {
+    'Food & Drink': '🍔', Transport: '🚗', Shopping: '🛍️', Bills: '🧾',
+    Entertainment: '🎬', Health: '💊', Income: '💼', Transfer: '🔄', Other: '💰',
+  };
+  return map[category] ?? '💰';
+}
 
 export default function WalletDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [balanceVisible, setBalanceVisible] = useState(true);
 
-  const walletId = typeof id === 'string' ? id : '4';
-  const wallet = MOCK_WALLETS[walletId] ?? MOCK_WALLETS['4'];
+  const { accounts, loading, error, fetchAccounts } = useAccounts();
+  const now = new Date();
+  const { transactions, loading: txLoading, error: txError } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+
+  useFocusEffect(useCallback(() => {
+    fetchAccounts();
+  }, [fetchAccounts]));
+
+  const accountId = typeof id === 'string' ? id : '';
+  const account = accounts.find((a) => a.id === accountId) ?? accounts[0];
+  const walletAccount = (account as any)?.wallet_accounts;
+  const balance = walletAccount?.current_balance ?? 0;
+  const walletColor = account?.color ?? '#00d4ff';
+  const accountTransactions = transactions.filter((t) => t.from_account_id === accountId || t.to_account_id === accountId);
+  const income = accountTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const expense = accountTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+
+  if (loading || txLoading) return <LoadingView />;
+  if (error || txError) return <ErrorView error={error ?? txError!} onRetry={fetchAccounts} />;
+  if (!account) return null;
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -41,7 +49,7 @@ export default function WalletDetailScreen() {
         <Pressable onPress={() => router.back()} className="mr-3">
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
-        <Text className="flex-1 text-lg font-semibold text-foreground">{wallet.name}</Text>
+        <Text className="flex-1 text-lg font-semibold text-foreground">{account.name}</Text>
         <Pressable>
           <Pencil size={22} color="#fff" />
         </Pressable>
@@ -50,7 +58,7 @@ export default function WalletDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Balance Card */}
         <View className="mx-4 mt-4 bg-card rounded-2xl overflow-hidden border border-border">
-          <View style={{ backgroundColor: wallet.color }} className="h-1" />
+          <View style={{ backgroundColor: walletColor }} className="h-1" />
           <View className="p-5">
             <View className="flex-row items-center justify-between mb-4">
               <Text className="text-sm text-muted-foreground">Balance</Text>
@@ -63,7 +71,7 @@ export default function WalletDetailScreen() {
               </Pressable>
             </View>
             <Text className="text-3xl font-bold text-foreground">
-              {balanceVisible ? `RM ${wallet.balance}` : 'RM ••••••'}
+              {balanceVisible ? `RM ${balance.toFixed(2)}` : 'RM ••••••'}
             </Text>
           </View>
         </View>
@@ -72,11 +80,11 @@ export default function WalletDetailScreen() {
         <View className="flex-row mx-4 mt-3">
           <View className="flex-1 bg-card rounded-2xl p-4 mr-1.5 items-center border border-border">
             <Text className="text-xs text-muted-foreground mb-1">Income</Text>
-            <Text className="text-lg font-semibold text-income">+RM {wallet.income}</Text>
+            <Text className="text-lg font-semibold text-income">+RM {income.toFixed(2)}</Text>
           </View>
           <View className="flex-1 bg-card rounded-2xl p-4 ml-1.5 items-center border border-border">
             <Text className="text-xs text-muted-foreground mb-1">Expenses</Text>
-            <Text className="text-lg font-semibold text-expense">-RM {wallet.expense}</Text>
+            <Text className="text-lg font-semibold text-expense">-RM {expense.toFixed(2)}</Text>
           </View>
         </View>
 
@@ -102,36 +110,44 @@ export default function WalletDetailScreen() {
             </Pressable>
           </View>
           <View className="gap-2 px-4">
-            {wallet.history.map((tx) => (
-              <Pressable
-                key={tx.id}
-                className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
-              >
-                <View className="flex-row items-center gap-3">
-                  <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
-                    <Text className="text-base">{tx.emoji}</Text>
-                  </View>
-                  <View>
-                    <View className="flex-row items-center gap-1.5">
-                      <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
-                      {tx.recurring && <RefreshCw size={10} color="#a0a0a0" />}
-                      {tx.type === 'expense' && <Receipt size={10} color="#a0a0a0" />}
-                    </View>
-                    <Text className="text-xs text-muted-foreground">{tx.date}</Text>
-                  </View>
-                </View>
-                <View className="flex-row items-center gap-2">
-                  <Text
-                    className={`text-sm font-semibold ${
-                      tx.type === 'income' ? 'text-income' : 'text-expense'
-                    }`}
+            {accountTransactions.length === 0 ? (
+              <Text className="text-sm text-muted-foreground text-center py-4">No transactions yet</Text>
+            ) : (
+              accountTransactions.map((tx) => {
+                const formattedAmount = `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}RM ${Math.abs(tx.amount).toFixed(2)}`;
+                const formattedDate = new Date(tx.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                return (
+                  <Pressable
+                    key={tx.id}
+                    className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
                   >
-                    {tx.amount}
-                  </Text>
-                  <ChevronRight size={16} color="#a0a0a0" />
-                </View>
-              </Pressable>
-            ))}
+                    <View className="flex-row items-center gap-3">
+                      <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
+                        <Text className="text-base">{tx.category ? getCategoryEmoji(tx.category) : '💰'}</Text>
+                      </View>
+                      <View>
+                        <View className="flex-row items-center gap-1.5">
+                          <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
+                          {tx.is_recurring && <RefreshCw size={10} color="#a0a0a0" />}
+                          {tx.type === 'expense' && <Receipt size={10} color="#a0a0a0" />}
+                        </View>
+                        <Text className="text-xs text-muted-foreground">{formattedDate}</Text>
+                      </View>
+                    </View>
+                    <View className="flex-row items-center gap-2">
+                      <Text
+                        className={`text-sm font-semibold ${
+                          tx.type === 'income' ? 'text-income' : 'text-expense'
+                        }`}
+                      >
+                        {formattedAmount}
+                      </Text>
+                      <ChevronRight size={16} color="#a0a0a0" />
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
           </View>
         </View>
       </ScrollView>
