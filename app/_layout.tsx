@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, Text, Pressable } from 'react-native';
+import { View, ActivityIndicator, Text, Pressable, LogBox } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { useFonts } from 'expo-font';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+LogBox.ignoreLogs(['[Reanimated] Reading from `value` during component render']);
 import { StatusBar } from 'expo-status-bar';
 import './global.css';
 import { authRepository } from '../src/repositories';
@@ -15,6 +19,7 @@ export function refreshGate() { _refreshGate?.(); }
 
 export default function RootLayout() {
   const [state, setState] = useState<GateState>('loading');
+  const [fontsLoaded] = useFonts(MaterialIcons.font);
   const router = useRouter();
   const segments = useSegments();
 
@@ -73,7 +78,7 @@ export default function RootLayout() {
           <Stack.Screen name="(onboarding)" />
           <Stack.Screen name="(main)" />
         </Stack>
-        {state === 'loading' && (
+        {(state === 'loading' || !fontsLoaded) && (
           <View
             className="bg-background items-center justify-center"
             style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}

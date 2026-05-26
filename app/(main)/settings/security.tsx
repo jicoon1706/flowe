@@ -1,51 +1,70 @@
-import { View, Text } from 'react-native';
-import { useState, useCallback } from 'react';
+import { View, Text, Alert } from 'react-native';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Shield } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Toggle } from '../../../components/ui/Toggle';
 import { Chip } from '../../../components/ui/Chip';
 import { useAuth } from '../../../context/AuthContext';
-import { useSettings } from '../../../src/hooks/useSettings';
+import { supabase } from '../../../src/lib/supabase';
 import { LoadingView } from '../../../components/ui/LoadingView';
-import { ErrorView } from '../../../components/ui/ErrorView';
 
-const AUTO_LOCK_OPTIONS = ['1 min', '5 min', '15 min', 'Never'] as const;
+const AUTO_LOCK_OPTIONS = [
+  { label: '1 min', value: 1 },
+  { label: '5 min', value: 5 },
+  { label: '15 min', value: 15 },
+  { label: 'Never', value: null as number | null },
+] as const;
+
+function minutesToLabel(min: number | null): string {
+  const opt = AUTO_LOCK_OPTIONS.find((o) => o.value === min);
+  return opt?.label ?? '5 min';
+}
 
 export default function SecurityScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { settings, loading, error, fetchSettings, updateSettings } = useSettings();
-  const [localFingerprint, setLocalFingerprint] = useState(false);
-  const [localAutoLock, setLocalAutoLock] = useState<string>('5 min');
+  const [loading, setLoading] = useState(true);
+  const [fingerprint, setFingerprint] = useState(false);
+  const [autoLockLabel, setAutoLockLabel] = useState<string>('5 min');
 
-  useFocusEffect(useCallback(() => {
-    if (user) fetchSettings(user.id);
-  }, [user, fetchSettings]));
-
-  useFocusEffect(useCallback(() => {
-    if (settings?.security) {
-      setLocalFingerprint(settings.security.fingerprintEnabled);
-      setLocalAutoLock(settings.security.autoLockTimer);
-    }
-  }, [settings]));
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('auth_config')
+      .select('fingerprint_enabled, auto_lock_minutes')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.warn('[security] fetch auth_config failed:', error);
+        if (data) {
+          setFingerprint(!!data.fingerprint_enabled);
+          setAutoLockLabel(minutesToLabel(data.auto_lock_minutes));
+        }
+        setLoading(false);
+      });
+  }, [user]);
 
   if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={() => user && fetchSettings(user.id)} />;
 
-  const toggleFingerprint = async (val: boolean) => {
-    setLocalFingerprint(val);
-    if (user) {
-      await updateSettings(user.id, { security: { fingerprintEnabled: val, autoLockTimer: localAutoLock } });
-    }
+  const persist = async (patch: { fingerprint_enabled?: boolean; auto_lock_minutes?: number | null }) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('auth_config')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('user_id', user.id);
+    if (error) Alert.alert('Save failed', error.message);
   };
 
-  const setAutoLock = async (timer: typeof AUTO_LOCK_OPTIONS[number]) => {
-    setLocalAutoLock(timer);
-    if (user) {
-      await updateSettings(user.id, { security: { fingerprintEnabled: localFingerprint, autoLockTimer: timer } });
-    }
+  const toggleFingerprint = async (val: boolean) => {
+    setFingerprint(val);
+    await persist({ fingerprint_enabled: val });
+  };
+
+  const setAutoLock = async (opt: typeof AUTO_LOCK_OPTIONS[number]) => {
+    setAutoLockLabel(opt.label);
+    await persist({ auto_lock_minutes: opt.value });
   };
 
   return (
@@ -59,10 +78,7 @@ export default function SecurityScreen() {
               <Shield size={20} color="#a0a0a0" />
               <Text className="text-foreground text-base">Fingerprint</Text>
             </View>
-            <Toggle
-              value={localFingerprint}
-              onValueChange={toggleFingerprint}
-            />
+            <Toggle value={fingerprint} onValueChange={toggleFingerprint} />
           </View>
 
           <View className="border-t border-border my-1" />
@@ -71,11 +87,11 @@ export default function SecurityScreen() {
           <View className="py-3">
             <Text className="text-foreground text-base mb-3">Auto-lock Timer</Text>
             <View className="flex-row flex-wrap gap-2">
-              {AUTO_LOCK_OPTIONS.map(opt => (
+              {AUTO_LOCK_OPTIONS.map((opt) => (
                 <Chip
-                  key={opt}
-                  label={opt}
-                  selected={localAutoLock === opt}
+                  key={opt.label}
+                  label={opt.label}
+                  selected={autoLockLabel === opt.label}
                   onPress={() => setAutoLock(opt)}
                 />
               ))}

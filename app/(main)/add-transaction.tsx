@@ -17,6 +17,7 @@ import { useAccounts } from '../../src/hooks/useAccounts';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
 import { useAuth } from '../../context/AuthContext';
+import { accountColor } from '../../src/utils/accountColor';
 
 type TransactionType = 'expense' | 'income' | 'transfer';
 
@@ -83,6 +84,18 @@ export default function AddTransactionScreen() {
 
   const categories = type === 'expense' ? expenseCategories : incomeCategories;
 
+  const bankAccountOptions = accounts
+    .filter((a: any) => a.type === 'bank')
+    .map((a: any) => {
+      const bal = Number(a.bank_accounts?.current_balance ?? 0);
+      return {
+        id: a.id,
+        name: a.name,
+        balance: bal.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        color: accountColor(a),
+      };
+    });
+
   useFocusEffect(useCallback(() => {
     fetchAccounts();
     if (user) fetchCustomCategories(user.id);
@@ -107,6 +120,27 @@ export default function AddTransactionScreen() {
     return opt?.label || 'No reminder';
   };
 
+  function resetForm() {
+    setType('expense');
+    setAmount('');
+    setName('');
+    setCategory('food');
+    setAccount('');
+    setToAccount('');
+    setDateOption('today');
+    setCustomDate(new Date());
+    setShowDatePicker(false);
+    setDatePickerMode('date');
+    setRecurring(false);
+    setRecurringFreq('monthly');
+    setStartDate(new Date());
+    setEndDate(null);
+    setHasEndDate(false);
+    setReminder('none');
+    setShowReminderPicker(false);
+    setNote('');
+  }
+
   async function handleSubmit() {
     if (!amount || !name) {
       Alert.alert('Missing fields', 'Please enter an amount and name.');
@@ -121,19 +155,34 @@ export default function AddTransactionScreen() {
       return;
     }
 
-    const transactionDate = dateOption === 'today'
-      ? new Date().toISOString()
+    const transactionDate = (dateOption === 'today'
+      ? new Date()
       : dateOption === 'yesterday'
-      ? new Date(Date.now() - 86400000).toISOString()
-      : customDate.toISOString();
+      ? new Date(Date.now() - 86400000)
+      : customDate
+    ).toISOString().slice(0, 10);
+
+    if (type === 'transfer' && !toAccount) {
+      Alert.alert('Missing account', 'Please select a destination account.');
+      return;
+    }
+
+    const fromId =
+      type === 'expense' ? account
+      : type === 'transfer' ? account
+      : undefined;
+    const toId =
+      type === 'income' ? account
+      : type === 'transfer' ? toAccount
+      : undefined;
 
     const result = await create({
       user_id: user.id,
       type,
       name,
       amount: parseFloat(amount),
-      account_id: account,
-      to_account_id: type === 'transfer' ? toAccount : undefined,
+      from_account_id: fromId,
+      to_account_id: toId,
       category,
       date: transactionDate,
       note: note || undefined,
@@ -141,6 +190,7 @@ export default function AddTransactionScreen() {
 
     if (result.ok) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      resetForm();
       router.back();
     } else {
       Alert.alert('Failed to save', result.error.message);
@@ -224,11 +274,11 @@ export default function AddTransactionScreen() {
             value={account}
             onChange={setAccount}
             label={type === 'transfer' ? 'From' : type === 'expense' ? 'From Account' : 'To Account'}
-            accounts={accounts}
+            accounts={bankAccountOptions}
           />
 
           {type === 'transfer' && (
-            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" accounts={accounts} />
+            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" accounts={bankAccountOptions} />
           )}
 
           {/* Date */}

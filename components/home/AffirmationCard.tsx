@@ -1,22 +1,24 @@
 import { View, Text, Pressable } from 'react-native';
 import { Heart, Share2, ChevronLeft, ChevronRight } from 'lucide-react-native';
 
-const affirmations = [
-  { emoji: '💰', category: 'Saving', quote: '"The poor and the middle class work for money. The rich have money work for them."' },
-  { emoji: '📈', category: 'Investing', quote: '"The biggest risk is not taking any risk."' },
-  { emoji: '🧠', category: 'Mindset', quote: '"Financial freedom is freedom from fear."' },
+export type AffirmationItem = { emoji: string; category: string; quote: string };
+
+const FALLBACK: AffirmationItem[] = [
+  { emoji: '✨', category: 'Mindset', quote: 'Add your own affirmations in Settings → Affirmations.' },
 ];
 
 interface AffirmationCardProps {
   index: number;
+  items?: AffirmationItem[];
   onNext: () => void;
   onPrev: () => void;
   onFavourite: () => void;
   onShare: () => void;
 }
 
-export function AffirmationCard({ index, onNext, onPrev, onFavourite, onShare }: AffirmationCardProps) {
-  const current = affirmations[index % affirmations.length];
+export function AffirmationCard({ index, items, onNext, onPrev, onFavourite, onShare }: AffirmationCardProps) {
+  const affirmations = items && items.length > 0 ? items : FALLBACK;
+  const current = affirmations[((index % affirmations.length) + affirmations.length) % affirmations.length];
 
   return (
     <View className="mx-4 mb-5 bg-primary/10 border border-primary/20 rounded-2xl p-4">

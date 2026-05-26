@@ -24,7 +24,7 @@ export const recurringRepository = {
     const { data, error } = await supabase
       .from('recurring_rules')
       .select()
-      .eq('status', 'active')
+      .in('status', ['active', 'paused'])
       .order('created_at', { ascending: false });
     if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: data as RecurringRule[] };

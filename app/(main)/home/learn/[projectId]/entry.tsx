@@ -43,7 +43,7 @@ export default function EntryDetailScreen() {
         <Pressable onPress={() => router.back()} className="mr-3">
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
-        <Text className="flex-1 text-lg font-semibold text-foreground">Entri</Text>
+        <Text className="flex-1 text-lg font-semibold text-foreground">Entry</Text>
         <Pressable onPress={() => setShowMenu(true)} className="p-2">
           <Pencil size={20} color="#fff" />
         </Pressable>
@@ -127,20 +127,20 @@ export default function EntryDetailScreen() {
         <View className="flex-1 justify-end bg-black/60">
           <View className="bg-card rounded-t-3xl p-6 pb-10">
             <Text className="text-lg font-semibold text-foreground mb-2">
-              Hapus entri ini?
+              Delete this entry?
             </Text>
             <View className="flex-row mt-4">
               <Pressable
                 onPress={() => setShowDelete(false)}
                 className="flex-1 py-3 items-center"
               >
-                <Text className="text-muted-foreground">Batal</Text>
+                <Text className="text-muted-foreground">Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={handleDelete}
                 className="flex-1 bg-expense rounded-2xl py-3 items-center"
               >
-                <Text className="text-sm font-semibold text-white">Hapus</Text>
+                <Text className="text-sm font-semibold text-white">Delete</Text>
               </Pressable>
             </View>
           </View>

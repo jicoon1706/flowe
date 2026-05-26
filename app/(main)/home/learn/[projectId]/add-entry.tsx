@@ -54,13 +54,13 @@ export default function AddEntryScreen() {
         <Pressable onPress={() => router.back()} className="mr-3">
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
-        <Text className="text-xl font-semibold text-foreground">Tambah Entri</Text>
+        <Text className="text-xl font-semibold text-foreground">Add Entry</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-4">
         {/* Text Area */}
         <View className="mt-4">
-          <Text className="text-xs text-muted-foreground mb-2">Nota</Text>
+          <Text className="text-xs text-muted-foreground mb-2">Note</Text>
           <TextInput
             className="bg-card border border-border rounded-xl px-4 py-3 text-foreground min-h-[120]"
             placeholder="What did you learn?"
@@ -121,7 +121,7 @@ export default function AddEntryScreen() {
               canSave ? 'text-primary-foreground' : 'text-muted-foreground'
             }`}
           >
-            Simpan
+            Save
           </Text>
         </Pressable>
       </View>

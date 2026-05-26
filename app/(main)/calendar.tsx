@@ -112,7 +112,10 @@ export default function CalendarScreen() {
     date: new Date(tx.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
     recurring: false,
     recurringFreq: undefined,
-    account: '',
+    account: (tx.type === 'income'
+      ? (tx as any).to_account?.name
+      : (tx as any).from_account?.name) ?? '',
+    toAccount: (tx as any).to_account?.name ?? undefined,
     note: tx.note ?? undefined,
   }));
 

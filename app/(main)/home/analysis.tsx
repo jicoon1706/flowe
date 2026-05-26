@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { ChevronLeft, Sparkle, TrendingUp, TrendingDown } from '../../../components/ui/icons';
+import { ChevronLeft, ChevronRight, Sparkle, TrendingUp, TrendingDown } from '../../../components/ui/icons';
 import { useAnalysis } from '../../../src/hooks/useAnalysis';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
@@ -23,9 +23,17 @@ export default function AnalysisScreen() {
   const [toggleMode, setToggleMode] = useState<'expense' | 'income'>('expense');
 
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
+  const [selectedDate, setSelectedDate] = useState(
+    () => new Date(now.getFullYear(), now.getMonth(), 1)
+  );
+  const currentYear = selectedDate.getFullYear();
+  const currentMonth = selectedDate.getMonth() + 1;
   const monthParam = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+
+  const goPrevMonth = () =>
+    setSelectedDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const goNextMonth = () =>
+    setSelectedDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
 
   const { analysis, loading, error } = useAnalysis(monthParam);
 
@@ -88,10 +96,24 @@ export default function AnalysisScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
         {/* Month Display */}
-        <View className="mx-4 mt-4">
-          <Text className="text-sm text-muted-foreground">
+        <View className="flex-row items-center justify-between mx-4 mt-4">
+          <Pressable
+            onPress={goPrevMonth}
+            hitSlop={8}
+            className="w-9 h-9 items-center justify-center rounded-full bg-card border border-border"
+          >
+            <ChevronLeft size={20} color="#fff" />
+          </Pressable>
+          <Text className="text-base font-semibold text-foreground">
             {MONTHS[currentMonth - 1]} {currentYear}
           </Text>
+          <Pressable
+            onPress={goNextMonth}
+            hitSlop={8}
+            className="w-9 h-9 items-center justify-center rounded-full bg-card border border-border"
+          >
+            <ChevronRight size={20} color="#fff" />
+          </Pressable>
         </View>
 
         {/* Net Savings Hero */}

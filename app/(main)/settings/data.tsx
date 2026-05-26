@@ -9,6 +9,8 @@ import { useLiabilities } from '../../../src/hooks/useLiabilities';
 import { useTransactions } from '../../../src/hooks/useTransactions';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
+import { flags } from '../../../src/lib/secureStore';
+import { refreshGate } from '../../_layout';
 
 type ExportFormat = 'csv' | 'pdf';
 type DateRange = '1m' | '3m' | '1y' | 'all';
@@ -49,12 +51,13 @@ export default function DataScreen() {
     }, 1500);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (resetInput.toLowerCase() !== 'reset') return;
     setShowResetConfirm(false);
-    dispatch({ type: 'RESET_ALL' });
-    router.push('/');
     setResetInput('');
+    await flags.unsetPin();
+    refreshGate();
+    router.replace('/(auth)/welcome');
   };
 
   return (

@@ -23,7 +23,11 @@ export const transactionsRepository = {
     const end = new Date(year, month, 0).toISOString().split('T')[0];
     const { data, error } = await supabase
       .from('transactions')
-      .select()
+      .select(`
+        *,
+        from_account:accounts!from_account_id(id, name, type),
+        to_account:accounts!to_account_id(id, name, type)
+      `)
       .gte('date', start)
       .lte('date', end)
       .order('date', { ascending: false });
@@ -34,7 +38,11 @@ export const transactionsRepository = {
   async fetchByAccount(accountId: string): Promise<Result<Transaction[], SupabaseError>> {
     const { data, error } = await supabase
       .from('transactions')
-      .select()
+      .select(`
+        *,
+        from_account:accounts!from_account_id(id, name, type),
+        to_account:accounts!to_account_id(id, name, type)
+      `)
       .or(`from_account_id.eq.${accountId},to_account_id.eq.${accountId}`)
       .order('date', { ascending: false });
     if (error) return { ok: false, error: fromSupabaseError(error) };

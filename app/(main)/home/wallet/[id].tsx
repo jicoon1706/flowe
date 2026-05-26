@@ -1,7 +1,7 @@
-import { useState, useFocusEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, RefreshCw, Receipt } from '../../../../components/ui/icons';
 import { useAccounts } from '../../../../src/hooks/useAccounts';
 import { useTransactions } from '../../../../src/hooks/useTransactions';
@@ -32,7 +32,7 @@ export default function WalletDetailScreen() {
   const accountId = typeof id === 'string' ? id : '';
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0];
   const walletAccount = (account as any)?.wallet_accounts;
-  const balance = walletAccount?.current_balance ?? 0;
+  const balance = Number(walletAccount?.current_balance ?? 0);
   const walletColor = account?.color ?? '#00d4ff';
   const accountTransactions = transactions.filter((t) => t.from_account_id === accountId || t.to_account_id === accountId);
   const income = accountTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);

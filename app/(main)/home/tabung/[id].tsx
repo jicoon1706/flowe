@@ -1,11 +1,11 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
-import { AlertCircle, Calendar, Check, ChevronLeft, Minus, Pencil, Plus, Target, TrendingUp, X } from '../../../../components/ui/icons';
+import { AlertCircle, Check, ChevronLeft, Minus, Pencil, Plus, X } from 'lucide-react-native';
 import { useAccounts } from '../../../../src/hooks/useAccounts';
 import { transactionsRepository } from '../../../../src/repositories/transactions.repository';
+import { accountsRepository } from '../../../../src/repositories/accounts.repository';
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
 import { useAuth } from '../../../../context/AuthContext';
@@ -15,6 +15,10 @@ export default function TabungDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { accounts, loading, error, fetchAccounts } = useAccounts();
+
+  useFocusEffect(useCallback(() => {
+    fetchAccounts();
+  }, [fetchAccounts]));
 
   const [showTopUp, setShowTopUp] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
@@ -34,8 +38,8 @@ export default function TabungDetailScreen() {
   const account = accounts.find((a) => a.id === tabungId) ?? accounts[0];
   const tabungData = (account as any)?.tabung_accounts;
 
-  const savedAmount = tabungData?.saved_amount ?? 0;
-  const targetAmount = tabungData?.target_amount ?? 0;
+  const savedAmount = Number(tabungData?.saved_amount ?? 0);
+  const targetAmount = Number(tabungData?.target_amount ?? 0);
   const tabungColor = account?.color ?? '#6bcf7f';
   const tabungEmoji = account?.icon ?? '🎉';
 
@@ -50,11 +54,8 @@ export default function TabungDetailScreen() {
   const weeksLeft = Math.ceil(daysLeft / 7);
   const weeklyNeeded = weeksLeft > 0 ? remaining / weeksLeft : remaining;
 
-  // SVG circle progress props
   const size = 144;
   const strokeWidth = 10;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
 
   const handleConfirmTopUp = async () => {
     const amountNum = parseFloat(topUpAmount.replace(/,/g, ''));
@@ -113,13 +114,39 @@ export default function TabungDetailScreen() {
     }
   };
 
-  const handleSaveEdit = () => {
-    setShowEdit(false);
+  const [editError, setEditError] = useState('');
+
+  const handleSaveEdit = async () => {
+    if (!account) return;
+    const trimmedName = editName.trim();
+    const targetNum = parseFloat(editTarget.replace(/,/g, ''));
+    if (!trimmedName) {
+      setEditError('Name is required');
+      return;
+    }
+    if (!targetNum || targetNum <= 0) {
+      setEditError('Target must be greater than 0');
+      return;
+    }
+    setActionLoading(true);
+    const result = await accountsRepository.updateTabungGoal(account.id, {
+      name: trimmedName,
+      target_amount: targetNum,
+    });
+    setActionLoading(false);
+    if (result.ok) {
+      await fetchAccounts();
+      setEditError('');
+      setShowEdit(false);
+    } else {
+      setEditError(result.error.message ?? 'Failed to update goal');
+    }
   };
 
   const handleOpenEdit = () => {
     setEditName(account?.name ?? '');
     setEditTarget(targetNum.toString());
+    setEditError('');
     setShowEdit(true);
   };
 
@@ -143,39 +170,40 @@ export default function TabungDetailScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Progress Circle with SVG */}
-        <View className="items-center py-6 mx-4 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-3xl mb-4">
-          <View className="relative w-36 h-36 mb-6 items-center justify-center">
-            <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-              {/* Background circle */}
-              <Circle
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                stroke="rgba(255,255,255,0.1)"
-                strokeWidth={strokeWidth}
-                fill="none"
-              />
-              {/* Progress circle - starts from top (12 o'clock) */}
-              <Circle
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                stroke="#C5FF00"
-                strokeWidth={strokeWidth}
-                fill="none"
-                strokeLinecap="round"
-                strokeDasharray={`${(percentage / 100) * circumference} ${circumference}`}
-                transform={`rotate(-90 ${size / 2} ${size / 2})`}
-              />
-            </Svg>
-            <View className="absolute inset-0 flex flex-col items-center justify-center">
-              <Text className="text-4xl mb-1">{tabungEmoji}</Text>
-              <Text className="text-xl font-bold text-primary">{percentage}%</Text>
-            </View>
+        {/* Circular Progress (View-based) */}
+        <View className="items-center py-6 mx-4 bg-card border border-border rounded-3xl mb-4">
+          <View
+            style={{
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              borderWidth: strokeWidth,
+              borderColor: 'rgba(255,255,255,0.1)',
+            }}
+            className="items-center justify-center mb-4"
+          >
+            <View
+              style={{
+                position: 'absolute',
+                top: -strokeWidth,
+                left: -strokeWidth,
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+                borderWidth: strokeWidth,
+                borderColor: 'transparent',
+                borderTopColor: '#C5FF00',
+                borderRightColor: percentage > 25 ? '#C5FF00' : 'transparent',
+                borderBottomColor: percentage > 50 ? '#C5FF00' : 'transparent',
+                borderLeftColor: percentage > 75 ? '#C5FF00' : 'transparent',
+                transform: [{ rotate: `${(percentage / 100) * 360}deg` }],
+              }}
+            />
+            <Text className="text-4xl mb-1">{tabungEmoji}</Text>
+            <Text className="text-xl font-bold text-primary">{percentage}%</Text>
           </View>
 
-          <View className="text-center mt-2">
+          <View className="items-center mt-2">
             <Text className="text-3xl font-bold text-foreground">RM {currentNum.toFixed(2)}</Text>
             <Text className="text-sm text-muted-foreground">of RM {targetNum.toFixed(2)} goal</Text>
           </View>
@@ -184,17 +212,17 @@ export default function TabungDetailScreen() {
         {/* Stats Grid */}
         <View className="flex-row mx-4 px-1 mb-4">
           <View className="flex-1 bg-card rounded-2xl p-3 items-center border border-border">
-            <View className="mb-1"><Target size={16} color="#C5FF00" /></View>
+            <Text style={{ fontSize: 24, lineHeight: 30, marginBottom: 4 }}>🎯</Text>
             <Text className="text-lg font-bold text-foreground">RM {remaining.toFixed(2)}</Text>
             <Text className="text-xs text-muted-foreground">Remaining</Text>
           </View>
           <View className="flex-1 bg-card rounded-2xl p-3 items-center mx-2 border border-border">
-            <View className="mb-1"><Calendar size={16} color="#C5FF00" /></View>
+            <Text style={{ fontSize: 24, lineHeight: 30, marginBottom: 4 }}>📅</Text>
             <Text className="text-lg font-bold text-foreground">{daysLeft}</Text>
             <Text className="text-xs text-muted-foreground">Days left</Text>
           </View>
           <View className="flex-1 bg-card rounded-2xl p-3 items-center border border-border">
-            <View className="mb-1"><TrendingUp size={16} color="#C5FF00" /></View>
+            <Text style={{ fontSize: 24, lineHeight: 30, marginBottom: 4 }}>🚀</Text>
             <Text className="text-lg font-bold text-foreground">RM {weeklyNeeded.toFixed(2)}</Text>
             <Text className="text-xs text-muted-foreground">Per week</Text>
           </View>
@@ -434,11 +462,19 @@ export default function TabungDetailScreen() {
               />
             </View>
 
+            {editError ? (
+              <View className="flex-row items-center gap-1.5 mb-3">
+                <AlertCircle size={14} color="#EF4444" />
+                <Text className="text-xs text-red-400">{editError}</Text>
+              </View>
+            ) : null}
+
             <Pressable
               onPress={handleSaveEdit}
+              disabled={actionLoading}
               className="bg-primary rounded-2xl py-4 items-center"
             >
-              <Text className="text-sm font-bold text-black">Save Changes</Text>
+              <Text className="text-sm font-bold text-black">{actionLoading ? 'Saving...' : 'Save Changes'}</Text>
             </Pressable>
           </View>
         </View>

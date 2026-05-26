@@ -1,16 +1,15 @@
-import { View } from 'react-native';
-import { useState, useCallback } from 'react';
+import { View, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Bell } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { SettingsGroup } from '../../../components/ui/SettingsGroup';
 import { SettingsRow } from '../../../components/ui/SettingsRow';
 import { Toggle } from '../../../components/ui/Toggle';
 import { useAuth } from '../../../context/AuthContext';
-import { useSettings } from '../../../src/hooks/useSettings';
+import { supabase } from '../../../src/lib/supabase';
 import { LoadingView } from '../../../components/ui/LoadingView';
-import { ErrorView } from '../../../components/ui/ErrorView';
 
 const GROUPS = {
   Alerts: ['cashflow', 'alert', 'milestone'] as const,
@@ -24,31 +23,63 @@ const LABELS: Record<string, string> = {
   affirmation: 'Affirmations',
 };
 
+const KEYS = ['cashflow', 'alert', 'milestone', 'expense', 'income', 'recurring', 'tabung', 'affirmation'] as const;
+type Key = typeof KEYS[number];
+
+const dbCol = (k: Key) => `notif_${k}` as const;
+
 export default function NotificationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { settings, loading, error, fetchSettings, updateSettings } = useSettings();
-  const [localToggles, setLocalToggles] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [toggles, setToggles] = useState<Record<Key, boolean>>(() =>
+    Object.fromEntries(KEYS.map((k) => [k, true])) as Record<Key, boolean>
+  );
 
-  useFocusEffect(useCallback(() => {
-    if (user) fetchSettings(user.id);
-  }, [user, fetchSettings]));
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const cols = KEYS.map(dbCol).join(',');
+      const { data, error } = await supabase
+        .from('settings')
+        .select(cols)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) console.warn('[notifications] fetch failed:', error);
 
-  useFocusEffect(useCallback(() => {
-    if (settings?.notifications) {
-      setLocalToggles({ ...settings.notifications });
-    }
-  }, [settings]));
+      if (!data) {
+        // No row yet — create one with defaults
+        const { data: created, error: insertErr } = await supabase
+          .from('settings')
+          .insert({ user_id: user.id })
+          .select(cols)
+          .maybeSingle();
+        if (insertErr) console.warn('[notifications] insert failed:', insertErr);
+        if (created) applyRow(created);
+      } else {
+        applyRow(data);
+      }
+      setLoading(false);
+    })();
+  }, [user]);
+
+  function applyRow(row: any) {
+    const next = { ...toggles };
+    for (const k of KEYS) next[k] = !!row[dbCol(k)];
+    setToggles(next);
+  }
 
   if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={() => user && fetchSettings(user.id)} />;
 
-  const toggle = (key: string) => async (val: boolean) => {
-    const updated = { ...localToggles, [key]: val };
-    setLocalToggles(updated);
-    if (user && settings) {
-      await updateSettings(user.id, { notifications: updated as any });
-    }
+  const toggle = (key: Key) => async (val: boolean) => {
+    const updated = { ...toggles, [key]: val };
+    setToggles(updated);
+    if (!user) return;
+    const { error } = await supabase
+      .from('settings')
+      .update({ [dbCol(key)]: val, updated_at: new Date().toISOString() })
+      .eq('user_id', user.id);
+    if (error) Alert.alert('Save failed', error.message);
   };
 
   return (
@@ -66,7 +97,7 @@ export default function NotificationsScreen() {
                   hasChevron={false}
                   rightElement={
                     <Toggle
-                      value={localToggles[key] ?? false}
+                      value={toggles[key]}
                       onValueChange={toggle(key)}
                     />
                   }

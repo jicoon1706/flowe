@@ -1,7 +1,7 @@
-import { useState, useCallback , useFocusEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { ChevronLeft, Plus, PiggyBank, Landmark, Wallet, X, Check } from '../../../components/ui/icons';
 import { useAccounts } from '../../../src/hooks/useAccounts';
 import { useAuth } from '../../../context/AuthContext';

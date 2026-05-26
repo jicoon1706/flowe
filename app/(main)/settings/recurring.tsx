@@ -1,13 +1,23 @@
-import { useState, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, Modal, TextInput, Platform, Alert } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, Pressable, ScrollView, TextInput, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Plus, Repeat, Pause, Play, X, ChevronDown, Calendar } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useRecurring } from '../../../src/hooks/useRecurring';
 import { useAccounts } from '../../../src/hooks/useAccounts';
 import { useAuth } from '../../../context/AuthContext';
+import { MALAYSIAN_BANKS } from '../../../constants/banks';
+
+function bankColor(account: any): string {
+  const bankName = account?.bank_accounts?.bank_name?.toLowerCase();
+  if (bankName) {
+    const preset = MALAYSIAN_BANKS.find((b) => b.id === bankName || b.name.toLowerCase() === bankName);
+    if (preset) return preset.color;
+  }
+  return account?.color ?? '#94a3b8';
+}
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import * as Haptics from 'expo-haptics';
@@ -17,8 +27,9 @@ const FREQUENCIES = ['Weekly', 'Monthly', 'Yearly'] as const;
 export default function RecurringScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { accounts } = useAccounts();
+  const { accounts, fetchAccounts } = useAccounts();
   const { recurringRules, loading, error, fetchRecurring, createRecurring, updateStatus } = useRecurring();
+  const bankAccounts = accounts.filter((a) => a.type === 'bank');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [showFreqPicker, setShowFreqPicker] = useState(false);
@@ -29,7 +40,10 @@ export default function RecurringScreen() {
   const [newAccountId, setNewAccountId] = useState('');
   const [newNextDate, setNewNextDate] = useState(new Date());
 
-  useFocusEffect(useCallback(() => { fetchRecurring(); }, [fetchRecurring]));
+  useEffect(() => {
+    fetchRecurring();
+    fetchAccounts();
+  }, [fetchRecurring, fetchAccounts]);
 
   if (loading) return <LoadingView />;
   if (error) return <ErrorView error={error} onRetry={fetchRecurring} />;
@@ -55,11 +69,12 @@ export default function RecurringScreen() {
     }
     const result = await createRecurring({
       user_id: user.id,
-      transaction_name: newName.trim(),
+      type: 'expense',
+      name: newName.trim(),
       amount: parseFloat(newAmount),
       frequency: newFrequency.toLowerCase() as 'weekly' | 'monthly' | 'yearly',
-      start_date: newNextDate.toISOString(),
-      account_id: newAccountId || accounts[0]?.id,
+      start_date: newNextDate.toISOString().slice(0, 10),
+      from_account_id: newAccountId || bankAccounts[0]?.id,
     });
     if (result.ok) {
       setShowAddModal(false);
@@ -83,8 +98,8 @@ export default function RecurringScreen() {
     </Pressable>
   );
 
-  const selectedAccount = accounts.find(a => a.id === newAccountId) ?? accounts[0];
-  const accountColor = (selectedAccount as any)?.color ?? '#6B7280';
+  const selectedAccount = bankAccounts.find(a => a.id === newAccountId) ?? bankAccounts[0];
+  const accountColor = selectedAccount ? bankColor(selectedAccount) : '#94a3b8';
   const accountName = (selectedAccount as any)?.name ?? 'Select Account';
 
   return (
@@ -119,7 +134,7 @@ export default function RecurringScreen() {
                 </View>
                 <View>
                   <View className="flex-row items-center gap-2">
-                    <Text className="text-sm font-medium text-foreground">{item.transaction_name}</Text>
+                    <Text className="text-sm font-medium text-foreground">{(item as any).name}</Text>
                     {item.status === 'paused' && (
                       <View className="bg-muted rounded-full px-2 py-0.5">
                         <Text className="text-muted-foreground text-xs">Paused</Text>
@@ -164,12 +179,8 @@ export default function RecurringScreen() {
       </ScrollView>
 
       {/* Add Recurring Modal */}
-      <Modal
-        visible={showAddModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowAddModal(false)}
-      >
+      {showAddModal && (
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}>
         <Pressable
           className="flex-1 bg-black/50 justify-end"
           onPress={() => setShowAddModal(false)}
@@ -295,8 +306,8 @@ export default function RecurringScreen() {
               </Pressable>
               {showAccountPicker && (
                 <View className="mt-2 bg-background border border-border rounded-xl overflow-hidden">
-                  {accounts.map((account, i) => {
-                    const accColor = (account as any).color ?? '#6B7280';
+                  {bankAccounts.map((account, i) => {
+                    const accColor = bankColor(account);
                     const accName = account.name;
                     return (
                       <Pressable
@@ -328,7 +339,8 @@ export default function RecurringScreen() {
             </Pressable>
           </Pressable>
         </Pressable>
-      </Modal>
+      </View>
+      )}
     </SafeAreaView>
   );
 }

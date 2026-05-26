@@ -61,7 +61,7 @@ export default function LearnIndexScreen() {
         <Pressable onPress={() => router.back()} className="mr-3">
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
-        <Text className="text-xl font-semibold text-foreground">Nota Kewangan Peribadi</Text>
+        <Text className="text-xl font-semibold text-foreground">Personal Finance Notes</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -90,7 +90,7 @@ export default function LearnIndexScreen() {
             className="flex-row items-center justify-center bg-card rounded-2xl py-3 border border-dashed border-border"
             style={{ borderStyle: 'dashed' }}
           >
-            <Text className="text-primary font-semibold">+ Tambah Projek</Text>
+            <Text className="text-primary font-semibold">+ Add Project</Text>
           </Pressable>
         </View>
 
@@ -99,7 +99,7 @@ export default function LearnIndexScreen() {
           {projects.length === 0 ? (
             <View className="items-center py-12">
               <Text className="text-4xl mb-3">📁</Text>
-              <Text className="text-foreground font-medium">Belum ada projek</Text>
+              <Text className="text-foreground font-medium">No projects yet</Text>
               <Text className="text-muted-foreground text-sm mt-1">
                 Create your first project to start tracking
               </Text>
@@ -158,7 +158,7 @@ export default function LearnIndexScreen() {
                 onPress={handleCreateProject}
                 className="flex-1 bg-primary rounded-2xl py-3 items-center"
               >
-                <Text className="text-sm font-semibold text-primary-foreground">Buat Projek</Text>
+                <Text className="text-sm font-semibold text-primary-foreground">Create Project</Text>
               </Pressable>
             </View>
           </View>

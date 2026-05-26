@@ -29,7 +29,7 @@ export function AccountSelector({
   accounts = defaultAccounts,
 }: AccountSelectorProps) {
   const [isOpen, setIsOpen] = React.useState(false);
-  const selected = accounts.find((a) => a.id === value) || accounts[0];
+  const selected = accounts.find((a) => a.id === value);
 
   return (
     <View className="gap-1.5 mb-4">
@@ -55,7 +55,9 @@ export function AccountSelector({
               </View>
             </>
           ) : (
-            <Text className="text-sm text-muted-foreground">No accounts yet</Text>
+            <Text className="text-sm text-muted-foreground">
+              {accounts.length === 0 ? 'No accounts yet' : 'Select account'}
+            </Text>
           )}
         </View>
         <ChevronDown size={18} color="#a0a0a0" />

@@ -14,10 +14,10 @@ const ICONS = ['🐷', '💰', '🏠', '🎁', '🚗', '🚀', '🌴', '🏢', '
 const COLORS = ['#6bcf7f', '#ffd93d', '#00d4ff', '#C5FF00', '#f472b6', '#a78bfa', '#34d399', '#fb923c'];
 
 const TEMPLATE_DEFAULTS: Record<string, { name: string; emoji: string; color: string }> = {
-  tabungRaya: { name: 'Tabung Raya', emoji: '🎉', color: '#6bcf7f' },
-  emergency: { name: 'Emergency Fund', emoji: '🛡️', color: '#ffd93d' },
-  holiday: { name: 'Holiday', emoji: '✈️', color: '#00d4ff' },
-  gadget: { name: 'New Gadget', emoji: '📱', color: '#C5FF00' },
+  tabungRaya: { name: 'Tabung Raya', emoji: '🎁', color: '#6bcf7f' },
+  emergency: { name: 'Emergency Fund', emoji: '⭐', color: '#ffd93d' },
+  holiday: { name: 'Holiday', emoji: '🌴', color: '#00d4ff' },
+  gadget: { name: 'New Gadget', emoji: '💎', color: '#C5FF00' },
   downPayment: { name: 'Down Payment', emoji: '🏠', color: '#6bcf7f' },
   custom: { name: '', emoji: '🐷', color: '#6bcf7f' },
 };

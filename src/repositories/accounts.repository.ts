@@ -184,4 +184,25 @@ export const accountsRepository = {
     if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: undefined };
   },
+
+  async updateTabungGoal(
+    accountId: string,
+    patch: { name?: string; target_amount?: number },
+  ): Promise<Result<void, SupabaseError>> {
+    if (patch.name !== undefined) {
+      const { error } = await supabase
+        .from('accounts')
+        .update({ name: patch.name, updated_at: new Date().toISOString() })
+        .eq('id', accountId);
+      if (error) return { ok: false, error: fromSupabaseError(error) };
+    }
+    if (patch.target_amount !== undefined) {
+      const { error } = await supabase
+        .from('tabung_accounts')
+        .update({ target_amount: patch.target_amount })
+        .eq('account_id', accountId);
+      if (error) return { ok: false, error: fromSupabaseError(error) };
+    }
+    return { ok: true, data: undefined };
+  },
 };

@@ -1,42 +1,63 @@
-import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
-import { useState, useCallback } from 'react';
+import { View, Text, TextInput, Pressable, ScrollView, Alert } from 'react-native';
+import { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { User } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useAuth } from '../../../context/AuthContext';
-import { useSettings } from '../../../src/hooks/useSettings';
+import { supabase } from '../../../src/lib/supabase';
 import { LoadingView } from '../../../components/ui/LoadingView';
-import { ErrorView } from '../../../components/ui/ErrorView';
 
-const FINANCIAL_IDENTITIES = ['Employee', 'Entrepreneur', 'Investor', 'Business Owner'] as const;
+const FINANCIAL_IDENTITIES = [
+  { label: 'Employee', value: 'employee' },
+  { label: 'Entrepreneur', value: 'entrepreneur' },
+  { label: 'Investor', value: 'investor' },
+  { label: 'Business Owner', value: 'business_owner' },
+] as const;
 
 export default function AccountScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { settings, loading, error, fetchSettings, updateSettings } = useSettings();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
-  const [financialIdentity, setFinancialIdentity] = useState('Employee');
+  const [financialIdentity, setFinancialIdentity] = useState<string>('employee');
 
-  useFocusEffect(useCallback(() => {
-    if (user) fetchSettings(user.id);
-  }, [user, fetchSettings]));
-
-  useFocusEffect(useCallback(() => {
-    if (settings?.profile) {
-      setName(settings.profile.displayName);
-      setFinancialIdentity(settings.profile.financialIdentity || 'Employee');
-    }
-  }, [settings]));
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('profiles')
+      .select('display_name, financial_identity')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.warn('[account] fetch profile failed:', error);
+        if (data) {
+          setName(data.display_name ?? '');
+          setFinancialIdentity(data.financial_identity ?? 'employee');
+        }
+        setLoading(false);
+      });
+  }, [user]);
 
   if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={() => user && fetchSettings(user.id)} />;
 
   const handleSave = async () => {
     if (!user) return;
-    await updateSettings(user.id, {
-      profile: { displayName: name, financialIdentity },
-    });
+    setSaving(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        display_name: name,
+        financial_identity: financialIdentity,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+    setSaving(false);
+    if (error) {
+      Alert.alert('Save failed', error.message);
+      return;
+    }
     router.back();
   };
 
@@ -76,15 +97,15 @@ export default function AccountScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="-mx-1">
             <View className="flex-row gap-2 px-1">
               {FINANCIAL_IDENTITIES.map((identity) => {
-                const isActive = financialIdentity === identity;
+                const isActive = financialIdentity === identity.value;
                 return (
                   <Pressable
-                    key={identity}
-                    onPress={() => setFinancialIdentity(identity)}
+                    key={identity.value}
+                    onPress={() => setFinancialIdentity(identity.value)}
                     className={isActive ? 'bg-primary/10 border border-primary rounded-full px-4 py-2' : 'bg-card border border-border rounded-full px-4 py-2'}
                   >
                     <Text className={isActive ? 'text-primary text-sm' : 'text-muted-foreground text-sm'}>
-                      {identity}
+                      {identity.label}
                     </Text>
                   </Pressable>
                 );
@@ -96,9 +117,10 @@ export default function AccountScreen() {
         {/* Save Button */}
         <Pressable
           onPress={handleSave}
+          disabled={saving}
           className="bg-primary text-primary-foreground rounded-2xl py-4 items-center mt-6 active:scale-[0.98] transition-transform"
         >
-          <Text className="text-base font-bold text-black">Save</Text>
+          <Text className="text-base font-bold text-black">{saving ? 'Saving...' : 'Save'}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

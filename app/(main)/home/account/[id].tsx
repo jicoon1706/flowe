@@ -1,7 +1,7 @@
-import { useState, useFocusEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Pencil, RefreshCw, Receipt } from '../../../../components/ui/icons';
 import { useAccounts } from '../../../../src/hooks/useAccounts';
 import { useTransactions } from '../../../../src/hooks/useTransactions';
@@ -38,7 +38,7 @@ export default function AccountDetailScreen() {
   const expense = accountTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
 
   const bankAccount = (account as any)?.bank_accounts;
-  const balance = bankAccount?.current_balance ?? 0;
+  const balance = Number(bankAccount?.current_balance ?? 0);
   const bankColor = account?.color ?? '#ffd93d';
   const last4 = bankAccount?.account_number?.slice(-4) ?? '0000';
   const bankName = bankAccount?.bank_name ?? account?.name ?? '';

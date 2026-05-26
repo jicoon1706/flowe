@@ -1,9 +1,12 @@
-import { View, Text, Pressable, Modal, ScrollView, Image } from 'react-native';
+import { View, Text, Pressable, Modal, ScrollView, Image, Alert } from 'react-native';
+import { useState } from 'react';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { transactionsRepository } from '../../src/repositories/transactions.repository';
 
 const X = (props: { size: number; color: string }) => <MaterialIcons name="close" size={props.size} color={props.color} />;
 const RefreshCw = (props: { size: number; color: string }) => <MaterialIcons name="refresh" size={props.size} color={props.color} />;
 const Calendar = (props: { size: number; color: string }) => <MaterialIcons name="event" size={props.size} color={props.color} />;
+const Trash = (props: { size: number; color: string }) => <MaterialIcons name="delete" size={props.size} color={props.color} />;
 
 export interface TransactionData {
   id: string;
@@ -28,6 +31,7 @@ interface TransactionDetailProps {
   transaction: TransactionData | null;
   visible: boolean;
   onClose: () => void;
+  onDeleted?: (id: string) => void;
 }
 
 const typeColors = {
@@ -36,10 +40,36 @@ const typeColors = {
   transfer: { bg: 'bg-[#00d4ff]/10', text: 'text-[#00d4ff]', label: 'Transfer' },
 };
 
-export function TransactionDetail({ transaction, visible, onClose }: TransactionDetailProps) {
+export function TransactionDetail({ transaction, visible, onClose, onDeleted }: TransactionDetailProps) {
+  const [deleting, setDeleting] = useState(false);
   if (!transaction) return null;
 
   const typeStyle = typeColors[transaction.type];
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete transaction?',
+      'This will permanently remove this transaction.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            const result = await transactionsRepository.delete(transaction.id);
+            setDeleting(false);
+            if (!result.ok) {
+              Alert.alert('Delete failed', result.error.message);
+              return;
+            }
+            onDeleted?.(transaction.id);
+            onClose();
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -56,15 +86,25 @@ export function TransactionDetail({ transaction, visible, onClose }: Transaction
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} className="px-5 py-4">
-            {/* Type Badge + Category + Account */}
-            <View className="flex-row items-center gap-2 mb-4 flex-wrap">
-              <View className={`px-3 py-1 rounded-full ${typeStyle.bg}`}>
-                <Text className={`text-xs font-semibold ${typeStyle.text}`}>{typeStyle.label}</Text>
+            {/* Type Badge + Category + Delete */}
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center gap-2 flex-wrap flex-1">
+                <View className={`px-3 py-1 rounded-full ${typeStyle.bg}`}>
+                  <Text className={`text-xs font-semibold ${typeStyle.text}`}>{typeStyle.label}</Text>
+                </View>
+                <View className="flex-row items-center gap-1.5 bg-secondary px-3 py-1 rounded-full">
+                  <Text className="text-base">{transaction.categoryIcon}</Text>
+                  <Text className="text-xs text-foreground">{transaction.category}</Text>
+                </View>
               </View>
-              <View className="flex-row items-center gap-1.5 bg-secondary px-3 py-1 rounded-full">
-                <Text className="text-base">{transaction.categoryIcon}</Text>
-                <Text className="text-xs text-foreground">{transaction.category}</Text>
-              </View>
+              <Pressable
+                onPress={handleDelete}
+                disabled={deleting}
+                className="p-2 -mr-2 rounded-full bg-destructive/10 active:opacity-70"
+                accessibilityLabel="Delete transaction"
+              >
+                <Trash size={18} color="#ff4444" />
+              </Pressable>
             </View>
 
             {/* Amount */}

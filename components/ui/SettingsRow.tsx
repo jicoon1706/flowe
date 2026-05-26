@@ -8,6 +8,7 @@ interface SettingsRowProps {
   icon?: React.ReactNode;
   danger?: boolean;
   badge?: string;
+  badgeDanger?: boolean;
   hasChevron?: boolean;
   rightElement?: React.ReactNode;
 }
@@ -19,6 +20,7 @@ export function SettingsRow({
   icon,
   danger = false,
   badge,
+  badgeDanger = false,
   hasChevron = true,
   rightElement,
 }: SettingsRowProps) {
@@ -42,8 +44,8 @@ export function SettingsRow({
           <Text className="text-sm text-muted-foreground">{value}</Text>
         )}
         {badge && (
-          <View className="px-2 py-0.5 rounded-full bg-income/20">
-            <Text className="text-xs text-income font-medium">{badge}</Text>
+          <View className={`px-2 py-0.5 rounded-full ${badgeDanger ? 'bg-destructive/20' : 'bg-income/20'}`}>
+            <Text className={`text-xs font-medium ${badgeDanger ? 'text-destructive' : 'text-income'}`}>{badge}</Text>
           </View>
         )}
         {rightElement}

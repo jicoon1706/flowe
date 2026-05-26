@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
-import { View, Text, Pressable, Modal, TextInput } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, Pressable, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { expenseCategories, incomeCategories } from '../../../constants/categories';
 import { Plus, X } from '../../../components/ui/icons';
@@ -27,15 +27,17 @@ export default function CategoriesScreen() {
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#6B7280');
 
-  useFocusEffect(useCallback(() => {
+  useEffect(() => {
     if (user) fetchCategories(user.id);
-  }, [user, fetchCategories]));
+  }, [user, fetchCategories]);
 
   if (loading) return <LoadingView />;
   if (error) return <ErrorView error={error} onRetry={() => user && fetchCategories(user.id)} />;
 
   const builtIn = tab === 'expense' ? expenseCategories : incomeCategories;
-  const customForTab = customCats.filter(c => c.type === tab);
+  const customForTab = customCats
+    .filter((c: any) => c.transaction_type === tab)
+    .map((c: any) => ({ id: c.id, name: c.name, emoji: c.icon, color: c.color }));
   const categories = [...builtIn, ...customForTab];
 
   const handleAddCategory = async () => {
@@ -43,10 +45,10 @@ export default function CategoriesScreen() {
     const result = await createCategory({
       user_id: user.id,
       name: newName.trim(),
-      emoji: newEmoji,
+      icon: newEmoji,
       color: newColor,
-      type: tab,
-    });
+      transaction_type: tab,
+    } as any);
     if (result.ok) {
       setShowAddModal(false);
       setNewEmoji('📦');
@@ -57,12 +59,8 @@ export default function CategoriesScreen() {
   };
 
   const renderAddModal = () => (
-    <Modal
-      visible={showAddModal}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setShowAddModal(false)}
-    >
+    showAddModal ? (
+    <View className="absolute inset-0 z-50" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <Pressable className="flex-1 bg-black/50 justify-end" onPress={() => setShowAddModal(false)}>
         <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
           <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
@@ -102,17 +100,23 @@ export default function CategoriesScreen() {
 
           <Text className="text-sm text-muted-foreground mb-2">Color</Text>
           <View className="flex-row flex-wrap gap-3 mb-6">
-            {PRESET_COLORS.map((color) => (
-              <Pressable
-                key={color}
-                onPress={() => setNewColor(color)}
-                className={`w-10 h-10 rounded-full items-center justify-center ${
-                  newColor === color ? 'ring-2 ring-primary ring-offset-2 ring-offset-card' : ''
-                }`}
-              >
-                <View className="w-8 h-8 rounded-full" style={{ backgroundColor: color }} />
-              </Pressable>
-            ))}
+            {PRESET_COLORS.map((color) => {
+              const isSelected = newColor === color;
+              return (
+                <Pressable
+                  key={color}
+                  onPress={() => setNewColor(color)}
+                  className="w-10 h-10 rounded-full items-center justify-center"
+                  style={{
+                    borderWidth: isSelected ? 2 : 0,
+                    borderColor: '#C5FF00',
+                    padding: isSelected ? 2 : 0,
+                  }}
+                >
+                  <View className="w-8 h-8 rounded-full" style={{ backgroundColor: color }} />
+                </Pressable>
+              );
+            })}
           </View>
 
           <View className="flex-row gap-3">
@@ -132,7 +136,8 @@ export default function CategoriesScreen() {
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </View>
+    ) : null
   );
 
   return (

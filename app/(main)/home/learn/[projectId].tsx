@@ -83,9 +83,9 @@ export default function ProjectDetailScreen() {
           {project.entries.length === 0 ? (
             <View className="items-center py-12">
               <Text className="text-4xl mb-3">📝</Text>
-              <Text className="text-foreground font-medium">Belum ada entri</Text>
+              <Text className="text-foreground font-medium">No entries yet</Text>
               <Text className="text-muted-foreground text-sm mt-1">
-                {"Tap '+ Tambah Entri' to add your first note"}
+                {"Tap '+ Add Entry' to add your first note"}
               </Text>
             </View>
           ) : (
@@ -125,7 +125,7 @@ export default function ProjectDetailScreen() {
           onPress={() => router.push(`/home/learn/${project.id}/add-entry`)}
           className="absolute bottom-6 right-6 left-6 bg-primary rounded-2xl py-3 items-center active:scale-[0.98] transition-transform"
         >
-          <Text className="text-sm font-semibold text-primary-foreground">+ Tambah Entri</Text>
+          <Text className="text-sm font-semibold text-primary-foreground">+ Add Entry</Text>
         </Pressable>
       </ScrollView>
 
@@ -154,7 +154,7 @@ export default function ProjectDetailScreen() {
               className="flex-row items-center p-3 rounded-xl"
             >
               <Trash2 size={18} color="#ff4444" className="mr-3" />
-              <Text className="text-expense">Hapus Projek</Text>
+              <Text className="text-expense">Delete Project</Text>
             </Pressable>
           </View>
         </Pressable>
@@ -185,7 +185,7 @@ export default function ProjectDetailScreen() {
                 onPress={handleRename}
                 className="flex-1 bg-primary rounded-2xl py-3 items-center"
               >
-                <Text className="text-sm font-semibold text-primary-foreground">Simpan</Text>
+                <Text className="text-sm font-semibold text-primary-foreground">Save</Text>
               </Pressable>
             </View>
           </View>
@@ -197,23 +197,23 @@ export default function ProjectDetailScreen() {
         <View className="flex-1 justify-end bg-black/60">
           <View className="bg-card rounded-t-3xl p-6 pb-10">
             <Text className="text-lg font-semibold text-foreground mb-2">
-              Hapus projek ini?
+              Delete this project?
             </Text>
             <Text className="text-sm text-muted-foreground mb-4">
-              Semua entri akan dipadam.
+              All entries will be deleted.
             </Text>
             <View className="flex-row">
               <Pressable
                 onPress={() => setShowDelete(false)}
                 className="flex-1 py-3 items-center"
               >
-                <Text className="text-muted-foreground">Batal</Text>
+                <Text className="text-muted-foreground">Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={handleDeleteProject}
                 className="flex-1 bg-expense rounded-2xl py-3 items-center"
               >
-                <Text className="text-sm font-semibold text-white">Hapus</Text>
+                <Text className="text-sm font-semibold text-white">Delete</Text>
               </Pressable>
             </View>
           </View>

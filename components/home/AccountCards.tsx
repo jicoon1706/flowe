@@ -1,6 +1,7 @@
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Landmark, PiggyBank, Wallet } from 'lucide-react-native';
 import type { Account } from '../../src/types/database.types';
+import { accountColor } from '../../src/utils/accountColor';
 
 interface AccountCardsProps {
   accounts: Account[];
@@ -20,7 +21,7 @@ export function AccountCards({ accounts, onAccountPress }: AccountCardsProps) {
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
         {accounts.map((account) => {
-          const color = account.color ?? '#a0a0a0';
+          const color = accountColor(account);
           const name = account.name;
            
           const bank = (account as any).bank_accounts;
