@@ -4,11 +4,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Camera, RefreshCw, Calendar, ChevronDown, Bell, Check } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { useFocusEffect, useCallback } from 'expo-router';
+import { Alert } from 'react-native';
 import { expenseCategories, incomeCategories } from '../../constants/categories';
 import { Button } from '../../components/ui/Button';
 import { AmountInput } from '../../components/ui/AmountInput';
 import { CategoryChips } from '../../components/ui/CategoryChips';
 import { AccountSelector } from '../../components/ui/AccountSelector';
+import { LoadingView } from '../../components/ui/LoadingView';
+import { ErrorView } from '../../components/ui/ErrorView';
+import { useAccounts } from '../../src/hooks/useAccounts';
+import { useTransactions } from '../../src/hooks/useTransactions';
+import { useCustomCategories } from '../../src/hooks/useCustomCategories';
+import { useAuth } from '../../context/AuthContext';
 
 type TransactionType = 'expense' | 'income' | 'transfer';
 
@@ -32,8 +41,8 @@ export default function AddTransactionScreen() {
   const [amount, setAmount] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('food');
-  const [account, setAccount] = useState('1');
-  const [toAccount, setToAccount] = useState('2');
+  const [account, setAccount] = useState('');
+  const [toAccount, setToAccount] = useState('');
   const [dateOption, setDateOption] = useState<'today' | 'yesterday' | 'custom'>(() => {
     const dateParam = searchParams.date as string | undefined;
     if (dateParam) {
@@ -67,7 +76,21 @@ export default function AddTransactionScreen() {
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [note, setNote] = useState('');
 
+  const { user } = useAuth();
+  const now = new Date();
+  const { accounts, loading: acctsLoading, error: acctsError, fetchAccounts } = useAccounts();
+  const { loading: txLoading, error: txError, create } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { customCategories, loading: catLoading, error: catError, fetchCustomCategories } = useCustomCategories();
+
   const categories = type === 'expense' ? expenseCategories : incomeCategories;
+
+  useFocusEffect(useCallback(() => {
+    fetchAccounts();
+    fetchCustomCategories();
+  }, [fetchAccounts, fetchCustomCategories]));
+
+  if (acctsLoading || catLoading) return <LoadingView />;
+  if (acctsError || catError) return <ErrorView error={acctsError ?? catError!} onRetry={() => { fetchAccounts(); fetchCustomCategories(); }} />;
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -84,6 +107,46 @@ export default function AddTransactionScreen() {
     const opt = reminderOptions.find((o) => o.id === reminder);
     return opt?.label || 'No reminder';
   };
+
+  async function handleSubmit() {
+    if (!amount || !name) {
+      Alert.alert('Missing fields', 'Please enter an amount and name.');
+      return;
+    }
+    if (!account) {
+      Alert.alert('Missing account', 'Please select an account.');
+      return;
+    }
+    if (!user) {
+      Alert.alert('Not signed in', 'Please restart the app.');
+      return;
+    }
+
+    const transactionDate = dateOption === 'today'
+      ? new Date().toISOString()
+      : dateOption === 'yesterday'
+      ? new Date(Date.now() - 86400000).toISOString()
+      : customDate.toISOString();
+
+    const result = await create({
+      user_id: user.id,
+      type,
+      name,
+      amount: parseFloat(amount),
+      account_id: account,
+      to_account_id: type === 'transfer' ? toAccount : undefined,
+      category,
+      date: transactionDate,
+      note: note || undefined,
+    });
+
+    if (result.ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      router.back();
+    } else {
+      Alert.alert('Failed to save', result.error.message);
+    }
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -162,10 +225,11 @@ export default function AddTransactionScreen() {
             value={account}
             onChange={setAccount}
             label={type === 'transfer' ? 'From' : type === 'expense' ? 'From Account' : 'To Account'}
+            accounts={accounts}
           />
 
           {type === 'transfer' && (
-            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" />
+            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" accounts={accounts} />
           )}
 
           {/* Date */}
@@ -505,7 +569,7 @@ export default function AddTransactionScreen() {
           {/* Submit Button */}
           <Button
             title={type === 'transfer' ? 'Transfer' : 'Submit'}
-            onPress={() => router.back()}
+            onPress={handleSubmit}
             variant="primary"
             size="lg"
             className="mb-6"
