@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Plus, PiggyBank, Landmark, Wallet, X, Check } from '../../../components/ui/icons';
-
-const ALL_ACCOUNTS = [
-  { id: '1', type: 'bank' as const, name: 'Maybank', balance: '3,200.00', bankColor: '#ffd93d', last4: '4521' },
-  { id: '2', type: 'tabung' as const, name: 'Tabung Raya', saved: '850.00', target: '5,000.00', color: '#6bcf7f' },
-  { id: '3', type: 'wallet' as const, name: 'Cash', balance: '200.00', bankColor: '#00d4ff', last4: '0000' },
-];
+import { useAccounts } from '../../../src/hooks/useAccounts';
+import { useAuth } from '../../../context/AuthContext';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
+import { EmptyState } from '../../../components/ui/EmptyState';
 
 type FilterType = 'All' | 'Bank' | 'Tabung' | 'Investment';
 
@@ -20,15 +20,28 @@ export default function AccountsScreen() {
   const [newAccName, setNewAccName] = useState('');
   const [newAccBalance, setNewAccBalance] = useState('');
 
-  const handleAddAccount = () => {
-    // TODO: Add account logic
-    setShowAddModal(false);
-    setNewAccName('');
-    setNewAccBalance('');
-    setNewAccType('bank');
-  };
+  async function handleAddAccount() {
+    if (!user) return;
+    if (!newAccName || !newAccBalance) return;
+    const result = newAccType === 'bank'
+      ? await createBankAccount({ user_id: user.id, name: newAccName, bank_name: newAccName, opening_balance: parseFloat(newAccBalance) })
+      : await createWalletAccount({ user_id: user.id, name: newAccName, opening_balance: parseFloat(newAccBalance) });
+    if (result.ok) {
+      setShowAddModal(false);
+      setNewAccName('');
+      setNewAccBalance('');
+      setNewAccType('bank');
+    }
+  }
 
-  const visibleAccounts = ALL_ACCOUNTS.filter((a) => {
+  const { user } = useAuth();
+  const { accounts, loading, error, fetchAccounts, createBankAccount, createWalletAccount } = useAccounts();
+
+  useFocusEffect(useCallback(() => {
+    fetchAccounts();
+  }, [fetchAccounts]));
+
+  const visibleAccounts = accounts.filter((a) => {
     if (activeFilter === 'All') return true;
     if (activeFilter === 'Bank') return a.type === 'bank' || a.type === 'wallet';
     if (activeFilter === 'Tabung') return a.type === 'tabung';
@@ -39,18 +52,23 @@ export default function AccountsScreen() {
   const bankAccounts = visibleAccounts.filter((a) => a.type === 'bank' || a.type === 'wallet');
   const tabungAccounts = visibleAccounts.filter((a) => a.type === 'tabung');
 
-  const totalNetWorth = ALL_ACCOUNTS.reduce((sum, a) => {
-    if (a.type === 'tabung') return sum + parseFloat(a.saved || '0');
-    return sum + parseFloat(a.balance?.replace(/,/g, '') || '0');
+  const totalNetWorth = accounts.reduce((sum, acc) => {
+    const bal = (acc as any).current_balance ?? (acc as any).saved_amount ?? 0;
+    return sum + Number(bal);
   }, 0);
 
-  const bankTotal = ALL_ACCOUNTS
-    .filter((a) => a.type === 'bank' || a.type === 'wallet')
-    .reduce((sum, a) => sum + parseFloat(a.balance?.replace(/,/g, '') || '0'), 0);
+  const bankTotal = bankAccounts.reduce((sum, acc) => {
+    const bal = (acc as any).current_balance ?? 0;
+    return sum + Number(bal);
+  }, 0);
 
-  const tabungTotal = ALL_ACCOUNTS
-    .filter((a) => a.type === 'tabung')
-    .reduce((sum, a) => sum + parseFloat(a.saved || '0'), 0);
+  const tabungTotal = tabungAccounts.reduce((sum, acc) => {
+    const bal = (acc as any).saved_amount ?? 0;
+    return sum + Number(bal);
+  }, 0);
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={fetchAccounts} />;
 
   const filters: FilterType[] = ['All', 'Bank', 'Tabung', 'Investment'];
 
@@ -129,12 +147,16 @@ export default function AccountsScreen() {
             {bankAccounts.map((account) => (
               <Pressable
                 key={account.id}
-                onPress={() => router.push(`/home/account/${account.id}`)}
+                onPress={() => {
+                  if (account.type === 'tabung') router.push(`/home/tabung/${account.id}`);
+                  else if (account.type === 'wallet') router.push(`/home/wallet/${account.id}`);
+                  else router.push(`/home/account/${account.id}`);
+                }}
                 className="flex-row items-center bg-card rounded-2xl p-4 mb-2 border border-border"
               >
                 <View
                   className="w-10 h-10 rounded-full items-center justify-center"
-                  style={{ backgroundColor: account.bankColor }}
+                  style={{ backgroundColor: account.color ?? '#C5FF00' }}
                 >
                   {account.type === 'wallet' ? (
                     <Wallet size={20} color="#000" />
@@ -145,11 +167,11 @@ export default function AccountsScreen() {
                 <View className="flex-1 ml-3">
                   <Text className="text-sm font-medium text-foreground">{account.name}</Text>
                   <Text className="text-xs text-muted-foreground mt-0.5">
-                    {account.type === 'wallet' ? 'Cash Account' : `Account ending ${account.last4}`}
+                    {account.type === 'wallet' ? 'Cash Account' : 'Bank Account'}
                   </Text>
                 </View>
                 <Text className="text-base font-semibold text-foreground">
-                  RM {account.balance}
+                  RM {Number((account as any).current_balance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Text>
               </Pressable>
             ))}
@@ -161,8 +183,8 @@ export default function AccountsScreen() {
           <View className="mt-5 px-4 mb-6">
             <Text className="text-xs text-muted-foreground uppercase mb-2">Tabungs</Text>
             {tabungAccounts.map((tabung) => {
-              const saved = parseFloat(tabung.saved?.replace(/,/g, '') || '0');
-              const target = parseFloat(tabung.target?.replace(/,/g, '') || '0');
+              const saved = parseFloat(String((tabung as any).saved_amount ?? 0));
+              const target = parseFloat(String((tabung as any).target_amount ?? 0));
               const progress = target > 0 ? (saved / target) * 100 : 0;
               return (
                 <Pressable
@@ -173,14 +195,14 @@ export default function AccountsScreen() {
                   <View className="flex-row items-center mb-2">
                     <View
                       className="w-10 h-10 rounded-full items-center justify-center mr-3"
-                      style={{ backgroundColor: tabung.color }}
+                      style={{ backgroundColor: tabung.color ?? '#6bcf7f' }}
                     >
                       <PiggyBank size={20} color="#000" />
                     </View>
                     <View className="flex-1">
                       <Text className="text-sm font-medium text-foreground">{tabung.name}</Text>
                       <Text className="text-xs text-muted-foreground mt-0.5">
-                        RM {tabung.saved} saved of RM {tabung.target}
+                        RM {saved.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} saved of RM {target.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                     </View>
                   </View>
@@ -189,7 +211,7 @@ export default function AccountsScreen() {
                       className="h-full rounded-full"
                       style={{
                         width: `${Math.min(progress, 100)}%`,
-                        backgroundColor: tabung.color,
+                        backgroundColor: tabung.color ?? '#6bcf7f',
                       }}
                     />
                   </View>
