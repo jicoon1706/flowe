@@ -1,9 +1,14 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Switch, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Switch, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, Check } from '../../../../components/ui/icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
+import { useAuth } from '../../../../context/AuthContext';
+import { useAccounts } from '../../../../src/hooks/useAccounts';
+import { LoadingView } from '../../../../components/ui/LoadingView';
+import { ErrorView } from '../../../../components/ui/ErrorView';
 
 const ICONS = ['🐷', '💰', '🏠', '🎁', '🚗', '🚀', '🌴', '🏢', '🚂', '🎯', '💎', '⭐'];
 const COLORS = ['#6bcf7f', '#ffd93d', '#00d4ff', '#C5FF00', '#f472b6', '#a78bfa', '#34d399', '#fb923c'];
@@ -19,6 +24,8 @@ const TEMPLATE_DEFAULTS: Record<string, { name: string; emoji: string; color: st
 
 export default function TabungFormScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { createTabungAccount, loading, error } = useAccounts();
   const { template, templateId, templateName, templateEmoji, templateTarget } = useLocalSearchParams<{
     template?: string;
     templateId?: string;
@@ -30,14 +37,12 @@ export default function TabungFormScreen() {
   // Determine defaults from template params or fall back to key lookup
   let defaults = TEMPLATE_DEFAULTS.custom;
   if (templateId && templateName && templateEmoji) {
-    // Template data passed directly via params
     defaults = {
       name: templateName,
       emoji: templateEmoji,
       color: TEMPLATE_DEFAULTS[templateId]?.color || '#6bcf7f',
     };
   } else if (template) {
-    // Fallback: treat template as a key
     defaults = TEMPLATE_DEFAULTS[template] || TEMPLATE_DEFAULTS.custom;
   }
 
@@ -49,11 +54,11 @@ export default function TabungFormScreen() {
   const [autoSave, setAutoSave] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Reset form when screen comes into focus (user navigates back)
   useFocusEffect(
     useCallback(() => {
-      // Reset to initial defaults from current params
       setName(defaults.name);
       setTarget(templateTarget || '');
       setDate('');
@@ -61,6 +66,7 @@ export default function TabungFormScreen() {
       setSelectedColor(defaults.color);
       setAutoSave(false);
       setShowSuccess(false);
+      setSubmitting(false);
     }, [defaults, templateTarget])
   );
 
@@ -71,13 +77,39 @@ export default function TabungFormScreen() {
 
   const canCreate = name.trim().length > 0 && targetNum > 0;
 
-  const handleCreate = () => {
-    if (!canCreate) return;
-    setShowSuccess(true);
-    setTimeout(() => {
-      router.replace('/');
-    }, 2000);
+  const handleCreate = async () => {
+    if (!canCreate || !user) return;
+    setSubmitting(true);
+
+    const today = new Date().toISOString().split('T')[0];
+    const result = await createTabungAccount({
+      user_id: user.id,
+      name: name.trim(),
+      icon: selectedIcon,
+      color: selectedColor,
+      target_amount: targetNum,
+      from_date: today,
+      to_date: date || today,
+      template_type: templateId || 'custom',
+      auto_save: autoSave,
+      monthly_amount: autoSave ? weeklyNeeded : undefined,
+    });
+
+    setSubmitting(false);
+
+    if (result.ok) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setShowSuccess(true);
+      setTimeout(() => {
+        router.replace('/');
+      }, 2000);
+    } else {
+      Alert.alert('Failed to create Tabung', result.error.message);
+    }
   };
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => {}} />;
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -228,17 +260,17 @@ export default function TabungFormScreen() {
           <View className="px-4 pb-6">
             <Pressable
               onPress={handleCreate}
-              disabled={!canCreate}
+              disabled={!canCreate || submitting}
               className={`rounded-2xl py-3 items-center ${
-                canCreate ? 'bg-primary' : 'bg-muted'
+                canCreate && !submitting ? 'bg-primary' : 'bg-muted'
               }`}
             >
               <Text
                 className={`text-sm font-semibold ${
-                  canCreate ? 'text-primary-foreground' : 'text-muted-foreground'
+                  canCreate && !submitting ? 'text-primary-foreground' : 'text-muted-foreground'
                 }`}
               >
-                Create Tabung
+                {submitting ? 'Creating...' : 'Create Tabung'}
               </Text>
             </Pressable>
           </View>

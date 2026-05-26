@@ -40,8 +40,7 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress 
       name: tx.name,
       category: tx.category ?? 'Other',
       categoryIcon: CATEGORY_ICONS[tx.category ?? 'Other'] ?? '📦',
-      const isExpense = tx.type === 'expense' || tx.type === 'tabung_topup';
-      amount: (isExpense ? '-' : '+') + tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+      amount: (tx.type === 'expense' || tx.type === 'tabung_topup' ? '-' : '+') + tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 }),
       type: tx.type as 'expense' | 'income' | 'transfer',
       date: formatTxDate(tx.date),
       recurring: tx.is_recurring,

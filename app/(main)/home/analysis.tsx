@@ -1,49 +1,66 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { ChevronLeft, Sparkle, TrendingUp, TrendingDown } from '../../../components/ui/icons';
+import { useAnalysis } from '../../../src/hooks/useAnalysis';
+import { LoadingView } from '../../../components/ui/LoadingView';
+import { ErrorView } from '../../../components/ui/ErrorView';
 
-const MONTHS = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const MONTHLY_DATA = [
-  { income: 4200, expenses: 3100, net: 1100 },
-  { income: 4200, expenses: 3400, net: 800 },
-  { income: 4500, expenses: 3200, net: 1300 },
-  { income: 4500, expenses: 3700, net: 800 },
-  { income: 4800, expenses: 2800, net: 2000 },
-];
+const CATEGORY_COLORS = ['#C5FF00', '#00d4ff', '#ff6b6b', '#ffd93d', '#a78bfa', '#6bcf7f', '#94a3b8'];
+const CATEGORY_EMOJIS: Record<string, string> = {
+  'Food & Drink': '🍔', Transport: '🚗', Bills: '🧾', Shopping: '🛍️',
+  Entertainment: '🎬', Health: '💊', Others: '📦', Salary: '💼', Freelance: '💻',
+  Gift: '🎁', Allowance: '💰', Investment: '📈', Rental: '🏠', Business: '🏪',
+};
 
-const CATEGORIES = [
-  { name: 'Food & Drink', amount: 700, color: '#C5FF00', emoji: '🍔' },
-  { name: 'Transport', amount: 350, color: '#00d4ff', emoji: '🚗' },
-  { name: 'Bills', amount: 900, color: '#ff6b6b', emoji: '🧾' },
-  { name: 'Shopping', amount: 500, color: '#ffd93d', emoji: '🛍️' },
-  { name: 'Entertainment', amount: 200, color: '#a78bfa', emoji: '🎬' },
-  { name: 'Health', amount: 80, color: '#6bcf7f', emoji: '💊' },
-  { name: 'Others', amount: 70, color: '#94a3b8', emoji: '📦' },
-];
-
-const INCOME_CATEGORIES = [
-  { name: 'Salary', amount: 4000, color: '#22C55E', emoji: '💼' },
-  { name: 'Freelance', amount: 800, color: '#3B82F6', emoji: '💻' },
-  { name: 'Gift', amount: 200, color: '#EC4899', emoji: '🎁' },
-  { name: 'Allowance', amount: 300, color: '#F59E0B', emoji: '💰' },
-  { name: 'Investment', amount: 150, color: '#6366F1', emoji: '📈' },
-  { name: 'Rental', amount: 0, color: '#14B8A6', emoji: '🏠' },
-  { name: 'Others', amount: 50, color: '#6B7280', emoji: '📦' },
-];
+const INCOME_COLORS = ['#22C55E', '#3B82F6', '#EC4899', '#F59E0B', '#6366F1', '#14B8A6', '#6B7280'];
 
 export default function AnalysisScreen() {
   const router = useRouter();
-  const [selectedMonth, setSelectedMonth] = useState(4);
   const [toggleMode, setToggleMode] = useState<'expense' | 'income'>('expense');
 
-  const data = MONTHLY_DATA[selectedMonth];
-  const savingsRate = data.income > 0 ? Math.round((data.net / data.income) * 100) : 0;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const monthParam = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
-  const prevData = selectedMonth > 0 ? MONTHLY_DATA[selectedMonth - 1] : null;
-  const isPositiveTrend = prevData ? data.net >= prevData.net : true;
+  const { analysis, loading, error } = useAnalysis(monthParam);
+
+  useFocusEffect(useCallback(() => {}, []));
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => {}} />;
+
+  const savingsRate = analysis?.savings_rate ?? 0;
+  const netSavings = analysis?.net_savings ?? 0;
+  const incomeTotal = analysis?.income ?? 0;
+  const expensesTotal = analysis?.expenses ?? 0;
+
+  const expenseCategories = (analysis?.expense_by_category ?? []).map((cat, i) => ({
+    name: cat.category,
+    amount: cat.amount,
+    percentage: cat.percentage,
+    color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+    emoji: CATEGORY_EMOJIS[cat.category] ?? '📦',
+  }));
+
+  const incomeCategories = (analysis?.income_by_category ?? []).map((cat, i) => ({
+    name: cat.category,
+    amount: cat.amount,
+    percentage: cat.percentage,
+    color: INCOME_COLORS[i % INCOME_COLORS.length],
+    emoji: CATEGORY_EMOJIS[cat.category] ?? '💰',
+  }));
+
+  const monthlyTrend = analysis?.monthly_trend ?? [];
+  const maxChartValue = Math.max(
+    ...monthlyTrend.map(m => Math.max(m.income, m.expenses)),
+    6000
+  );
+  const chartBarMaxHeight = 96;
 
   const insightText =
     savingsRate < 10
@@ -52,8 +69,11 @@ export default function AnalysisScreen() {
       ? "Good progress! You're building healthy financial habits."
       : 'Excellent! Your savings rate is impressive. Keep reinvesting in assets.';
 
-  const maxChartValue = 6000;
-  const chartBarMaxHeight = 96;
+  const selectedMonthTrend = monthlyTrend[currentMonth - 1] ?? monthlyTrend[monthlyTrend.length - 1];
+  const prevMonthTrend = currentMonth > 1 ? monthlyTrend[currentMonth - 2] : null;
+  const isPositiveTrend = prevMonthTrend
+    ? selectedMonthTrend.net_savings >= prevMonthTrend.net_savings
+    : true;
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -67,36 +87,15 @@ export default function AnalysisScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-        {/* Month Selector */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          className="mt-4 px-4"
-          contentContainerClassName="flex-row gap-2"
-        >
-          {MONTHS.map((month, index) => (
-            <Pressable
-              key={month}
-              onPress={() => setSelectedMonth(index)}
-              className={`px-4 py-2 rounded-full ${
-                selectedMonth === index
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-card text-muted-foreground'
-              }`}
-            >
-              <Text
-                className={`text-sm font-medium ${
-                  selectedMonth === index ? 'text-primary-foreground' : 'text-muted-foreground'
-                }`}
-              >
-                {month}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        {/* Month Display */}
+        <View className="mx-4 mt-4">
+          <Text className="text-sm text-muted-foreground">
+            {MONTHS[currentMonth - 1]} {currentYear}
+          </Text>
+        </View>
 
         {/* Net Savings Hero */}
-        <View className="mx-4 mt-4 bg-card rounded-2xl p-5 border border-border">
+        <View className="mx-4 mt-2 bg-card rounded-2xl p-5 border border-border">
           <View className="flex-row items-center">
             {/* Decorative Donut */}
             <View className="w-20 h-20 relative items-center justify-center">
@@ -117,7 +116,7 @@ export default function AnalysisScreen() {
             <View className="flex-1 ml-4">
               <Text className="text-sm text-muted-foreground">Net Savings</Text>
               <Text className="text-2xl font-bold text-foreground">
-                RM {data.net.toLocaleString('en-US')}
+                RM {netSavings.toLocaleString('en-US')}
               </Text>
               <View className="flex-row items-center mt-1">
                 {isPositiveTrend ? (
@@ -145,70 +144,66 @@ export default function AnalysisScreen() {
           <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
             <Text className="text-sm text-muted-foreground">Income</Text>
             <Text className="text-lg font-bold text-income">
-              RM {data.income.toLocaleString('en-US')}
+              RM {incomeTotal.toLocaleString('en-US')}
             </Text>
           </View>
           <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
             <Text className="text-sm text-muted-foreground">Expenses</Text>
             <Text className="text-lg font-bold text-expense">
-              RM {data.expenses.toLocaleString('en-US')}
+              RM {expensesTotal.toLocaleString('en-US')}
             </Text>
           </View>
         </View>
 
-        {/* 5-Month Bar Chart */}
-        <View className="mx-4 mt-4 bg-card rounded-2xl p-4 border border-border">
-          <Text className="text-sm font-semibold text-foreground mb-3">5-Month Overview</Text>
-          <View className="flex-row items-end justify-between h-28 px-2">
-            {MONTHLY_DATA.map((monthData, index) => {
-              const incomeHeight = (monthData.income / maxChartValue) * chartBarMaxHeight;
-              const expenseHeight = (monthData.expenses / maxChartValue) * chartBarMaxHeight;
-              const isSelected = index === selectedMonth;
+        {/* Monthly Bar Chart */}
+        {monthlyTrend.length > 0 && (
+          <View className="mx-4 mt-4 bg-card rounded-2xl p-4 border border-border">
+            <Text className="text-sm font-semibold text-foreground mb-3">Monthly Overview</Text>
+            <View className="flex-row items-end justify-between h-28 px-2">
+              {monthlyTrend.map((monthData, index) => {
+                const incomeHeight = maxChartValue > 0
+                  ? (monthData.income / maxChartValue) * chartBarMaxHeight
+                  : 0;
+                const expenseHeight = maxChartValue > 0
+                  ? (monthData.expenses / maxChartValue) * chartBarMaxHeight
+                  : 0;
+                const isSelected = index === currentMonth - 1;
 
-              return (
-                <Pressable
-                  key={MONTHS[index]}
-                  onPress={() => setSelectedMonth(index)}
-                  className="flex-1 items-center"
-                >
-                  <View className="flex-row items-end gap-0.5">
-                    <View
-                      className="w-3 rounded-t"
-                      style={{
-                        height: incomeHeight,
-                        backgroundColor: '#22C55E',
-                      }}
-                    />
-                    <View
-                      className="w-3 rounded-t"
-                      style={{
-                        height: expenseHeight,
-                        backgroundColor: '#EF4444',
-                      }}
-                    />
+                return (
+                  <View key={monthData.month} className="flex-1 items-center">
+                    <View className="flex-row items-end gap-0.5">
+                      <View
+                        className="w-3 rounded-t"
+                        style={{ height: incomeHeight, backgroundColor: '#22C55E' }}
+                      />
+                      <View
+                        className="w-3 rounded-t"
+                        style={{ height: expenseHeight, backgroundColor: '#EF4444' }}
+                      />
+                    </View>
+                    <Text className="text-xs text-muted-foreground mt-1">
+                      {monthData.month.substring(5)}
+                    </Text>
+                    {isSelected && (
+                      <View className="w-1.5 h-1.5 rounded-full bg-primary mt-1" />
+                    )}
                   </View>
-                  <Text className="text-xs text-muted-foreground mt-1">
-                    {MONTHS[index].split(' ')[0].substring(0, 3)}
-                  </Text>
-                  {isSelected && (
-                    <View className="w-1.5 h-1.5 rounded-full bg-primary mt-1" />
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-          {/* Legend */}
-          <View className="flex-row justify-center gap-6 mt-3 pt-3 border-t border-border">
-            <View className="flex-row items-center">
-              <View className="w-3 h-3 rounded bg-income mr-2" />
-              <Text className="text-xs text-muted-foreground">Income</Text>
+                );
+              })}
             </View>
-            <View className="flex-row items-center">
-              <View className="w-3 h-3 rounded bg-expense mr-2" />
-              <Text className="text-xs text-muted-foreground">Expense</Text>
+            {/* Legend */}
+            <View className="flex-row justify-center gap-6 mt-3 pt-3 border-t border-border">
+              <View className="flex-row items-center">
+                <View className="w-3 h-3 rounded bg-income mr-2" />
+                <Text className="text-xs text-muted-foreground">Income</Text>
+              </View>
+              <View className="flex-row items-center">
+                <View className="w-3 h-3 rounded bg-expense mr-2" />
+                <Text className="text-xs text-muted-foreground">Expense</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Category Breakdown */}
         <View className="mx-4 mt-4 bg-card rounded-2xl p-4 border border-border">
@@ -251,9 +246,7 @@ export default function AnalysisScreen() {
               {toggleMode === 'expense' ? (
                 <>
                   <View className="absolute w-28 h-28 rounded-full border-8 border-background" />
-                  {CATEGORIES.filter(c => c.amount > 0).map((cat, idx) => {
-                    const total = CATEGORIES.reduce((sum, c) => sum + c.amount, 0);
-                    const pct = cat.amount / total;
+                  {expenseCategories.filter(c => c.amount > 0).map((cat, idx) => {
                     const rotation = idx * 45 - 90;
                     return (
                       <View
@@ -261,9 +254,9 @@ export default function AnalysisScreen() {
                         className="absolute w-28 h-28 rounded-full border-8 border-transparent"
                         style={{
                           borderTopColor: cat.color,
-                          borderRightColor: pct > 0.25 ? cat.color : 'transparent',
-                          borderBottomColor: pct > 0.5 ? cat.color : 'transparent',
-                          borderLeftColor: pct > 0.75 ? cat.color : 'transparent',
+                          borderRightColor: cat.percentage > 25 ? cat.color : 'transparent',
+                          borderBottomColor: cat.percentage > 50 ? cat.color : 'transparent',
+                          borderLeftColor: cat.percentage > 75 ? cat.color : 'transparent',
                           transform: [{ rotate: `${rotation}deg` }],
                         }}
                       />
@@ -271,15 +264,15 @@ export default function AnalysisScreen() {
                   })}
                   <View className="items-center">
                     <Text className="text-xs text-muted-foreground">Total</Text>
-                    <Text className="text-base font-bold text-foreground">RM {data.expenses.toLocaleString('en-US')}</Text>
+                    <Text className="text-base font-bold text-foreground">
+                      RM {expensesTotal.toLocaleString('en-US')}
+                    </Text>
                   </View>
                 </>
               ) : (
                 <>
                   <View className="absolute w-28 h-28 rounded-full border-8 border-background" />
-                  {INCOME_CATEGORIES.filter(c => c.amount > 0).map((cat, idx) => {
-                    const total = INCOME_CATEGORIES.reduce((sum, c) => sum + c.amount, 0);
-                    const pct = cat.amount / total;
+                  {incomeCategories.filter(c => c.amount > 0).map((cat, idx) => {
                     const rotation = idx * 45 - 90;
                     return (
                       <View
@@ -287,9 +280,9 @@ export default function AnalysisScreen() {
                         className="absolute w-28 h-28 rounded-full border-8 border-transparent"
                         style={{
                           borderTopColor: cat.color,
-                          borderRightColor: pct > 0.25 ? cat.color : 'transparent',
-                          borderBottomColor: pct > 0.5 ? cat.color : 'transparent',
-                          borderLeftColor: pct > 0.75 ? cat.color : 'transparent',
+                          borderRightColor: cat.percentage > 25 ? cat.color : 'transparent',
+                          borderBottomColor: cat.percentage > 50 ? cat.color : 'transparent',
+                          borderLeftColor: cat.percentage > 75 ? cat.color : 'transparent',
                           transform: [{ rotate: `${rotation}deg` }],
                         }}
                       />
@@ -297,20 +290,20 @@ export default function AnalysisScreen() {
                   })}
                   <View className="items-center">
                     <Text className="text-xs text-muted-foreground">Total</Text>
-                    <Text className="text-base font-bold text-foreground">RM {data.income.toLocaleString('en-US')}</Text>
+                    <Text className="text-base font-bold text-foreground">
+                      RM {incomeTotal.toLocaleString('en-US')}
+                    </Text>
                   </View>
                 </>
               )}
             </View>
             {/* Legend */}
             <View className="flex-1 ml-4 gap-1">
-              {(toggleMode === 'expense' ? CATEGORIES : INCOME_CATEGORIES).slice(0, 4).map((cat) => (
+              {(toggleMode === 'expense' ? expenseCategories : incomeCategories).slice(0, 4).map((cat) => (
                 <View key={cat.name} className="flex-row items-center gap-2">
                   <View className="w-3 h-3 rounded" style={{ backgroundColor: cat.color }} />
                   <Text className="text-xs text-muted-foreground flex-1" numberOfLines={1}>{cat.name}</Text>
-                  <Text className="text-xs text-foreground font-medium">
-                    {Math.round((cat.amount / (toggleMode === 'expense' ? data.expenses : data.income)) * 100)}%
-                  </Text>
+                  <Text className="text-xs text-foreground font-medium">{cat.percentage}%</Text>
                 </View>
               ))}
             </View>
@@ -322,77 +315,63 @@ export default function AnalysisScreen() {
 
           {toggleMode === 'expense' ? (
             <View className="gap-2">
-              {CATEGORIES.map((category) => {
-                const total = data.expenses;
-                const pct = total > 0 ? Math.round((category.amount / total) * 100) : 0;
-                return (
-                  <View
-                    key={category.name}
-                    className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3"
-                  >
-                    <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center mr-3">
-                      <Text className="text-base">{category.emoji}</Text>
+              {expenseCategories.map((category) => (
+                <View
+                  key={category.name}
+                  className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3"
+                >
+                  <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center mr-3">
+                    <Text className="text-base">{category.emoji}</Text>
+                  </View>
+                  <View className="flex-1">
+                    <View className="flex-row items-center justify-between mb-2">
+                      <Text className="text-sm font-medium text-foreground">{category.name}</Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        RM {category.amount.toLocaleString('en-US')}
+                      </Text>
                     </View>
-                    <View className="flex-1">
-                      <View className="flex-row items-center justify-between mb-2">
-                        <Text className="text-sm font-medium text-foreground">{category.name}</Text>
-                        <Text className="text-sm font-semibold text-foreground">
-                          RM {category.amount.toLocaleString('en-US')}
-                        </Text>
+                    <View className="flex-row items-center gap-2">
+                      <View className="flex-1 h-2 bg-background rounded-full overflow-hidden">
+                        <View
+                          className="h-full rounded-full"
+                          style={{ width: `${category.percentage}%`, backgroundColor: category.color }}
+                        />
                       </View>
-                      <View className="flex-row items-center gap-2">
-                        <View className="flex-1 h-2 bg-background rounded-full overflow-hidden">
-                          <View
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${pct}%`,
-                              backgroundColor: category.color,
-                            }}
-                          />
-                        </View>
-                        <Text className="text-xs text-muted-foreground">{pct}%</Text>
-                      </View>
+                      <Text className="text-xs text-muted-foreground">{category.percentage}%</Text>
                     </View>
                   </View>
-                );
-              })}
+                </View>
+              ))}
             </View>
           ) : (
             <View className="gap-2">
-              {INCOME_CATEGORIES.map((category) => {
-                const total = data.income;
-                const pct = total > 0 ? Math.round((category.amount / total) * 100) : 0;
-                return (
-                  <View
-                    key={category.name}
-                    className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3"
-                  >
-                    <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center mr-3">
-                      <Text className="text-base">{category.emoji}</Text>
+              {incomeCategories.map((category) => (
+                <View
+                  key={category.name}
+                  className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3"
+                >
+                  <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center mr-3">
+                    <Text className="text-base">{category.emoji}</Text>
+                  </View>
+                  <View className="flex-1">
+                    <View className="flex-row items-center justify-between mb-2">
+                      <Text className="text-sm font-medium text-foreground">{category.name}</Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        RM {category.amount.toLocaleString('en-US')}
+                      </Text>
                     </View>
-                    <View className="flex-1">
-                      <View className="flex-row items-center justify-between mb-2">
-                        <Text className="text-sm font-medium text-foreground">{category.name}</Text>
-                        <Text className="text-sm font-semibold text-foreground">
-                          RM {category.amount.toLocaleString('en-US')}
-                        </Text>
+                    <View className="flex-row items-center gap-2">
+                      <View className="flex-1 h-2 bg-background rounded-full overflow-hidden">
+                        <View
+                          className="h-full rounded-full"
+                          style={{ width: `${category.percentage}%`, backgroundColor: category.color }}
+                        />
                       </View>
-                      <View className="flex-row items-center gap-2">
-                        <View className="flex-1 h-2 bg-background rounded-full overflow-hidden">
-                          <View
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${pct}%`,
-                              backgroundColor: category.color,
-                            }}
-                          />
-                        </View>
-                        <Text className="text-xs text-muted-foreground">{pct}%</Text>
-                      </View>
+                      <Text className="text-xs text-muted-foreground">{category.percentage}%</Text>
                     </View>
                   </View>
-                );
-              })}
+                </View>
+              ))}
             </View>
           )}
         </View>
