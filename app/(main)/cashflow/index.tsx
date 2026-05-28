@@ -15,6 +15,7 @@ import { AddLiabilityModal, NewLiability } from '../../../components/cashflow/Ad
 import { useTransactions } from '../../../src/hooks/useTransactions';
 import { useAssets } from '../../../src/hooks/useAssets';
 import { useLiabilities } from '../../../src/hooks/useLiabilities';
+import { useCashflow } from '../../../src/hooks/useCashflow';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import { useAuth } from '../../../context/AuthContext';
@@ -34,7 +35,7 @@ const MONTHLY_TREND = [
 ];
 
 // ─── Component-level asset/liability shape (for UI components) ────────────────
-interface UIAsset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
+interface UIAsset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; dateAcquired?: string; note?: string; }
 interface UILiability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
 
 // ─── Main screen ────────────────────────────────────────────────────────────────
@@ -56,8 +57,9 @@ export default function CashFlowScreen() {
   // ─── Hook calls ────────────────────────────────────────────────────────────
   const { user } = useAuth();
   const { income: incomeTxns, expenses: expenseTxns, loading: txLoading, error: txError, refetch: refetchTxns } = useTransactions(year, month);
-  const { assets: rawAssets, loading: astLoading, error: astError, fetchAssets, createAsset } = useAssets();
-  const { liabilities: rawLiabilities, loading: liabLoading, error: liabError, fetchLiabilities, createLiability } = useLiabilities();
+  const { assets: rawAssets, loading: astLoading, error: astError, fetchAssets, createAsset, updateAsset, deleteAsset } = useAssets();
+  const { liabilities: rawLiabilities, loading: liabLoading, error: liabError, fetchLiabilities, createLiability, updateLiability, deleteLiability } = useLiabilities();
+  const { summary } = useCashflow(currentMonth);
 
   const loading = txLoading || astLoading || liabLoading;
   const anyError = txError || astError || liabError;
@@ -79,6 +81,8 @@ export default function CashFlowScreen() {
     icon: a.icon ?? '📦',
     value: a.current_value,
     monthlyIncome: a.monthly_income,
+    dateAcquired: a.date_acquired,
+    note: a.note,
   }));
 
   const liabilities: UILiability[] = rawLiabilities.map((l: Liability) => ({
@@ -109,26 +113,36 @@ export default function CashFlowScreen() {
   const financialClass = assets.length === 0 ? 'poor' :
     passiveFromAssets >= totalExpenses ? 'rich' : 'middle';
 
-  const monthlyTrend = MONTHLY_TREND;
+  const monthlyTrend = summary?.monthly_trend?.length ? summary.monthly_trend : MONTHLY_TREND;
 
-  const prevMonth = monthIndex > 0 ? monthlyTrend[monthIndex - 1] : null;
-  const currMonth = monthIndex < monthlyTrend.length ? monthlyTrend[monthIndex] : monthlyTrend[monthlyTrend.length - 1];
+  const currMonth = monthlyTrend[monthlyTrend.length - 1];
+  const prevMonth = monthlyTrend.length > 1 ? monthlyTrend[monthlyTrend.length - 2] : null;
   const netWorthChange = (currMonth?.assets ?? 0) - (currMonth?.liabilities ?? 0)
     - ((prevMonth?.assets ?? 0) - (prevMonth?.liabilities ?? 0));
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
   const handleAddAsset = async (a: NewAsset) => {
     if (!user) return;
-    const result = await createAsset({
-      user_id: user.id,
-      name: a.name,
-      type: a.type as AssetType,
-      icon: a.icon,
-      current_value: a.value,
-      monthly_income: a.monthlyIncome,
-      date_acquired: a.dateAcquired,
-      note: a.note,
-    });
+    const result = editingAsset
+      ? await updateAsset(editingAsset.id, {
+          name: a.name,
+          type: a.type as AssetType,
+          icon: a.icon,
+          current_value: a.value,
+          monthly_income: a.monthlyIncome,
+          date_acquired: a.dateAcquired,
+          note: a.note,
+        })
+      : await createAsset({
+          user_id: user.id,
+          name: a.name,
+          type: a.type as AssetType,
+          icon: a.icon,
+          current_value: a.value,
+          monthly_income: a.monthlyIncome,
+          date_acquired: a.dateAcquired,
+          note: a.note,
+        });
     if (result.ok) {
       setEditingAsset(null);
       setShowAddAsset(false);
@@ -137,16 +151,26 @@ export default function CashFlowScreen() {
 
   const handleAddLiability = async (l: NewLiability) => {
     if (!user) return;
-    const result = await createLiability({
-      user_id: user.id,
-      name: l.name,
-      type: l.type as LiabilityType,
-      icon: l.icon,
-      amount_owed: l.amountOwed,
-      monthly_payment: l.monthlyPayment,
-      interest_rate: l.interestRate,
-      note: l.note,
-    });
+    const result = editingLiability
+      ? await updateLiability(editingLiability.id, {
+          name: l.name,
+          type: l.type as LiabilityType,
+          icon: l.icon,
+          amount_owed: l.amountOwed,
+          monthly_payment: l.monthlyPayment,
+          interest_rate: l.interestRate,
+          note: l.note,
+        })
+      : await createLiability({
+          user_id: user.id,
+          name: l.name,
+          type: l.type as LiabilityType,
+          icon: l.icon,
+          amount_owed: l.amountOwed,
+          monthly_payment: l.monthlyPayment,
+          interest_rate: l.interestRate,
+          note: l.note,
+        });
     if (result.ok) {
       setEditingLiability(null);
       setShowAddLiability(false);
@@ -164,10 +188,11 @@ export default function CashFlowScreen() {
   };
 
   const handleDelete = async (id: string) => {
-    // Soft-delete via repository would go here; for now, UI optimistically removes
-    // The refetch via fetchAssets/fetchLiabilities will sync state
-    fetchAssets();
-    fetchLiabilities();
+    if (manageTab === 'assets') {
+      await deleteAsset(id);
+    } else {
+      await deleteLiability(id);
+    }
   };
 
   return (

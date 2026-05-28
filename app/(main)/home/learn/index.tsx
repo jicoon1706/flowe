@@ -13,6 +13,7 @@ interface Project {
   name: string;
   emoji: string;
   entriesCount: number;
+  imagesCount: number;
   lastUpdated: string;
   latestEntry: string;
 }
@@ -20,34 +21,39 @@ interface Project {
 export default function LearnIndexScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { projects: hookProjects, loading, error, createProject, fetchEntries } = useLearn();
+  const { projects: hookProjects, loading, error, createProject, fetchProjects } = useLearn();
   const [showModal, setShowModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
-  const [localProjects, setLocalProjects] = useState<Project[]>([]);
 
   useFocusEffect(useCallback(() => {
-    // hookProjects are empty from useLearn, local state is source of truth for now
-    // Projects come from learn_projects table - local state drives UI until fetchProjects is added
-  }, []));
+    if (user) fetchProjects(user.id);
+  }, [user, fetchProjects]));
 
   if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => user && fetchProjects(user.id)} />;
 
-  const projects = localProjects.length > 0 ? localProjects : [];
+  const projects: Project[] = (hookProjects as any[]).map((p) => {
+    const entries = (p.learn_entries ?? []) as any[];
+    const sorted = [...entries].sort(
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+    return {
+      id: p.id,
+      name: p.name,
+      emoji: '📁',
+      entriesCount: entries.length,
+      imagesCount: entries.reduce((sum, e) => sum + (e.learn_entry_images?.length ?? 0), 0),
+      lastUpdated: p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '',
+      latestEntry: sorted[0]?.body ?? '',
+    };
+  });
   const totalEntries = projects.reduce((sum, p) => sum + p.entriesCount, 0);
+  const totalImages = projects.reduce((sum, p) => sum + p.imagesCount, 0);
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim() || !user) return;
     const result = await createProject(user.id, newProjectName.trim());
     if (result.ok) {
-      const newProject: Project = {
-        id: result.data.id,
-        name: result.data.name,
-        emoji: '📁',
-        entriesCount: 0,
-        lastUpdated: 'Just now',
-        latestEntry: '',
-      };
-      setLocalProjects(prev => [...prev, newProject]);
       setNewProjectName('');
       setShowModal(false);
       router.push(`/home/learn/${result.data.id}`);
@@ -78,7 +84,7 @@ export default function LearnIndexScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-xs text-muted-foreground">Images</Text>
-              <Text className="text-lg font-bold text-foreground">0</Text>
+              <Text className="text-lg font-bold text-foreground">{totalImages}</Text>
             </View>
           </View>
         </View>

@@ -41,6 +41,12 @@ export interface Account {
   updated_at: string;
 }
 
+export interface BankPreset {
+  id: number;
+  name: string;
+  color?: string;
+}
+
 export interface BankAccount {
   id: string;
   account_id: string;

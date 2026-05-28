@@ -28,6 +28,26 @@ export const learnRepository = {
     return { ok: true, data: undefined };
   },
 
+  async fetchProjects(userId: string): Promise<Result<LearnProject[], SupabaseError>> {
+    const { data, error } = await supabase
+      .from('learn_projects')
+      .select('*, learn_entries(id, body, updated_at, learn_entry_images(id))')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data as LearnProject[] };
+  },
+
+  async fetchProject(id: string): Promise<Result<LearnProject, SupabaseError>> {
+    const { data, error } = await supabase
+      .from('learn_projects')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data as LearnProject };
+  },
+
   async fetchEntries(projectId: string): Promise<Result<LearnEntry[], SupabaseError>> {
     const { data, error } = await supabase
       .from('learn_entries')

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, RefreshCw, Image } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Card } from '../../components/ui/Card';
@@ -24,6 +24,8 @@ interface DayTransaction {
   recurringFreq?: 'weekly' | 'monthly' | 'yearly';
   account: string;
   note?: string;
+  hasReceipt?: boolean;
+  receiptPath?: string;
 }
 
 export default function CalendarScreen() {
@@ -102,7 +104,9 @@ export default function CalendarScreen() {
     ? 'Today'
     : `${selectedDay} ${selectedDate.toLocaleString('en-US', { month: 'short' })}`;
 
-  const dayTransactions: DayTransaction[] = selectedDayTxs.map(tx => ({
+  const dayTransactions: DayTransaction[] = selectedDayTxs
+    .filter(tx => tx.type === 'income' || tx.type === 'expense' || tx.type === 'transfer')
+    .map(tx => ({
     id: tx.id,
     name: tx.name,
     category: tx.category ?? 'Others',
@@ -110,13 +114,15 @@ export default function CalendarScreen() {
     amount: `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}RM ${Number(tx.amount).toLocaleString('en-US')}`,
     type: tx.type as 'income' | 'expense' | 'transfer',
     date: new Date(tx.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-    recurring: false,
-    recurringFreq: undefined,
+    recurring: tx.is_recurring,
+    recurringFreq: (tx as any).recurring?.frequency,
     account: (tx.type === 'income'
       ? (tx as any).to_account?.name
       : (tx as any).from_account?.name) ?? '',
     toAccount: (tx as any).to_account?.name ?? undefined,
     note: tx.note ?? undefined,
+    hasReceipt: !!tx.receipt_url,
+    receiptPath: tx.receipt_url ?? undefined,
   }));
 
   const navigateMonth = (delta: number) => {
@@ -193,13 +199,23 @@ export default function CalendarScreen() {
                     className="w-[14.28%] h-12 items-center justify-center"
                   >
                     <View
-                      className={`w-10 h-10 rounded-full items-center justify-center ${
-                        isSelected ? 'bg-primary' : isToday ? 'border-2 border-primary' : ''
+                      className={`w-10 h-10 rounded-xl items-center justify-center ${
+                        isSelected
+                          ? isToday
+                            ? 'bg-primary'
+                            : 'bg-primary/30'
+                          : isToday
+                          ? 'border-2 border-primary'
+                          : ''
                       }`}
                     >
                       <Text
                         className={`text-base font-medium ${
-                          isSelected ? 'text-primary-foreground' : isToday ? 'text-primary' : 'text-foreground'
+                          isSelected && isToday
+                            ? 'text-primary-foreground'
+                            : isToday
+                            ? 'text-primary'
+                            : 'text-foreground'
                         }`}
                       >
                         {item.day}
@@ -264,17 +280,24 @@ export default function CalendarScreen() {
                       <Text className="text-base">{tx.categoryIcon}</Text>
                     </View>
                     <View>
-                      <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
+                      <View className="flex-row items-center gap-1.5">
+                        <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
+                        {tx.recurring && <RefreshCw size={10} color="#a0a0a0" />}
+                        {tx.hasReceipt && <Image size={10} color="#a0a0a0" />}
+                      </View>
                       <Text className="text-xs text-muted-foreground">{tx.date}</Text>
                     </View>
                   </View>
-                  <Text
-                    className={`text-sm font-semibold ${
-                      tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : 'text-transfer'
-                    }`}
-                  >
-                    {tx.amount}
-                  </Text>
+                  <View className="flex-row items-center gap-2">
+                    <Text
+                      className={`text-sm font-semibold ${
+                        tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : 'text-transfer'
+                      }`}
+                    >
+                      {tx.amount}
+                    </Text>
+                    <ChevronRight size={16} color="#a0a0a0" />
+                  </View>
                 </Pressable>
               ))}
             </View>

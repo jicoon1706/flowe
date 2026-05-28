@@ -125,7 +125,7 @@ export default function AnalysisScreen() {
               <View
                 className="absolute w-16 h-16 rounded-full border-4 border-transparent"
                 style={{
-                  borderTopColor: '#22C55E',
+                  borderTopColor: savingsRate > 0 ? '#22C55E' : 'transparent',
                   borderRightColor: savingsRate > 25 ? '#22C55E' : 'transparent',
                   borderBottomColor: savingsRate > 50 ? '#22C55E' : 'transparent',
                   borderLeftColor: savingsRate > 75 ? '#22C55E' : 'transparent',

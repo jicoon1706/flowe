@@ -2,10 +2,12 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 import { AlertCircle, Check, ChevronLeft, Minus, Pencil, Plus, X } from 'lucide-react-native';
 import { useAccounts } from '../../../../src/hooks/useAccounts';
 import { transactionsRepository } from '../../../../src/repositories/transactions.repository';
 import { accountsRepository } from '../../../../src/repositories/accounts.repository';
+import type { Transaction } from '../../../../src/types';
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
 import { useAuth } from '../../../../context/AuthContext';
@@ -16,9 +18,20 @@ export default function TabungDetailScreen() {
   const { user } = useAuth();
   const { accounts, loading, error, fetchAccounts } = useAccounts();
 
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  const tabungId = typeof id === 'string' ? id : '';
+
+  const fetchTransactions = useCallback(async () => {
+    if (!tabungId) return;
+    const result = await transactionsRepository.fetchByAccount(tabungId);
+    if (result.ok) setTransactions(result.data);
+  }, [tabungId]);
+
   useFocusEffect(useCallback(() => {
     fetchAccounts();
-  }, [fetchAccounts]));
+    fetchTransactions();
+  }, [fetchAccounts, fetchTransactions]));
 
   const [showTopUp, setShowTopUp] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
@@ -34,9 +47,9 @@ export default function TabungDetailScreen() {
   const [editTarget, setEditTarget] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  const tabungId = typeof id === 'string' ? id : '';
   const account = accounts.find((a) => a.id === tabungId) ?? accounts[0];
-  const tabungData = (account as any)?.tabung_accounts;
+  const rawTabung = (account as any)?.tabung_accounts;
+  const tabungData = Array.isArray(rawTabung) ? rawTabung[0] : rawTabung;
 
   const savedAmount = Number(tabungData?.saved_amount ?? 0);
   const targetAmount = Number(tabungData?.target_amount ?? 0);
@@ -45,7 +58,8 @@ export default function TabungDetailScreen() {
 
   const currentNum = savedAmount;
   const targetNum = targetAmount;
-  const percentage = targetNum > 0 ? Math.min(100, Math.round((currentNum / targetNum) * 100)) : 0;
+  const percentExact = targetNum > 0 ? Math.min(100, (currentNum / targetNum) * 100) : 0;
+  const percentage = percentExact > 0 && percentExact < 1 ? Number(percentExact.toFixed(1)) : Math.round(percentExact);
   const remaining = Math.max(0, targetNum - currentNum);
 
   const fromDate = tabungData?.from_date ? new Date(tabungData.from_date) : new Date();
@@ -56,6 +70,9 @@ export default function TabungDetailScreen() {
 
   const size = 144;
   const strokeWidth = 10;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - percentExact / 100);
 
   const handleConfirmTopUp = async () => {
     const amountNum = parseFloat(topUpAmount.replace(/,/g, ''));
@@ -74,6 +91,7 @@ export default function TabungDetailScreen() {
     if (result.ok) {
       setTopUpSuccess(true);
       await fetchAccounts();
+      await fetchTransactions();
       setTimeout(() => {
         setShowTopUp(false);
         setTopUpSuccess(false);
@@ -104,6 +122,7 @@ export default function TabungDetailScreen() {
     if (result.ok) {
       setWithdrawSuccess(true);
       await fetchAccounts();
+      await fetchTransactions();
       setTimeout(() => {
         setShowWithdraw(false);
         setWithdrawSuccess(false);
@@ -173,32 +192,31 @@ export default function TabungDetailScreen() {
         {/* Circular Progress (View-based) */}
         <View className="items-center py-6 mx-4 bg-card border border-border rounded-3xl mb-4">
           <View
-            style={{
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              borderWidth: strokeWidth,
-              borderColor: 'rgba(255,255,255,0.1)',
-            }}
+            style={{ width: size, height: size }}
             className="items-center justify-center mb-4"
           >
-            <View
-              style={{
-                position: 'absolute',
-                top: -strokeWidth,
-                left: -strokeWidth,
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                borderWidth: strokeWidth,
-                borderColor: 'transparent',
-                borderTopColor: '#C5FF00',
-                borderRightColor: percentage > 25 ? '#C5FF00' : 'transparent',
-                borderBottomColor: percentage > 50 ? '#C5FF00' : 'transparent',
-                borderLeftColor: percentage > 75 ? '#C5FF00' : 'transparent',
-                transform: [{ rotate: `${(percentage / 100) * 360}deg` }],
-              }}
-            />
+            <Svg width={size} height={size} style={{ position: 'absolute' }}>
+              <Circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke="rgba(255,255,255,0.1)"
+                strokeWidth={strokeWidth}
+                fill="none"
+              />
+              <Circle
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                stroke="#C5FF00"
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              />
+            </Svg>
             <Text className="text-4xl mb-1">{tabungEmoji}</Text>
             <Text className="text-xl font-bold text-primary">{percentage}%</Text>
           </View>
@@ -249,7 +267,44 @@ export default function TabungDetailScreen() {
         {/* Transaction History */}
         <View className="px-4 mb-4">
           <Text className="text-sm font-medium text-muted-foreground mb-4">Transaction History</Text>
-          <Text className="text-sm text-muted-foreground text-center py-4">Top-up history will appear here</Text>
+          {transactions.length === 0 ? (
+            <Text className="text-sm text-muted-foreground text-center py-4">Top-up history will appear here</Text>
+          ) : (
+            <View className="gap-2">
+              {transactions.map((tx) => {
+                const isTopUp = tx.type === 'tabung_topup';
+                return (
+                  <View
+                    key={tx.id}
+                    className="flex-row items-center bg-card border border-border rounded-2xl p-3"
+                  >
+                    <View
+                      className={`w-10 h-10 rounded-full items-center justify-center ${
+                        isTopUp ? 'bg-primary/20' : 'bg-red-500/20'
+                      }`}
+                    >
+                      {isTopUp ? (
+                        <Plus size={18} color="#C5FF00" />
+                      ) : (
+                        <Minus size={18} color="#EF4444" />
+                      )}
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className="text-sm font-semibold text-foreground">{tx.name}</Text>
+                      <Text className="text-xs text-muted-foreground">
+                        {tx.note ? `${tx.note} · ` : ''}{tx.date}
+                      </Text>
+                    </View>
+                    <Text
+                      className={`text-sm font-bold ${isTopUp ? 'text-primary' : 'text-red-400'}`}
+                    >
+                      {isTopUp ? '+' : '-'}RM {Number(tx.amount).toFixed(2)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
 

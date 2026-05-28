@@ -10,6 +10,7 @@ import { useTransactions } from '../../../src/hooks/useTransactions';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import { flags } from '../../../src/lib/secureStore';
+import { accountsRepository, assetsRepository, liabilitiesRepository, authRepository } from '../../../src/repositories';
 import { refreshGate } from '../../_layout';
 
 type ExportFormat = 'csv' | 'pdf';
@@ -27,12 +28,12 @@ export default function DataScreen() {
   const now = new Date();
   const { assets, loading: assetsLoading, error: assetsError, fetchAssets } = useAssets();
   const { liabilities, loading: liabLoading, error: liabError, fetchLiabilities } = useLiabilities();
-  const { transactions, loading: txLoading, error: txError, fetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { transactions, loading: txLoading, error: txError, refetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
 
   useFocusEffect(useCallback(() => {
     fetchAssets();
     fetchLiabilities();
-    fetch();
+    refetch();
   }, []));
 
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
@@ -41,6 +42,8 @@ export default function DataScreen() {
   const [exported, setExported] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetInput, setResetInput] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const handleExport = () => {
     setExporting(true);
@@ -53,9 +56,29 @@ export default function DataScreen() {
 
   const handleReset = async () => {
     if (resetInput.toLowerCase() !== 'reset') return;
+    setResetting(true);
+    setResetError(null);
+
+    // Soft-delete the user's data on the server (is_active = false).
+    const results = await Promise.all([
+      accountsRepository.softDeleteAllAccounts(),
+      assetsRepository.softDeleteAll(),
+      liabilitiesRepository.softDeleteAll(),
+    ]);
+    const failed = results.find((r) => !r.ok);
+    if (failed && !failed.ok) {
+      setResetError(failed.error.message);
+      setResetting(false);
+      return;
+    }
+
+    // Wipe device: end the Supabase session, then clear local PIN/onboarding flags.
+    await authRepository.signOut();
+    await flags.unsetPin();
+
     setShowResetConfirm(false);
     setResetInput('');
-    await flags.unsetPin();
+    setResetting(false);
     refreshGate();
     router.replace('/(auth)/welcome');
   };
@@ -241,20 +264,27 @@ export default function DataScreen() {
               autoCorrect={false}
             />
 
+            {resetError && (
+              <Text className="text-xs text-red-400 text-center mb-3">{resetError}</Text>
+            )}
+
             {/* Buttons */}
             <View className="flex flex-row gap-3">
               <Pressable
-                onPress={() => { setShowResetConfirm(false); setResetInput(''); }}
+                onPress={() => { setShowResetConfirm(false); setResetInput(''); setResetError(null); }}
+                disabled={resetting}
                 className="flex-1 py-3.5 bg-muted border border-border rounded-2xl"
               >
                 <Text className="text-foreground font-semibold text-sm text-center">Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={handleReset}
-                disabled={resetInput.toLowerCase() !== 'reset'}
-                className={`flex-1 py-3.5 rounded-2xl ${resetInput.toLowerCase() === 'reset' ? 'bg-red-500' : 'bg-red-500/30'}`}
+                disabled={resetInput.toLowerCase() !== 'reset' || resetting}
+                className={`flex-1 py-3.5 rounded-2xl ${resetInput.toLowerCase() === 'reset' && !resetting ? 'bg-red-500' : 'bg-red-500/30'}`}
               >
-                <Text className="text-white font-semibold text-sm text-center">Reset</Text>
+                <Text className="text-white font-semibold text-sm text-center">
+                  {resetting ? 'Resetting...' : 'Reset'}
+                </Text>
               </Pressable>
             </View>
           </View>

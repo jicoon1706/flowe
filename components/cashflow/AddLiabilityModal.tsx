@@ -20,13 +20,13 @@ interface AddLiabilityModalProps {
 }
 
 const LIABILITY_TYPES = [
-  { label: 'Mortgage', icon: '🏠' },
-  { label: 'Car Loan', icon: '🚗' },
-  { label: 'Credit Card', icon: '💳' },
-  { label: 'Study Loan', icon: '🎓' },
-  { label: 'Medical Loan', icon: '💊' },
-  { label: 'Business Loan', icon: '💼' },
-  { label: 'Others', icon: '📦' },
+  { value: 'mortgage', label: 'Mortgage', icon: '🏠' },
+  { value: 'car_loan', label: 'Car Loan', icon: '🚗' },
+  { value: 'credit_card', label: 'Credit Card', icon: '💳' },
+  { value: 'study_loan', label: 'Study Loan', icon: '🎓' },
+  { value: 'medical_loan', label: 'Medical Loan', icon: '💊' },
+  { value: 'business_loan', label: 'Business Loan', icon: '💼' },
+  { value: 'others', label: 'Others', icon: '📦' },
 ];
 
 const ACCENT = '#ff6b6b';
@@ -34,7 +34,7 @@ const ACCENT = '#ff6b6b';
 export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLiabilityModalProps) {
   const isEditing = !!initial;
   const [name, setName] = useState('');
-  const [type, setType] = useState(LIABILITY_TYPES[0].label);
+  const [type, setType] = useState(LIABILITY_TYPES[0].value);
   const [amountOwed, setAmountOwed] = useState('');
   const [monthlyPayment, setMonthlyPayment] = useState('');
   const [interestRate, setInterestRate] = useState('');
@@ -51,7 +51,7 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
         setNote(initial.note ?? '');
       } else {
         setName('');
-        setType(LIABILITY_TYPES[0].label);
+        setType(LIABILITY_TYPES[0].value);
         setAmountOwed('');
         setMonthlyPayment('');
         setInterestRate('');
@@ -62,7 +62,7 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
 
   const reset = () => {
     setName('');
-    setType(LIABILITY_TYPES[0].label);
+    setType(LIABILITY_TYPES[0].value);
     setAmountOwed('');
     setMonthlyPayment('');
     setInterestRate('');
@@ -76,7 +76,7 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
 
   const handleSubmit = () => {
     if (!name.trim() || !amountOwed || !monthlyPayment) return;
-    const selected = LIABILITY_TYPES.find((t) => t.label === type) ?? LIABILITY_TYPES[0];
+    const selected = LIABILITY_TYPES.find((t) => t.value === type) ?? LIABILITY_TYPES[0];
     onSubmit({
       name: name.trim(),
       type,
@@ -115,7 +115,7 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
 
           <ScrollView
             className="px-6"
-            contentContainerStyle={{ paddingBottom: 16 }}
+            contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -133,11 +133,11 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
             <Text className="text-sm font-semibold text-foreground mb-2">Liability Type</Text>
             <View className="flex-row flex-wrap gap-2 mb-4">
               {LIABILITY_TYPES.map((t) => {
-                const active = type === t.label;
+                const active = type === t.value;
                 return (
                   <Pressable
-                    key={t.label}
-                    onPress={() => setType(t.label)}
+                    key={t.value}
+                    onPress={() => setType(t.value)}
                     className="flex-row items-center gap-1.5 px-3 py-2 rounded-full border"
                     style={{
                       backgroundColor: active ? ACCENT : '#00000033',

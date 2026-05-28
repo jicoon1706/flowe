@@ -1,7 +1,8 @@
 import { View, Text, Pressable, Modal, ScrollView, Image, Alert } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { transactionsRepository } from '../../src/repositories/transactions.repository';
+import { storageService } from '../../src/services/storage';
 
 const X = (props: { size: number; color: string }) => <MaterialIcons name="close" size={props.size} color={props.color} />;
 const RefreshCw = (props: { size: number; color: string }) => <MaterialIcons name="refresh" size={props.size} color={props.color} />;
@@ -23,6 +24,7 @@ export interface TransactionData {
   reminder?: string;
   note?: string;
   hasReceipt?: boolean;
+  receiptPath?: string;
   account?: string;
   toAccount?: string;
 }
@@ -42,6 +44,21 @@ const typeColors = {
 
 export function TransactionDetail({ transaction, visible, onClose, onDeleted }: TransactionDetailProps) {
   const [deleting, setDeleting] = useState(false);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [receiptViewerVisible, setReceiptViewerVisible] = useState(false);
+
+  const receiptPath = transaction?.receiptPath;
+
+  useEffect(() => {
+    setReceiptUrl(null);
+    if (!visible || !receiptPath) return;
+    let cancelled = false;
+    storageService.getReceiptUrl(receiptPath).then((result) => {
+      if (!cancelled && result.ok) setReceiptUrl(result.data);
+    });
+    return () => { cancelled = true; };
+  }, [visible, receiptPath]);
+
   if (!transaction) return null;
 
   const typeStyle = typeColors[transaction.type];
@@ -196,18 +213,44 @@ export function TransactionDetail({ transaction, visible, onClose, onDeleted }: 
             {transaction.hasReceipt && (
               <View className="mb-4">
                 <Text className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Receipt</Text>
-                <View className="bg-secondary rounded-xl overflow-hidden">
-                  <Image
-                    source={{ uri: 'https://picsum.photos/300/200' }}
-                    className="w-full h-40"
-                    resizeMode="cover"
-                  />
-                </View>
+                {receiptUrl ? (
+                  <Pressable
+                    onPress={() => setReceiptViewerVisible(true)}
+                    className="bg-secondary rounded-xl overflow-hidden active:opacity-80"
+                    accessibilityLabel="View receipt"
+                  >
+                    <Image
+                      source={{ uri: receiptUrl }}
+                      className="w-full h-40"
+                      resizeMode="cover"
+                    />
+                  </Pressable>
+                ) : (
+                  <View className="bg-secondary rounded-xl h-40 items-center justify-center">
+                    <Text className="text-xs text-muted-foreground">Loading receipt…</Text>
+                  </View>
+                )}
               </View>
             )}
           </ScrollView>
         </Pressable>
       </View>
+
+      {/* Fullscreen Receipt Viewer */}
+      <Modal visible={receiptViewerVisible} transparent animationType="fade" onRequestClose={() => setReceiptViewerVisible(false)}>
+        <Pressable className="flex-1 bg-black/90 justify-center" onPress={() => setReceiptViewerVisible(false)}>
+          <Pressable
+            onPress={() => setReceiptViewerVisible(false)}
+            className="absolute top-12 right-5 z-10 p-2 rounded-full bg-white/10"
+            accessibilityLabel="Close receipt"
+          >
+            <X size={24} color="#ffffff" />
+          </Pressable>
+          {receiptUrl && (
+            <Image source={{ uri: receiptUrl }} className="w-full h-2/3" resizeMode="contain" />
+          )}
+        </Pressable>
+      </Modal>
     </Modal>
   );
 }

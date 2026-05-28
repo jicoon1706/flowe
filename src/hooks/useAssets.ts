@@ -27,5 +27,25 @@ export function useAssets() {
     return result;
   }, [fetchAssets]);
 
-  return { assets, loading, error, fetchAssets, createAsset };
+  const updateAsset = useCallback(async (id: string, patch: Partial<Asset>) => {
+    setLoading(true);
+    setError(null);
+    const result = await assetsRepository.update(id, patch);
+    if (result.ok) await fetchAssets();
+    else setError(result.error);
+    setLoading(false);
+    return result;
+  }, [fetchAssets]);
+
+  const deleteAsset = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    const result = await assetsRepository.softDelete(id);
+    if (result.ok) await fetchAssets();
+    else setError(result.error);
+    setLoading(false);
+    return result;
+  }, [fetchAssets]);
+
+  return { assets, loading, error, fetchAssets, createAsset, updateAsset, deleteAsset };
 }

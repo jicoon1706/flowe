@@ -62,4 +62,13 @@ export const assetsRepository = {
     if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: undefined };
   },
+
+  async softDeleteAll(): Promise<Result<void, SupabaseError>> {
+    const { error } = await supabase
+      .from('assets')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('is_active', true);
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: undefined };
+  },
 };

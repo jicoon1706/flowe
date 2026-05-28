@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -8,6 +8,7 @@ import { useLearn } from '../../../../src/hooks/useLearn';
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
 import { learnRepository } from '../../../../src/repositories/learn.repository';
+import { storageService } from '../../../../src/services/storage';
 import type { LearnEntry } from '../../../../src/types';
 
 interface Project {
@@ -26,17 +27,37 @@ export default function ProjectDetailScreen() {
   const [showMenu, setShowMenu] = useState(false);
   const [showRename, setShowRename] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
-  const [renameText, setRenameText] = useState(projectName);
+  const [renameText, setRenameText] = useState('');
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
 
   useFocusEffect(useCallback(() => {
     if (projectId) {
       fetchEntries(projectId);
-      // Fetch project name
-      learnRepository.fetchEntries(projectId).then(() => {}); // entries call already
+      learnRepository.fetchProject(projectId).then((result) => {
+        if (result.ok) {
+          setProjectName(result.data.name);
+          setRenameText(result.data.name);
+        }
+      });
     }
   }, [projectId, fetchEntries]));
 
+  useEffect(() => {
+    const paths: string[] = entries
+      .flatMap((e: LearnEntry) => ((e as any).learn_entry_images ?? []) as any[])
+      .map((img: any) => img.storage_path)
+      .filter(Boolean);
+    if (paths.length === 0) return;
+    Promise.all(
+      paths.map(async (path) => {
+        const result = await storageService.getLearnImageUrl(path);
+        return [path, result.ok ? result.data : ''] as const;
+      })
+    ).then((pairs) => setImageUrls(Object.fromEntries(pairs)));
+  }, [entries]);
+
   if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => projectId && fetchEntries(projectId)} />;
 
   const handleRename = async () => {
     await learnRepository.renameProject(projectId!, renameText);
@@ -56,7 +77,9 @@ export default function ProjectDetailScreen() {
     entries: entries.map((e: LearnEntry) => ({
       id: e.id,
       text: e.body ?? '',
-      images: (e.learn_entry_images ?? []).map((img: any) => img.storage_path ?? ''),
+      images: (((e as any).learn_entry_images ?? []) as any[])
+        .map((img: any) => imageUrls[img.storage_path] ?? '')
+        .filter(Boolean),
       timeAgo: e.updated_at ? new Date(e.updated_at).toLocaleString() : 'Recently',
     })),
   };

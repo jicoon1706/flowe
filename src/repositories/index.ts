@@ -1,5 +1,6 @@
 export { authRepository } from './auth.repository';
 export { accountsRepository } from './accounts.repository';
+export { bankPresetsRepository } from './bankPresets.repository';
 export { transactionsRepository } from './transactions.repository';
 export { recurringRepository } from './recurring.repository';
 export { assetsRepository } from './assets.repository';

@@ -1,5 +1,6 @@
 export { useAuth } from './useAuth';
 export { useAccounts } from './useAccounts';
+export { useBankPresets } from './useBankPresets';
 export { useTransactions } from './useTransactions';
 export { useCashflow } from './useCashflow';
 export { useAnalysis } from './useAnalysis';

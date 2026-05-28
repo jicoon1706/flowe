@@ -32,6 +32,12 @@ export const storageService = {
     return { ok: true, data: data.signedUrl };
   },
 
+  async getReceiptUrl(path: string): Promise<Result<string, SupabaseError>> {
+    const { data, error } = await supabase.storage.from('receipts').createSignedUrl(path, 60 * 60);
+    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    return { ok: true, data: data.signedUrl };
+  },
+
   async deleteReceipt(path: string): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase.storage.from('receipts').remove([path]);
     if (error) return { ok: false, error: { code: error.code, message: error.message } };
@@ -47,6 +53,12 @@ export const storageService = {
     if (error) return { ok: false, error: { code: error.code, message: error.message } };
     const { data, error: urlError } = await supabase.storage.from('learn-images').createSignedUrl(path, 60 * 60);
     if (urlError) return { ok: false, error: { code: urlError.code, message: urlError.message } };
+    return { ok: true, data: data.signedUrl };
+  },
+
+  async getLearnImageUrl(path: string): Promise<Result<string, SupabaseError>> {
+    const { data, error } = await supabase.storage.from('learn-images').createSignedUrl(path, 60 * 60);
+    if (error) return { ok: false, error: { code: error.code, message: error.message } };
     return { ok: true, data: data.signedUrl };
   },
 

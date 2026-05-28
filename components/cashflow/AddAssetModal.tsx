@@ -22,15 +22,15 @@ interface AddAssetModalProps {
 }
 
 const ASSET_TYPES = [
-  { label: 'Real Estate', icon: '🏠' },
-  { label: 'Stocks / ETF', icon: '📈' },
-  { label: 'Unit Trust', icon: '🛡️' },
-  { label: 'Fixed Deposit', icon: '🏦' },
-  { label: 'ASB / ASB2', icon: '🐷' },
-  { label: 'Gold', icon: '🪙' },
-  { label: 'Vehicle', icon: '🚗' },
-  { label: 'Business', icon: '💼' },
-  { label: 'Others', icon: '📦' },
+  { value: 'real_estate', label: 'Real Estate', icon: '🏠' },
+  { value: 'stocks', label: 'Stocks / ETF', icon: '📈' },
+  { value: 'unit_trust', label: 'Unit Trust', icon: '🛡️' },
+  { value: 'fixed_deposit', label: 'Fixed Deposit', icon: '🏦' },
+  { value: 'asb', label: 'ASB / ASB2', icon: '🐷' },
+  { value: 'gold', label: 'Gold', icon: '🪙' },
+  { value: 'vehicle', label: 'Vehicle', icon: '🚗' },
+  { value: 'business', label: 'Business', icon: '💼' },
+  { value: 'others', label: 'Others', icon: '📦' },
 ];
 
 const ACCENT = '#C5FF00';
@@ -38,7 +38,7 @@ const ACCENT = '#C5FF00';
 export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetModalProps) {
   const isEditing = !!initial;
   const [name, setName] = useState('');
-  const [type, setType] = useState(ASSET_TYPES[0].label);
+  const [type, setType] = useState(ASSET_TYPES[0].value);
   const [value, setValue] = useState('');
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [dateAcquired, setDateAcquired] = useState<Date | null>(null);
@@ -74,7 +74,7 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
         setNote(initial.note ?? '');
       } else {
         setName('');
-        setType(ASSET_TYPES[0].label);
+        setType(ASSET_TYPES[0].value);
         setValue('');
         setMonthlyIncome('');
         setDateAcquired(null);
@@ -99,7 +99,7 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
 
   const handleSubmit = () => {
     if (!name.trim() || !value) return;
-    const selected = ASSET_TYPES.find((t) => t.label === type) ?? ASSET_TYPES[0];
+    const selected = ASSET_TYPES.find((t) => t.value === type) ?? ASSET_TYPES[0];
     onSubmit({
       name: name.trim(),
       type,
@@ -138,7 +138,7 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
 
           <ScrollView
             className="px-6"
-            contentContainerStyle={{ paddingBottom: 16 }}
+            contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -156,11 +156,11 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
             <Text className="text-sm font-semibold text-foreground mb-2">Asset Type</Text>
             <View className="flex-row flex-wrap gap-2 mb-4">
               {ASSET_TYPES.map((t) => {
-                const active = type === t.label;
+                const active = type === t.value;
                 return (
                   <Pressable
-                    key={t.label}
-                    onPress={() => setType(t.label)}
+                    key={t.value}
+                    onPress={() => setType(t.value)}
                     className="flex-row items-center gap-1.5 px-3 py-2 rounded-full border"
                     style={{
                       backgroundColor: active ? ACCENT : '#00000033',

@@ -85,7 +85,28 @@ export const transactionsRepository = {
       .single();
     if (txError) return { ok: false, error: fromSupabaseError(txError) };
 
-    if (req.type === 'tabung_topup' && req.to_account_id) {
+    const adjustBankBalance = async (accountId: string, delta: number) => {
+      const { data: bank } = await supabase
+        .from('bank_accounts')
+        .select('current_balance')
+        .eq('account_id', accountId)
+        .single();
+      if (bank) {
+        await supabase
+          .from('bank_accounts')
+          .update({ current_balance: Number(bank.current_balance) + delta })
+          .eq('account_id', accountId);
+      }
+    };
+
+    if (req.type === 'expense' && req.from_account_id) {
+      await adjustBankBalance(req.from_account_id, -req.amount);
+    } else if (req.type === 'income' && req.to_account_id) {
+      await adjustBankBalance(req.to_account_id, req.amount);
+    } else if (req.type === 'transfer' && req.from_account_id && req.to_account_id) {
+      await adjustBankBalance(req.from_account_id, -req.amount);
+      await adjustBankBalance(req.to_account_id, req.amount);
+    } else if (req.type === 'tabung_topup' && req.to_account_id) {
       const { data: tabung } = await supabase
         .from('tabung_accounts')
         .select('saved_amount')
@@ -94,7 +115,7 @@ export const transactionsRepository = {
       if (tabung) {
         await supabase
           .from('tabung_accounts')
-          .update({ saved_amount: tabung.saved_amount + req.amount })
+          .update({ saved_amount: Number(tabung.saved_amount) + req.amount })
           .eq('account_id', req.to_account_id);
       }
     } else if (req.type === 'tabung_withdraw' && req.to_account_id) {
@@ -106,7 +127,7 @@ export const transactionsRepository = {
       if (tabung) {
         await supabase
           .from('tabung_accounts')
-          .update({ saved_amount: tabung.saved_amount - req.amount })
+          .update({ saved_amount: Number(tabung.saved_amount) - req.amount })
           .eq('account_id', req.to_account_id);
       }
     }

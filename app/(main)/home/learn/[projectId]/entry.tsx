@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -8,6 +8,7 @@ import { useLearn } from '../../../../../src/hooks/useLearn';
 import { LoadingView } from '../../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../../components/ui/ErrorView';
 import { learnRepository } from '../../../../../src/repositories/learn.repository';
+import { storageService } from '../../../../../src/services/storage';
 import type { LearnEntry } from '../../../../../src/types';
 
 export default function EntryDetailScreen() {
@@ -17,18 +18,30 @@ export default function EntryDetailScreen() {
   const [showMenu, setShowMenu] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<number | null>(null);
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
 
   useFocusEffect(useCallback(() => {
     if (projectId) fetchEntries(projectId);
   }, [projectId, fetchEntries]));
 
-  if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={() => projectId && fetchEntries(projectId)} />;
-
   const entry: LearnEntry | undefined = entries.find((e: LearnEntry) => e.id === entryId);
   const entryText = entry?.body ?? '';
-  const entryImages = (entry?.learn_entry_images ?? []) as any[];
+  const entryImages = ((entry as any)?.learn_entry_images ?? []) as any[];
   const entryTime = entry?.created_at ? new Date(entry.created_at).toLocaleString() : '';
+
+  useEffect(() => {
+    const paths: string[] = entryImages.map((img: any) => img.storage_path).filter(Boolean);
+    if (paths.length === 0) return;
+    Promise.all(
+      paths.map(async (path) => {
+        const result = await storageService.getLearnImageUrl(path);
+        return [path, result.ok ? result.data : ''] as const;
+      })
+    ).then((pairs) => setImageUrls(Object.fromEntries(pairs)));
+  }, [entry?.id]);
+
+  if (loading) return <LoadingView />;
+  if (error) return <ErrorView error={error} onRetry={() => projectId && fetchEntries(projectId)} />;
 
   const handleDelete = async () => {
     if (entryId) await learnRepository.deleteEntry(entryId);
@@ -66,7 +79,7 @@ export default function EntryDetailScreen() {
                 className="w-[48%] aspect-square rounded-xl bg-muted mb-2 mr-[4%]"
               >
                 <Image
-                  source={{ uri: img.storage_path }}
+                  source={{ uri: imageUrls[img.storage_path] ?? '' }}
                   className="w-full h-full rounded-xl"
                 />
               </Pressable>
@@ -161,7 +174,7 @@ export default function EntryDetailScreen() {
           </Pressable>
           {lightboxImage !== null && entryImages[lightboxImage] && (
             <Image
-              source={{ uri: entryImages[lightboxImage].storage_path }}
+              source={{ uri: imageUrls[entryImages[lightboxImage].storage_path] ?? '' }}
               className="w-80 h-80 rounded-xl"
             />
           )}

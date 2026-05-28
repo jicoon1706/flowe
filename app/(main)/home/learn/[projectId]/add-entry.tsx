@@ -1,21 +1,26 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Image } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as Crypto from 'expo-crypto';
 import { ChevronLeft, X, FilePlus } from '../../../../../components/ui/icons';
 import { useAuth } from '../../../../../context/AuthContext';
 import { useLearn } from '../../../../../src/hooks/useLearn';
 import { LoadingView } from '../../../../../components/ui/LoadingView';
-import { ErrorView } from '../../../../../components/ui/ErrorView';
 import { learnRepository } from '../../../../../src/repositories/learn.repository';
+import { storageService } from '../../../../../src/services/storage';
+
+type PickedImage = { uri: string; base64: string };
 
 export default function AddEntryScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { projectId, entryId } = useLocalSearchParams<{ projectId: string; entryId?: string }>();
-  const { loading, error, createEntry, fetchEntries } = useLearn();
+  const { loading, createEntry } = useLearn();
   const [text, setText] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<PickedImage[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useFocusEffect(useCallback(() => {
     if (entryId) {
@@ -31,20 +36,59 @@ export default function AddEntryScreen() {
 
   if (loading) return <LoadingView />;
 
-  const canSave = text.trim().length > 0 || images.length > 0;
+  const canSave = (text.trim().length > 0 || images.length > 0) && !saving;
 
   const handleRemoveImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const handlePickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Please allow photo access to add images.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset?.base64) return;
+    setImages([...images, { uri: asset.uri, base64: asset.base64 }]);
+  };
+
   const handleSave = async () => {
     if (!canSave || !user) return;
-    if (entryId) {
-      await learnRepository.updateEntry(entryId, text);
-    } else {
-      await createEntry(projectId!, user.id, text);
+    setSaving(true);
+    try {
+      let targetEntryId = entryId;
+
+      if (targetEntryId) {
+        await learnRepository.updateEntry(targetEntryId, text);
+      } else {
+        const result = await createEntry(projectId!, user.id, text);
+        if (!result.ok) {
+          Alert.alert('Error', 'Could not save entry.');
+          return;
+        }
+        targetEntryId = result.data.id;
+      }
+
+      for (const image of images) {
+        const imageId = Crypto.randomUUID();
+        const upload = await storageService.uploadLearnImage(user.id, targetEntryId!, imageId, image.base64);
+        if (!upload.ok) continue;
+        await learnRepository.attachImage(targetEntryId!, `${user.id}/${targetEntryId}/${imageId}.jpg`);
+      }
+
+      router.back();
+    } finally {
+      setSaving(false);
     }
-    router.back();
   };
 
   return (
@@ -79,7 +123,7 @@ export default function AddEntryScreen() {
             {images.map((img, index) => (
               <View key={index} className="relative mr-2 mb-2">
                 <Image
-                  source={{ uri: img }}
+                  source={{ uri: img.uri }}
                   className="w-20 h-20 rounded-xl"
                 />
                 <Pressable
@@ -92,11 +136,7 @@ export default function AddEntryScreen() {
             ))}
             {images.length < 4 && (
               <Pressable
-                onPress={() => {
-                  // Placeholder: image picker would go here
-                  // For now, add a placeholder image
-                  setImages([...images, 'https://placehold.co/100x100/2a2a2a/C5FF00?text=Img']);
-                }}
+                onPress={handlePickImage}
                 className="w-20 h-20 rounded-xl border-2 border-dashed border-border items-center justify-center mb-2"
               >
                 <FilePlus size={20} color="#888" />
@@ -121,7 +161,7 @@ export default function AddEntryScreen() {
               canSave ? 'text-primary-foreground' : 'text-muted-foreground'
             }`}
           >
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </Text>
         </Pressable>
       </View>

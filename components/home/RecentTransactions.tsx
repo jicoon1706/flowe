@@ -50,6 +50,7 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress 
       reminder: (tx as any).recurring?.reminder_enabled ? 'Enabled' : undefined,
       note: tx.note,
       hasReceipt: !!tx.receipt_url,
+      receiptPath: tx.receipt_url,
       account: tx.type === 'income'
         ? (tx as any).to_account?.name
         : (tx as any).from_account?.name,

@@ -1,4 +1,5 @@
 import { TabBarProvider, useTabBar } from '@/context/TabBarContext';
+import { LockProvider } from '@/context/LockContext';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Calendar, DollarSign, Home, Plus, Settings } from 'lucide-react-native';
 import { useEffect } from 'react';
@@ -66,7 +67,7 @@ function MainTabs() {
         name="add-transaction"
         options={{
           tabBarButton: () => (
-            <View className="w-14 h-14 items-center justify-center">
+            <View className="flex-1 items-center justify-center">
               <AddButton />
             </View>
           ),
@@ -203,10 +204,12 @@ function TabBarVisibilityWrapper({ children }: { children: React.ReactNode }) {
 
 export default function MainLayout() {
   return (
-    <TabBarProvider>
-      <TabBarVisibilityWrapper>
-        <MainTabs />
-      </TabBarVisibilityWrapper>
-    </TabBarProvider>
+    <LockProvider>
+      <TabBarProvider>
+        <TabBarVisibilityWrapper>
+          <MainTabs />
+        </TabBarVisibilityWrapper>
+      </TabBarProvider>
+    </LockProvider>
   );
 }

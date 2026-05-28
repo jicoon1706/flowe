@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform , Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform , Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Camera, RefreshCw, Calendar, ChevronDown, Bell, Check } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { expenseCategories, incomeCategories } from '../../constants/categories';
 import { Button } from '../../components/ui/Button';
 import { AmountInput } from '../../components/ui/AmountInput';
@@ -18,6 +19,8 @@ import { useTransactions } from '../../src/hooks/useTransactions';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
 import { useAuth } from '../../context/AuthContext';
 import { accountColor } from '../../src/utils/accountColor';
+import { storageService } from '../../src/services/storage';
+import { transactionsRepository } from '../../src/repositories/transactions.repository';
 
 type TransactionType = 'expense' | 'income' | 'transfer';
 
@@ -75,6 +78,7 @@ export default function AddTransactionScreen() {
   const [reminder, setReminder] = useState('none');
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [note, setNote] = useState('');
+  const [receiptImage, setReceiptImage] = useState<{ uri: string; base64: string } | null>(null);
 
   const { user } = useAuth();
   const now = new Date();
@@ -120,6 +124,25 @@ export default function AddTransactionScreen() {
     return opt?.label || 'No reminder';
   };
 
+  async function handlePickReceipt(source: 'camera' | 'library') {
+    const permission = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', `Please allow ${source === 'camera' ? 'camera' : 'photo'} access to add a receipt.`);
+      return;
+    }
+
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, base64: true });
+
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset?.base64) return;
+    setReceiptImage({ uri: asset.uri, base64: asset.base64 });
+  }
+
   function resetForm() {
     setType('expense');
     setAmount('');
@@ -139,6 +162,7 @@ export default function AddTransactionScreen() {
     setReminder('none');
     setShowReminderPicker(false);
     setNote('');
+    setReceiptImage(null);
   }
 
   async function handleSubmit() {
@@ -189,6 +213,12 @@ export default function AddTransactionScreen() {
     });
 
     if (result.ok) {
+      if (receiptImage) {
+        const upload = await storageService.uploadReceipt(user.id, result.data.id, receiptImage.base64);
+        if (upload.ok) {
+          await transactionsRepository.update(result.data.id, { receipt_url: `${user.id}/${result.data.id}.jpg` });
+        }
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       resetForm();
       router.back();
@@ -211,7 +241,10 @@ export default function AddTransactionScreen() {
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
         {/* Scan Receipt */}
         <View className="px-4 pt-4">
-          <Pressable className="w-full bg-primary rounded-2xl py-4 flex-row items-center justify-center gap-2 active:scale-[0.98] transition-transform">
+          <Pressable
+            onPress={() => handlePickReceipt('camera')}
+            className="w-full bg-primary rounded-2xl py-4 flex-row items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+          >
             <Camera size={20} color="#000000" />
             <Text className="text-base font-bold text-primary-foreground">Scan Receipt</Text>
           </Pressable>
@@ -610,10 +643,27 @@ export default function AddTransactionScreen() {
           </View>
 
           {/* Attach Image */}
-          <Pressable className="flex-row items-center justify-center gap-2 py-3 mb-6 border border-dashed border-border rounded-xl">
-            <Camera size={18} color="#a0a0a0" />
-            <Text className="text-sm text-muted-foreground">Attach Image</Text>
-          </Pressable>
+          {receiptImage ? (
+            <View className="mb-6">
+              <View className="relative rounded-xl overflow-hidden border border-border">
+                <Image source={{ uri: receiptImage.uri }} className="w-full h-48" resizeMode="cover" />
+                <Pressable
+                  onPress={() => setReceiptImage(null)}
+                  className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5"
+                >
+                  <X size={16} color="#ffffff" />
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => handlePickReceipt('library')}
+              className="flex-row items-center justify-center gap-2 py-3 mb-6 border border-dashed border-border rounded-xl"
+            >
+              <Camera size={18} color="#a0a0a0" />
+              <Text className="text-sm text-muted-foreground">Attach Image</Text>
+            </Pressable>
+          )}
 
           {/* Submit Button */}
           <Button

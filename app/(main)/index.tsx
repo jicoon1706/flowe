@@ -9,6 +9,7 @@ import { BalanceBanner } from '../../components/home/BalanceBanner';
 import { AccountCards } from '../../components/home/AccountCards';
 import { Shortcuts } from '../../components/home/Shortcuts';
 import { RecentTransactions } from '../../components/home/RecentTransactions';
+import { useLock } from '../../context/LockContext';
 import { flags } from '../../src/lib/secureStore';
 import { edgeFunctionsService } from '../../src/services/edgeFunctions';
 import { refreshGate } from '../_layout';
@@ -24,6 +25,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [affirmationIndex, setAffirmationIndex] = useState(0);
+  const { lock } = useLock();
 
   async function resetOnboarding() {
     await flags.unsetPin();
@@ -173,7 +175,7 @@ export default function HomeScreen() {
         <HomeTopBar
           name={displayName}
           onBellPress={() => router.push('/home/notifications')}
-          onLockPress={() => {}}
+          onLockPress={lock}
         />
         <AffirmationCard
           index={affirmationIndex}
@@ -206,7 +208,7 @@ export default function HomeScreen() {
           }
         }} />
         <RecentTransactions
-          transactions={transactions}
+          transactions={transactions.filter((tx) => tx.type === 'expense' || tx.type === 'income' || tx.type === 'transfer')}
           onSeeAll={() => router.push('/calendar')}
           onTransactionPress={(id) => console.log('Transaction pressed:', id)}
         />

@@ -4,10 +4,19 @@ import type { LearnProject, LearnEntry } from '../types';
 import type { SupabaseError } from '../utils/result';
 
 export function useLearn() {
-  const [projects] = useState<LearnProject[]>([]);
+  const [projects, setProjects] = useState<LearnProject[]>([]);
   const [entries, setEntries] = useState<LearnEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<SupabaseError | null>(null);
+
+  const fetchProjects = useCallback(async (userId: string) => {
+    setLoading(true);
+    setError(null);
+    const result = await learnRepository.fetchProjects(userId);
+    if (result.ok) setProjects(result.data);
+    else setError(result.error);
+    setLoading(false);
+  }, []);
 
   const createProject = useCallback(async (userId: string, name: string) => {
     setLoading(true);
@@ -36,5 +45,5 @@ export function useLearn() {
     return result;
   }, [fetchEntries]);
 
-  return { projects, entries, loading, error, createProject, fetchEntries, createEntry };
+  return { projects, entries, loading, error, createProject, fetchProjects, fetchEntries, createEntry };
 }

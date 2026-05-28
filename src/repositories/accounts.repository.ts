@@ -167,6 +167,15 @@ export const accountsRepository = {
     return { ok: true, data: undefined };
   },
 
+  async softDeleteAllAccounts(): Promise<Result<void, SupabaseError>> {
+    const { error } = await supabase
+      .from('accounts')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('is_active', true);
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: undefined };
+  },
+
   async updateBankBalance(accountId: string, newBalance: number): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase
       .from('bank_accounts')

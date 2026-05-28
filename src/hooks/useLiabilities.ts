@@ -27,5 +27,25 @@ export function useLiabilities() {
     return result;
   }, [fetchLiabilities]);
 
-  return { liabilities, loading, error, fetchLiabilities, createLiability };
+  const updateLiability = useCallback(async (id: string, patch: Partial<Liability>) => {
+    setLoading(true);
+    setError(null);
+    const result = await liabilitiesRepository.update(id, patch);
+    if (result.ok) await fetchLiabilities();
+    else setError(result.error);
+    setLoading(false);
+    return result;
+  }, [fetchLiabilities]);
+
+  const deleteLiability = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    const result = await liabilitiesRepository.softDelete(id);
+    if (result.ok) await fetchLiabilities();
+    else setError(result.error);
+    setLoading(false);
+    return result;
+  }, [fetchLiabilities]);
+
+  return { liabilities, loading, error, fetchLiabilities, createLiability, updateLiability, deleteLiability };
 }
