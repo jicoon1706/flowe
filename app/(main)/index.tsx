@@ -129,7 +129,8 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     fetchAccounts();
-  }, [fetchAccounts]));
+    fetchTransactions();
+  }, [fetchAccounts, fetchTransactions]));
 
   if (accountsLoading || cfLoading) return <LoadingView />;
   if (accountsError) return <ErrorView error={accountsError} onRetry={fetchAccounts} />;
@@ -211,6 +212,7 @@ export default function HomeScreen() {
           transactions={transactions.filter((tx) => tx.type === 'expense' || tx.type === 'income' || tx.type === 'transfer')}
           onSeeAll={() => router.push('/calendar')}
           onTransactionPress={(id) => console.log('Transaction pressed:', id)}
+          onTransactionDeleted={() => { fetchTransactions(); fetchAccounts(); }}
         />
       </ScrollView>
     </SafeAreaView>

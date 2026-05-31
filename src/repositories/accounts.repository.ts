@@ -196,19 +196,30 @@ export const accountsRepository = {
 
   async updateTabungGoal(
     accountId: string,
-    patch: { name?: string; target_amount?: number },
+    patch: { name?: string; target_amount?: number; icon?: string; color?: string },
   ): Promise<Result<void, SupabaseError>> {
-    if (patch.name !== undefined) {
+    // Update the parent `accounts` row (name/icon/color render from here).
+    const accountPatch: Record<string, unknown> = {};
+    if (patch.name !== undefined) accountPatch.name = patch.name;
+    if (patch.icon !== undefined) accountPatch.icon = patch.icon;
+    if (patch.color !== undefined) accountPatch.color = patch.color;
+    if (Object.keys(accountPatch).length > 0) {
       const { error } = await supabase
         .from('accounts')
-        .update({ name: patch.name, updated_at: new Date().toISOString() })
+        .update({ ...accountPatch, updated_at: new Date().toISOString() })
         .eq('id', accountId);
       if (error) return { ok: false, error: fromSupabaseError(error) };
     }
-    if (patch.target_amount !== undefined) {
+
+    // Keep the `tabung_accounts` row in sync (icon/color stored in both on create).
+    const tabungPatch: Record<string, unknown> = {};
+    if (patch.target_amount !== undefined) tabungPatch.target_amount = patch.target_amount;
+    if (patch.icon !== undefined) tabungPatch.icon = patch.icon;
+    if (patch.color !== undefined) tabungPatch.color = patch.color;
+    if (Object.keys(tabungPatch).length > 0) {
       const { error } = await supabase
         .from('tabung_accounts')
-        .update({ target_amount: patch.target_amount })
+        .update(tabungPatch)
         .eq('account_id', accountId);
       if (error) return { ok: false, error: fromSupabaseError(error) };
     }

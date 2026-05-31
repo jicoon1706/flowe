@@ -1,12 +1,14 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Pencil, RefreshCw, Receipt } from '../../../../components/ui/icons';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Copy, Pencil, RefreshCw, Receipt, X, AlertCircle } from '../../../../components/ui/icons';
 import { useAccounts } from '../../../../src/hooks/useAccounts';
 import { useTransactions } from '../../../../src/hooks/useTransactions';
+import { accountsRepository } from '../../../../src/repositories/accounts.repository';
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
+import { TransactionDetail, TransactionData } from '../../../../components/home/TransactionDetail';
 
 function getCategoryEmoji(category: string): string {
   const map: Record<string, string> = {
@@ -24,11 +26,19 @@ export default function AccountDetailScreen() {
 
   const { accounts, loading, error, fetchAccounts } = useAccounts();
   const now = new Date();
-  const { transactions, loading: txLoading, error: txError } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { transactions, loading: txLoading, error: txError, refetch: refetchTransactions } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(useCallback(() => {
     fetchAccounts();
-  }, [fetchAccounts]));
+    refetchTransactions();
+  }, [fetchAccounts, refetchTransactions]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchAccounts(), refetchTransactions()]);
+    setRefreshing(false);
+  }, [fetchAccounts, refetchTransactions]);
 
   const accountId = typeof id === 'string' ? id : '';
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0];
@@ -48,6 +58,81 @@ export default function AccountDetailScreen() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const [showEdit, setShowEdit] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editBalance, setEditBalance] = useState('');
+  const [editError, setEditError] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const [selectedTx, setSelectedTx] = useState<TransactionData | null>(null);
+  const [detailVisible, setDetailVisible] = useState(false);
+
+  const handleTxPress = (tx: (typeof accountTransactions)[number]) => {
+    const data: TransactionData = {
+      id: tx.id,
+      name: tx.name,
+      category: tx.category ?? 'Other',
+      categoryIcon: getCategoryEmoji(tx.category ?? 'Other'),
+      amount: `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}RM ${Math.abs(tx.amount).toFixed(2)}`,
+      type: tx.type as 'expense' | 'income' | 'transfer',
+      date: new Date(tx.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+      recurring: tx.is_recurring,
+      recurringFreq: (tx as any).recurring?.frequency,
+      startDate: (tx as any).recurring?.start_date,
+      endDate: (tx as any).recurring?.end_date,
+      reminder: (tx as any).recurring?.reminder_enabled ? 'Enabled' : undefined,
+      note: (tx as any).note,
+      hasReceipt: !!(tx as any).receipt_url,
+      receiptPath: (tx as any).receipt_url,
+      account: tx.type === 'income' ? (tx as any).to_account?.name : (tx as any).from_account?.name,
+      toAccount: (tx as any).to_account?.name,
+    };
+    setSelectedTx(data);
+    setDetailVisible(true);
+  };
+
+  const handleOpenEdit = () => {
+    setEditName(account?.name ?? '');
+    setEditBalance(balance.toString());
+    setEditError('');
+    setShowEdit(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!account) return;
+    const trimmedName = editName.trim();
+    const balanceNum = parseFloat(editBalance.replace(/,/g, ''));
+    if (!trimmedName) {
+      setEditError('Name is required');
+      return;
+    }
+    if (Number.isNaN(balanceNum)) {
+      setEditError('Enter a valid balance');
+      return;
+    }
+    setActionLoading(true);
+    const accountResult = await accountsRepository.updateAccount(account.id, {
+      name: trimmedName,
+    });
+    if (!accountResult.ok) {
+      setActionLoading(false);
+      setEditError(accountResult.error.message ?? 'Failed to update account');
+      return;
+    }
+    if (balanceNum !== balance) {
+      const balanceResult = await accountsRepository.updateBankBalance(account.id, balanceNum);
+      if (!balanceResult.ok) {
+        setActionLoading(false);
+        setEditError(balanceResult.error.message ?? 'Failed to update balance');
+        return;
+      }
+    }
+    setActionLoading(false);
+    await fetchAccounts();
+    setEditError('');
+    setShowEdit(false);
+  };
+
   if (loading || txLoading) return <LoadingView />;
   if (error || txError) return <ErrorView error={error ?? txError!} onRetry={fetchAccounts} />;
   if (!account) return null;
@@ -60,12 +145,17 @@ export default function AccountDetailScreen() {
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
         <Text className="flex-1 text-lg font-semibold text-foreground">{account.name}</Text>
-        <Pressable>
+        <Pressable onPress={handleOpenEdit} className="p-2">
           <Pencil size={22} color="#fff" />
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5FF00" colors={['#C5FF00']} />
+        }
+      >
         {/* Balance Card */}
         <View className="mx-4 mt-4 bg-card rounded-2xl overflow-hidden border border-border">
           <View style={{ backgroundColor: bankColor }} className="h-1" />
@@ -138,6 +228,7 @@ export default function AccountDetailScreen() {
                 return (
                   <Pressable
                     key={tx.id}
+                    onPress={() => handleTxPress(tx)}
                     className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
                   >
                     <View className="flex-row items-center gap-3">
@@ -148,7 +239,7 @@ export default function AccountDetailScreen() {
                         <View className="flex-row items-center gap-1.5">
                           <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
                           {tx.is_recurring && <RefreshCw size={10} color="#a0a0a0" />}
-                          {tx.type === 'expense' && <Receipt size={10} color="#a0a0a0" />}
+                          {!!(tx as any).receipt_url && <Receipt size={10} color="#a0a0a0" />}
                         </View>
                         <Text className="text-xs text-muted-foreground">{formattedDate}</Text>
                       </View>
@@ -170,6 +261,66 @@ export default function AccountDetailScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Edit Account Modal */}
+      <Modal visible={showEdit} transparent animationType="slide">
+        <View className="flex-1 justify-end bg-black/70">
+          <View className="bg-card rounded-t-3xl p-6 pb-10" onStartShouldSetResponder={() => true}>
+            <View className="flex-row items-center justify-between mb-5">
+              <Text className="text-lg font-bold text-foreground">Edit Account</Text>
+              <Pressable onPress={() => setShowEdit(false)}>
+                <X size={24} color="#888" />
+              </Pressable>
+            </View>
+
+            <View className="mb-4">
+              <Text className="text-xs text-muted-foreground mb-1">Account Name</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                placeholder="Account name"
+                placeholderTextColor="#888"
+                value={editName}
+                onChangeText={setEditName}
+              />
+            </View>
+
+            <View className="mb-4">
+              <Text className="text-xs text-muted-foreground mb-1">Balance (RM)</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                placeholder="0.00"
+                placeholderTextColor="#888"
+                keyboardType="numeric"
+                value={editBalance}
+                onChangeText={(text) => setEditBalance(text.replace(/[^0-9.]/g, ''))}
+              />
+            </View>
+
+            {editError ? (
+              <View className="flex-row items-center gap-1.5 mb-3">
+                <AlertCircle size={14} color="#EF4444" />
+                <Text className="text-xs text-red-400">{editError}</Text>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={handleSaveEdit}
+              disabled={actionLoading}
+              className="bg-primary rounded-2xl py-4 items-center"
+            >
+              <Text className="text-sm font-bold text-black">{actionLoading ? 'Saving...' : 'Save Changes'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Transaction Detail */}
+      <TransactionDetail
+        transaction={selectedTx}
+        visible={detailVisible}
+        onClose={() => setDetailVisible(false)}
+        onDeleted={() => { setDetailVisible(false); refetchTransactions(); fetchAccounts(); }}
+      />
     </SafeAreaView>
   );
 }

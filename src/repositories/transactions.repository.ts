@@ -17,10 +17,88 @@ export interface CreateTransactionRequest {
   recurring_id?: string;
 }
 
+/**
+ * Adjusts an account's stored balance by `delta`, writing to whichever
+ * balance table matches the account's type:
+ *   - bank   → bank_accounts.current_balance
+ *   - wallet → wallet_accounts.current_balance
+ *   - tabung → tabung_accounts.saved_amount
+ */
+async function adjustAccountBalance(accountId: string, delta: number) {
+  const { data: account } = await supabase
+    .from('accounts')
+    .select('type')
+    .eq('id', accountId)
+    .single();
+  if (!account) return;
+
+  if (account.type === 'bank') {
+    const { data: bank } = await supabase
+      .from('bank_accounts')
+      .select('current_balance')
+      .eq('account_id', accountId)
+      .single();
+    if (bank) {
+      await supabase
+        .from('bank_accounts')
+        .update({ current_balance: Number(bank.current_balance) + delta })
+        .eq('account_id', accountId);
+    }
+  } else if (account.type === 'wallet') {
+    const { data: wallet } = await supabase
+      .from('wallet_accounts')
+      .select('current_balance')
+      .eq('account_id', accountId)
+      .single();
+    if (wallet) {
+      await supabase
+        .from('wallet_accounts')
+        .update({ current_balance: Number(wallet.current_balance) + delta })
+        .eq('account_id', accountId);
+    }
+  } else if (account.type === 'tabung') {
+    const { data: tabung } = await supabase
+      .from('tabung_accounts')
+      .select('saved_amount')
+      .eq('account_id', accountId)
+      .single();
+    if (tabung) {
+      await supabase
+        .from('tabung_accounts')
+        .update({ saved_amount: Number(tabung.saved_amount) + delta })
+        .eq('account_id', accountId);
+    }
+  }
+}
+
+/**
+ * Applies (or, with sign = -1, reverses) the balance impact of a transaction.
+ * sign = 1 mirrors the effect of creating the transaction; sign = -1 undoes it.
+ */
+async function applyBalanceEffect(
+  tx: Pick<Transaction, 'type' | 'amount' | 'from_account_id' | 'to_account_id'>,
+  sign: 1 | -1,
+) {
+  const amount = Number(tx.amount) * sign;
+  if (tx.type === 'expense' && tx.from_account_id) {
+    await adjustAccountBalance(tx.from_account_id, -amount);
+  } else if (tx.type === 'income' && tx.to_account_id) {
+    await adjustAccountBalance(tx.to_account_id, amount);
+  } else if (tx.type === 'transfer' && tx.from_account_id && tx.to_account_id) {
+    await adjustAccountBalance(tx.from_account_id, -amount);
+    await adjustAccountBalance(tx.to_account_id, amount);
+  } else if (tx.type === 'tabung_topup' && tx.to_account_id) {
+    await adjustAccountBalance(tx.to_account_id, amount);
+  } else if (tx.type === 'tabung_withdraw' && tx.to_account_id) {
+    await adjustAccountBalance(tx.to_account_id, -amount);
+  }
+}
+
 export const transactionsRepository = {
   async fetchByMonth(year: number, month: number): Promise<Result<Transaction[], SupabaseError>> {
     const start = `${year}-${String(month).padStart(2, '0')}-01`;
-    const end = new Date(year, month, 0).toISOString().split('T')[0];
+    const lastDay = new Date(year, month, 0).getDate();
+    const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     const { data, error } = await supabase
       .from('transactions')
       .select(`
@@ -30,7 +108,8 @@ export const transactionsRepository = {
       `)
       .gte('date', start)
       .lte('date', end)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
     if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: data as Transaction[] };
   },
@@ -85,52 +164,15 @@ export const transactionsRepository = {
       .single();
     if (txError) return { ok: false, error: fromSupabaseError(txError) };
 
-    const adjustBankBalance = async (accountId: string, delta: number) => {
-      const { data: bank } = await supabase
-        .from('bank_accounts')
-        .select('current_balance')
-        .eq('account_id', accountId)
-        .single();
-      if (bank) {
-        await supabase
-          .from('bank_accounts')
-          .update({ current_balance: Number(bank.current_balance) + delta })
-          .eq('account_id', accountId);
-      }
-    };
-
-    if (req.type === 'expense' && req.from_account_id) {
-      await adjustBankBalance(req.from_account_id, -req.amount);
-    } else if (req.type === 'income' && req.to_account_id) {
-      await adjustBankBalance(req.to_account_id, req.amount);
-    } else if (req.type === 'transfer' && req.from_account_id && req.to_account_id) {
-      await adjustBankBalance(req.from_account_id, -req.amount);
-      await adjustBankBalance(req.to_account_id, req.amount);
-    } else if (req.type === 'tabung_topup' && req.to_account_id) {
-      const { data: tabung } = await supabase
-        .from('tabung_accounts')
-        .select('saved_amount')
-        .eq('account_id', req.to_account_id)
-        .single();
-      if (tabung) {
-        await supabase
-          .from('tabung_accounts')
-          .update({ saved_amount: Number(tabung.saved_amount) + req.amount })
-          .eq('account_id', req.to_account_id);
-      }
-    } else if (req.type === 'tabung_withdraw' && req.to_account_id) {
-      const { data: tabung } = await supabase
-        .from('tabung_accounts')
-        .select('saved_amount')
-        .eq('account_id', req.to_account_id)
-        .single();
-      if (tabung) {
-        await supabase
-          .from('tabung_accounts')
-          .update({ saved_amount: Number(tabung.saved_amount) - req.amount })
-          .eq('account_id', req.to_account_id);
-      }
-    }
+    await applyBalanceEffect(
+      {
+        type: req.type,
+        amount: req.amount,
+        from_account_id: req.from_account_id ?? null,
+        to_account_id: req.to_account_id ?? null,
+      },
+      1,
+    );
 
     return { ok: true, data: tx as Transaction };
   },
@@ -147,8 +189,19 @@ export const transactionsRepository = {
   },
 
   async delete(id: string): Promise<Result<void, SupabaseError>> {
+    // Load the transaction first so we can reverse its balance impact.
+    const { data: tx, error: fetchError } = await supabase
+      .from('transactions')
+      .select('type, amount, from_account_id, to_account_id')
+      .eq('id', id)
+      .single();
+    if (fetchError) return { ok: false, error: fromSupabaseError(fetchError) };
+
     const { error } = await supabase.from('transactions').delete().eq('id', id);
     if (error) return { ok: false, error: fromSupabaseError(error) };
+
+    await applyBalanceEffect(tx as Pick<Transaction, 'type' | 'amount' | 'from_account_id' | 'to_account_id'>, -1);
+
     return { ok: true, data: undefined };
   },
 };

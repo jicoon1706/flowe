@@ -1,5 +1,3 @@
-import type { TabungIcon } from '../../constants/banks';
-
 export type DraftBank = {
   kind: 'bank';
   bankId: string;
@@ -11,7 +9,8 @@ export type DraftBank = {
 export type DraftTabung = {
   kind: 'tabung';
   name: string;
-  icon: TabungIcon;
+  /** Emoji character (e.g. "🐷"), persisted directly to the DB. */
+  icon: string;
   target: number;
   fromDate: string;
   toDate: string;

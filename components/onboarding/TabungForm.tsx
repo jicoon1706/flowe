@@ -49,7 +49,7 @@ export function TabungForm({ onAdd, linkedBankIds = [] }: TabungFormProps) {
     onAdd({
       kind: 'tabung',
       name: name.trim(),
-      icon,
+      icon: ICON_EMOJI[icon],
       target: parseFloat(target),
       fromDate: fromDate.toISOString().split('T')[0],
       toDate: toDate.toISOString().split('T')[0],

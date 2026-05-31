@@ -18,6 +18,7 @@ import { useAccounts } from '../../src/hooks/useAccounts';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
 import { useAuth } from '../../context/AuthContext';
+import { useLock } from '../../context/LockContext';
 import { accountColor } from '../../src/utils/accountColor';
 import { storageService } from '../../src/services/storage';
 import { transactionsRepository } from '../../src/repositories/transactions.repository';
@@ -81,6 +82,7 @@ export default function AddTransactionScreen() {
   const [receiptImage, setReceiptImage] = useState<{ uri: string; base64: string } | null>(null);
 
   const { user } = useAuth();
+  const { suspend: suspendLock } = useLock();
   const now = new Date();
   const { accounts, loading: acctsLoading, error: acctsError, fetchAccounts } = useAccounts();
   const { loading: txLoading, error: txError, create } = useTransactions(now.getFullYear(), now.getMonth() + 1);
@@ -88,10 +90,32 @@ export default function AddTransactionScreen() {
 
   const categories = type === 'expense' ? expenseCategories : incomeCategories;
 
+  // Income/expense source/destination: banks + wallets only.
   const bankAccountOptions = accounts
-    .filter((a: any) => a.type === 'bank')
+    .filter((a: any) => a.type === 'bank' || a.type === 'wallet')
     .map((a: any) => {
-      const bal = Number(a.bank_accounts?.current_balance ?? 0);
+      const bal = Number(
+        a.type === 'bank'
+          ? a.bank_accounts?.current_balance ?? 0
+          : a.wallet_accounts?.current_balance ?? 0
+      );
+      return {
+        id: a.id,
+        name: a.name,
+        balance: bal.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        color: accountColor(a),
+      };
+    });
+
+  // Transfer source/destination: banks + tabung (savings goals).
+  const transferAccountOptions = accounts
+    .filter((a: any) => a.type === 'bank' || a.type === 'tabung')
+    .map((a: any) => {
+      const bal = Number(
+        a.type === 'bank'
+          ? a.bank_accounts?.current_balance ?? 0
+          : a.tabung_accounts?.saved_amount ?? 0
+      );
       return {
         id: a.id,
         name: a.name,
@@ -132,6 +156,10 @@ export default function AddTransactionScreen() {
       Alert.alert('Permission needed', `Please allow ${source === 'camera' ? 'camera' : 'photo'} access to add a receipt.`);
       return;
     }
+
+    // Opening the picker/camera backgrounds the app; tell the lock to skip the
+    // re-lock so the user isn't asked for PIN/biometric on return.
+    suspendLock();
 
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true })
@@ -189,6 +217,27 @@ export default function AddTransactionScreen() {
     if (type === 'transfer' && !toAccount) {
       Alert.alert('Missing account', 'Please select a destination account.');
       return;
+    }
+
+    // Balance check for expense and transfer (money leaving the source account).
+    if (type === 'expense' || type === 'transfer') {
+      const src = accounts.find((a: any) => a.id === account);
+      const srcBalance = Number(
+        src?.type === 'bank'
+          ? src?.bank_accounts?.current_balance ?? 0
+          : src?.type === 'wallet'
+          ? src?.wallet_accounts?.current_balance ?? 0
+          : src?.type === 'tabung'
+          ? src?.tabung_accounts?.saved_amount ?? 0
+          : 0
+      );
+      if (parseFloat(amount) > srcBalance) {
+        Alert.alert(
+          'Not enough balance',
+          `${src?.name ?? 'This account'} has only RM ${srcBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} available.`
+        );
+        return;
+      }
     }
 
     const fromId =
@@ -307,11 +356,11 @@ export default function AddTransactionScreen() {
             value={account}
             onChange={setAccount}
             label={type === 'transfer' ? 'From' : type === 'expense' ? 'From Account' : 'To Account'}
-            accounts={bankAccountOptions}
+            accounts={type === 'transfer' ? transferAccountOptions : bankAccountOptions}
           />
 
           {type === 'transfer' && (
-            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" accounts={bankAccountOptions} />
+            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" accounts={transferAccountOptions} />
           )}
 
           {/* Date */}

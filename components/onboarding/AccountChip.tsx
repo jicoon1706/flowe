@@ -35,5 +35,5 @@ function describe(d: DraftAccount) {
   if (d.kind === 'wallet') {
     return { emoji: '🍎', title: d.name, subtitle: `RM ${d.openingBalance.toFixed(2)}`, badge: 'Wallet' };
   }
-  return { emoji: '✈️', title: d.name, subtitle: `Target RM ${d.target.toFixed(2)}`, badge: 'Tabung' };
+  return { emoji: d.icon || '✈️', title: d.name, subtitle: `Target RM ${d.target.toFixed(2)}`, badge: 'Tabung' };
 }

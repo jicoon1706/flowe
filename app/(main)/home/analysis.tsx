@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Sparkle, TrendingUp, TrendingDown } from '..
 import { useAnalysis } from '../../../src/hooks/useAnalysis';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
+import { DonutChart } from '../../../components/ui/DonutChart';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -35,9 +36,9 @@ export default function AnalysisScreen() {
   const goNextMonth = () =>
     setSelectedDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
 
-  const { analysis, loading, error } = useAnalysis(monthParam);
+  const { analysis, loading, error, refetch } = useAnalysis(monthParam);
 
-  useFocusEffect(useCallback(() => {}, []));
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
   if (loading) return <LoadingView />;
   if (error) return <ErrorView error={error} onRetry={() => {}} />;
@@ -79,8 +80,10 @@ export default function AnalysisScreen() {
 
   const selectedMonthTrend = monthlyTrend[currentMonth - 1] ?? monthlyTrend[monthlyTrend.length - 1];
   const prevMonthTrend = currentMonth > 1 ? monthlyTrend[currentMonth - 2] : null;
+  const netOf = (m?: { income: number; expenses: number } | null) =>
+    m ? m.income - m.expenses : 0;
   const isPositiveTrend = prevMonthTrend
-    ? selectedMonthTrend.net_savings >= prevMonthTrend.net_savings
+    ? netOf(selectedMonthTrend) >= netOf(prevMonthTrend)
     : true;
 
   return (
@@ -264,61 +267,20 @@ export default function AnalysisScreen() {
           {/* Category Donut Chart */}
           <View className="flex-row items-center mb-4">
             {/* Donut Chart */}
-            <View className="w-36 h-36 relative items-center justify-center">
-              {toggleMode === 'expense' ? (
-                <>
-                  <View className="absolute w-28 h-28 rounded-full border-8 border-background" />
-                  {expenseCategories.filter(c => c.amount > 0).map((cat, idx) => {
-                    const rotation = idx * 45 - 90;
-                    return (
-                      <View
-                        key={cat.name}
-                        className="absolute w-28 h-28 rounded-full border-8 border-transparent"
-                        style={{
-                          borderTopColor: cat.color,
-                          borderRightColor: cat.percentage > 25 ? cat.color : 'transparent',
-                          borderBottomColor: cat.percentage > 50 ? cat.color : 'transparent',
-                          borderLeftColor: cat.percentage > 75 ? cat.color : 'transparent',
-                          transform: [{ rotate: `${rotation}deg` }],
-                        }}
-                      />
-                    );
-                  })}
-                  <View className="items-center">
-                    <Text className="text-xs text-muted-foreground">Total</Text>
-                    <Text className="text-base font-bold text-foreground">
-                      RM {expensesTotal.toLocaleString('en-US')}
-                    </Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View className="absolute w-28 h-28 rounded-full border-8 border-background" />
-                  {incomeCategories.filter(c => c.amount > 0).map((cat, idx) => {
-                    const rotation = idx * 45 - 90;
-                    return (
-                      <View
-                        key={cat.name}
-                        className="absolute w-28 h-28 rounded-full border-8 border-transparent"
-                        style={{
-                          borderTopColor: cat.color,
-                          borderRightColor: cat.percentage > 25 ? cat.color : 'transparent',
-                          borderBottomColor: cat.percentage > 50 ? cat.color : 'transparent',
-                          borderLeftColor: cat.percentage > 75 ? cat.color : 'transparent',
-                          transform: [{ rotate: `${rotation}deg` }],
-                        }}
-                      />
-                    );
-                  })}
-                  <View className="items-center">
-                    <Text className="text-xs text-muted-foreground">Total</Text>
-                    <Text className="text-base font-bold text-foreground">
-                      RM {incomeTotal.toLocaleString('en-US')}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
+            <DonutChart
+              size={144}
+              strokeWidth={18}
+              segments={(toggleMode === 'expense' ? expenseCategories : incomeCategories)
+                .filter((c) => c.amount > 0)
+                .map((c) => ({ value: c.amount, color: c.color }))}
+            >
+              <View className="items-center">
+                <Text className="text-xs text-muted-foreground">Total</Text>
+                <Text className="text-base font-bold text-foreground">
+                  RM {(toggleMode === 'expense' ? expensesTotal : incomeTotal).toLocaleString('en-US')}
+                </Text>
+              </View>
+            </DonutChart>
             {/* Legend */}
             <View className="flex-1 ml-4 gap-1">
               {(toggleMode === 'expense' ? expenseCategories : incomeCategories).slice(0, 4).map((cat) => (

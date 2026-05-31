@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { AlertCircle, Check, ChevronLeft, Minus, Pencil, Plus, X } from 'lucide-react-native';
@@ -11,6 +11,9 @@ import type { Transaction } from '../../../../src/types';
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
 import { useAuth } from '../../../../context/AuthContext';
+
+const EDIT_ICONS = ['🐷', '💰', '🏠', '🎁', '🚗', '🚀', '🌴', '🏢', '🚂', '🎯', '💎', '⭐'];
+const EDIT_COLORS = ['#6bcf7f', '#ffd93d', '#00d4ff', '#C5FF00', '#f472b6', '#a78bfa', '#34d399', '#fb923c'];
 
 export default function TabungDetailScreen() {
   const router = useRouter();
@@ -33,6 +36,13 @@ export default function TabungDetailScreen() {
     fetchTransactions();
   }, [fetchAccounts, fetchTransactions]));
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchAccounts(), fetchTransactions()]);
+    setRefreshing(false);
+  }, [fetchAccounts, fetchTransactions]);
+
   const [showTopUp, setShowTopUp] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -45,6 +55,8 @@ export default function TabungDetailScreen() {
   const [withdrawError, setWithdrawError] = useState('');
   const [editName, setEditName] = useState('');
   const [editTarget, setEditTarget] = useState('');
+  const [editIcon, setEditIcon] = useState('🎉');
+  const [editColor, setEditColor] = useState('#6bcf7f');
   const [actionLoading, setActionLoading] = useState(false);
 
   const account = accounts.find((a) => a.id === tabungId) ?? accounts[0];
@@ -151,6 +163,8 @@ export default function TabungDetailScreen() {
     const result = await accountsRepository.updateTabungGoal(account.id, {
       name: trimmedName,
       target_amount: targetNum,
+      icon: editIcon,
+      color: editColor,
     });
     setActionLoading(false);
     if (result.ok) {
@@ -165,6 +179,8 @@ export default function TabungDetailScreen() {
   const handleOpenEdit = () => {
     setEditName(account?.name ?? '');
     setEditTarget(targetNum.toString());
+    setEditIcon(account?.icon ?? '🎉');
+    setEditColor(account?.color ?? '#6bcf7f');
     setEditError('');
     setShowEdit(true);
   };
@@ -188,7 +204,12 @@ export default function TabungDetailScreen() {
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5FF00" colors={['#C5FF00']} />
+        }
+      >
         {/* Circular Progress (View-based) */}
         <View className="items-center py-6 mx-4 bg-card border border-border rounded-3xl mb-4">
           <View
@@ -208,7 +229,7 @@ export default function TabungDetailScreen() {
                 cx={size / 2}
                 cy={size / 2}
                 r={radius}
-                stroke="#C5FF00"
+                stroke={tabungColor}
                 strokeWidth={strokeWidth}
                 fill="none"
                 strokeLinecap="round"
@@ -505,7 +526,7 @@ export default function TabungDetailScreen() {
               />
             </View>
 
-            <View className="mb-5">
+            <View className="mb-4">
               <Text className="text-xs text-muted-foreground mb-1">Target Amount (RM)</Text>
               <TextInput
                 className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
@@ -515,6 +536,43 @@ export default function TabungDetailScreen() {
                 value={editTarget}
                 onChangeText={(text) => setEditTarget(text.replace(/[^0-9.]/g, ''))}
               />
+            </View>
+
+            {/* Icon Picker */}
+            <View className="mb-4">
+              <Text className="text-xs text-muted-foreground mb-2">Icon</Text>
+              <View className="flex-row flex-wrap">
+                {EDIT_ICONS.map((ic) => (
+                  <Pressable
+                    key={ic}
+                    onPress={() => setEditIcon(ic)}
+                    className={`w-11 h-11 rounded-xl items-center justify-center m-1 ${
+                      editIcon === ic ? 'bg-primary/20 border-2 border-primary' : 'bg-background border border-border'
+                    }`}
+                  >
+                    <Text className="text-xl">{ic}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Color Picker */}
+            <View className="mb-5">
+              <Text className="text-xs text-muted-foreground mb-2">Color</Text>
+              <View className="flex-row flex-wrap">
+                {EDIT_COLORS.map((c) => (
+                  <Pressable
+                    key={c}
+                    onPress={() => setEditColor(c)}
+                    className="w-9 h-9 rounded-full m-1"
+                    style={{
+                      backgroundColor: c,
+                      borderWidth: editColor === c ? 3 : 0,
+                      borderColor: '#fff',
+                    }}
+                  />
+                ))}
+              </View>
             </View>
 
             {editError ? (

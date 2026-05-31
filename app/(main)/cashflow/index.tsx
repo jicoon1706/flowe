@@ -67,7 +67,8 @@ export default function CashFlowScreen() {
   useFocusEffect(useCallback(() => {
     fetchAssets();
     fetchLiabilities();
-  }, [fetchAssets, fetchLiabilities]));
+    refetchTxns();
+  }, [fetchAssets, fetchLiabilities, refetchTxns]));
 
   // ─── Loading / error guards ────────────────────────────────────────────────
   if (loading) return <LoadingView />;

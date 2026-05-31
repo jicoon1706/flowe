@@ -12,6 +12,7 @@ interface RecentTransactionsProps {
   transactions?: Transaction[];
   onSeeAll: () => void;
   onTransactionPress?: (id: string) => void;
+  onTransactionDeleted?: (id: string) => void;
 }
 
 function formatTxDate(dateStr: string): string {
@@ -27,7 +28,7 @@ function formatTxDate(dateStr: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function RecentTransactions({ transactions, onSeeAll, onTransactionPress }: RecentTransactionsProps) {
+export function RecentTransactions({ transactions, onSeeAll, onTransactionPress, onTransactionDeleted }: RecentTransactionsProps) {
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionData | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -111,6 +112,10 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress 
         transaction={selectedTransaction}
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
+        onDeleted={(id) => {
+          setModalVisible(false);
+          onTransactionDeleted?.(id);
+        }}
       />
     </>
   );

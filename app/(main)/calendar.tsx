@@ -134,7 +134,10 @@ export default function CalendarScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <ScreenHeader title="Calendar" />
-      <ScrollView className="pb-36" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 140 }}
+      >
         {/* Month Navigator */}
         <View className="flex-row items-center justify-between px-4 py-3">
           <Pressable onPress={() => navigateMonth(-1)} className="p-2">
@@ -258,7 +261,7 @@ export default function CalendarScreen() {
         </View>
 
         {/* Day Transactions */}
-        <View className="px-4 mb-6">
+        <View className="px-4 mb-6 pb-8">
           <Text className="text-sm font-semibold text-foreground mb-3">{selectedDayLabel}</Text>
           {dayTransactions.length === 0 ? (
             <Text className="text-sm text-muted-foreground text-center py-4">
@@ -309,6 +312,7 @@ export default function CalendarScreen() {
         transaction={selectedTransaction}
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
+        onDeleted={() => { setModalVisible(false); refetch(); }}
       />
     </SafeAreaView>
   );
