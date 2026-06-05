@@ -6,9 +6,10 @@ import { accountColor } from '../../src/utils/accountColor';
 interface AccountCardsProps {
   accounts: Account[];
   onAccountPress: (id: string, type: 'bank' | 'tabung' | 'wallet') => void;
+  visible?: boolean;
 }
 
-export function AccountCards({ accounts, onAccountPress }: AccountCardsProps) {
+export function AccountCards({ accounts, onAccountPress, visible = true }: AccountCardsProps) {
   return (
     <View className="mb-5">
       <View className="flex-row items-center justify-between px-4 mb-3">
@@ -51,7 +52,11 @@ export function AccountCards({ accounts, onAccountPress }: AccountCardsProps) {
             <Text className="text-sm font-medium text-foreground mb-1">{name}</Text>
             {account.type === 'tabung' ? (
               <View>
-                <Text className="text-xs text-muted-foreground">RM {saved.toLocaleString('en-US', { minimumFractionDigits: 2 })} / {target.toLocaleString('en-US', { minimumFractionDigits: 2 })}</Text>
+                <Text className="text-xs text-muted-foreground">
+                  {visible
+                    ? `RM ${saved.toLocaleString('en-US', { minimumFractionDigits: 2 })} / ${target.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                    : 'RM •••• / ••••'}
+                </Text>
                 <View className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                   <View
                     className="h-full rounded-full"
@@ -63,7 +68,9 @@ export function AccountCards({ accounts, onAccountPress }: AccountCardsProps) {
                 </View>
               </View>
             ) : (
-              <Text className="text-base font-semibold text-foreground">RM {balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</Text>
+              <Text className="text-base font-semibold text-foreground">
+                {visible ? `RM ${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : 'RM ••••••'}
+              </Text>
             )}
           </Pressable>
         );

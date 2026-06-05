@@ -191,7 +191,7 @@ export default function HomeScreen() {
           visible={balanceVisible}
           onToggle={() => setBalanceVisible(!balanceVisible)}
         />
-        <AccountCards accounts={accounts} onAccountPress={(id, type) => {
+        <AccountCards accounts={accounts} visible={balanceVisible} onAccountPress={(id, type) => {
           if (type === 'tabung') {
             router.push(`/home/tabung/${id}`);
           } else if (type === 'wallet') {
