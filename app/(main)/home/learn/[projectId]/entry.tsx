@@ -175,7 +175,8 @@ export default function EntryDetailScreen() {
           {lightboxImage !== null && entryImages[lightboxImage] && (
             <Image
               source={{ uri: imageUrls[entryImages[lightboxImage].storage_path] ?? '' }}
-              className="w-80 h-80 rounded-xl"
+              className="w-full h-full"
+              resizeMode="contain"
             />
           )}
         </Pressable>

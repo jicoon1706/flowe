@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Crypto from 'expo-crypto';
 import { ChevronLeft, X, FilePlus } from '../../../../../components/ui/icons';
 import { useAuth } from '../../../../../context/AuthContext';
+import { useLock } from '../../../../../context/LockContext';
 import { useLearn } from '../../../../../src/hooks/useLearn';
 import { LoadingView } from '../../../../../components/ui/LoadingView';
 import { learnRepository } from '../../../../../src/repositories/learn.repository';
@@ -18,6 +19,7 @@ export default function AddEntryScreen() {
   const { user } = useAuth();
   const { projectId, entryId } = useLocalSearchParams<{ projectId: string; entryId?: string }>();
   const { loading, createEntry } = useLearn();
+  const { suspend: suspendLock } = useLock();
   const [text, setText] = useState('');
   const [images, setImages] = useState<PickedImage[]>([]);
   const [saving, setSaving] = useState(false);
@@ -31,6 +33,10 @@ export default function AddEntryScreen() {
           if (entry) setText(entry.body ?? '');
         }
       });
+    } else {
+      // New entry: start with a clean form so the previous entry doesn't linger
+      setText('');
+      setImages([]);
     }
   }, [entryId, projectId]));
 
@@ -48,6 +54,10 @@ export default function AddEntryScreen() {
       Alert.alert('Permission needed', 'Please allow photo access to add images.');
       return;
     }
+
+    // Opening the picker backgrounds the app; tell the lock to skip the
+    // re-lock so the user isn't asked for PIN/biometric on return.
+    suspendLock();
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
