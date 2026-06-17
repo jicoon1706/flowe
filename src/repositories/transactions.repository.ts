@@ -188,6 +188,57 @@ export const transactionsRepository = {
     return { ok: true, data: data as Transaction };
   },
 
+  /**
+   * Updates a transaction while keeping account balances consistent: the old
+   * transaction's balance impact is reversed before the new values are written,
+   * then the new impact is applied. Use this (not `update`) when amount, type,
+   * or accounts may change.
+   */
+  async updateWithBalance(
+    id: string,
+    req: CreateTransactionRequest,
+  ): Promise<Result<Transaction, SupabaseError>> {
+    // Load the existing row so we can reverse its balance impact first.
+    const { data: old, error: fetchError } = await supabase
+      .from('transactions')
+      .select('type, amount, from_account_id, to_account_id')
+      .eq('id', id)
+      .single();
+    if (fetchError) return { ok: false, error: fromSupabaseError(fetchError) };
+
+    await applyBalanceEffect(old as Pick<Transaction, 'type' | 'amount' | 'from_account_id' | 'to_account_id'>, -1);
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .update({
+        type: req.type,
+        name: req.name,
+        amount: req.amount,
+        category: req.category,
+        from_account_id: req.from_account_id ?? null,
+        to_account_id: req.to_account_id ?? null,
+        date: req.date,
+        note: req.note ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+
+    await applyBalanceEffect(
+      {
+        type: req.type,
+        amount: req.amount,
+        from_account_id: req.from_account_id ?? null,
+        to_account_id: req.to_account_id ?? null,
+      },
+      1,
+    );
+
+    return { ok: true, data: data as Transaction };
+  },
+
   async delete(id: string): Promise<Result<void, SupabaseError>> {
     // Load the transaction first so we can reverse its balance impact.
     const { data: tx, error: fetchError } = await supabase

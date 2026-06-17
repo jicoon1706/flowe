@@ -3,11 +3,13 @@ import { useState, useEffect } from 'react';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { transactionsRepository } from '../../src/repositories/transactions.repository';
 import { storageService } from '../../src/services/storage';
+import { notify } from '../../src/services/notifications';
 
 const X = (props: { size: number; color: string }) => <MaterialIcons name="close" size={props.size} color={props.color} />;
 const RefreshCw = (props: { size: number; color: string }) => <MaterialIcons name="refresh" size={props.size} color={props.color} />;
 const Calendar = (props: { size: number; color: string }) => <MaterialIcons name="event" size={props.size} color={props.color} />;
 const Trash = (props: { size: number; color: string }) => <MaterialIcons name="delete" size={props.size} color={props.color} />;
+const Pencil = (props: { size: number; color: string }) => <MaterialIcons name="edit" size={props.size} color={props.color} />;
 
 export interface TransactionData {
   id: string;
@@ -34,6 +36,7 @@ interface TransactionDetailProps {
   visible: boolean;
   onClose: () => void;
   onDeleted?: (id: string) => void;
+  onEdit?: (id: string) => void;
 }
 
 const typeColors = {
@@ -42,7 +45,7 @@ const typeColors = {
   transfer: { bg: 'bg-[#00d4ff]/10', text: 'text-[#00d4ff]', label: 'Transfer' },
 };
 
-export function TransactionDetail({ transaction, visible, onClose, onDeleted }: TransactionDetailProps) {
+export function TransactionDetail({ transaction, visible, onClose, onDeleted, onEdit }: TransactionDetailProps) {
   const [deleting, setDeleting] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [receiptViewerVisible, setReceiptViewerVisible] = useState(false);
@@ -80,6 +83,14 @@ export function TransactionDetail({ transaction, visible, onClose, onDeleted }: 
               Alert.alert('Delete failed', result.error.message);
               return;
             }
+            const emoji = transaction.type === 'income' ? '💰' : transaction.type === 'transfer' ? '🔄' : '💸';
+            notify({
+              type: transaction.type,
+              emoji,
+              message: `${typeColors[transaction.type].label} deleted`,
+              sub_text: `${transaction.name} • ${transaction.amount}`,
+              related_entity_id: transaction.id,
+            });
             onDeleted?.(transaction.id);
             onClose();
           },
@@ -114,14 +125,23 @@ export function TransactionDetail({ transaction, visible, onClose, onDeleted }: 
                   <Text className="text-xs text-foreground">{transaction.category}</Text>
                 </View>
               </View>
-              <Pressable
-                onPress={handleDelete}
-                disabled={deleting}
-                className="p-2 -mr-2 rounded-full bg-destructive/10 active:opacity-70"
-                accessibilityLabel="Delete transaction"
-              >
-                <Trash size={18} color="#ff4444" />
-              </Pressable>
+              <View className="flex-row items-center gap-2">
+                <Pressable
+                  onPress={() => onEdit?.(transaction.id)}
+                  className="p-2 rounded-full bg-primary/10 active:opacity-70"
+                  accessibilityLabel="Edit transaction"
+                >
+                  <Pencil size={18} color="#C5FF00" />
+                </Pressable>
+                <Pressable
+                  onPress={handleDelete}
+                  disabled={deleting}
+                  className="p-2 -mr-2 rounded-full bg-destructive/10 active:opacity-70"
+                  accessibilityLabel="Delete transaction"
+                >
+                  <Trash size={18} color="#ff4444" />
+                </Pressable>
+              </View>
             </View>
 
             {/* Amount */}

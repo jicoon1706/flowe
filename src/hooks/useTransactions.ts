@@ -32,5 +32,15 @@ export function useTransactions(year: number, month: number) {
     return result;
   }, [fetch]);
 
-  return { transactions, expenses, income, loading, error, refetch: fetch, create };
+  const update = useCallback(async (id: string, req: CreateTransactionRequest) => {
+    setLoading(true);
+    setError(null);
+    const result = await transactionsRepository.updateWithBalance(id, req);
+    if (result.ok) await fetch();
+    else setError(result.error);
+    setLoading(false);
+    return result;
+  }, [fetch]);
+
+  return { transactions, expenses, income, loading, error, refetch: fetch, create, update };
 }

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { recurringRepository, CreateRecurringRuleRequest } from '../repositories/recurring.repository';
 import type { RecurringRule } from '../types';
 import type { SupabaseError } from '../utils/result';
+import { notify, formatRM } from '../services/notifications';
 
 export function useRecurring() {
   const [recurringRules, setRecurringRules] = useState<RecurringRule[]>([]);
@@ -21,8 +22,10 @@ export function useRecurring() {
     setLoading(true);
     setError(null);
     const result = await recurringRepository.create(req);
-    if (result.ok) await fetchRecurring();
-    else setError(result.error);
+    if (result.ok) {
+      notify({ type: 'recurring', emoji: '🔁', message: 'Recurring rule created', sub_text: `${req.name} • ${formatRM(req.amount)} ${req.frequency}`, related_entity_id: result.data.id });
+      await fetchRecurring();
+    } else setError(result.error);
     setLoading(false);
     return result;
   }, [fetchRecurring]);

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { liabilitiesRepository, CreateLiabilityRequest } from '../repositories/liabilities.repository';
 import type { Liability } from '../types';
 import type { SupabaseError } from '../utils/result';
+import { notify, formatRM } from '../services/notifications';
 
 export function useLiabilities() {
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
@@ -21,8 +22,10 @@ export function useLiabilities() {
     setLoading(true);
     setError(null);
     const result = await liabilitiesRepository.create(req);
-    if (result.ok) await fetchLiabilities();
-    else setError(result.error);
+    if (result.ok) {
+      notify({ type: 'liability', emoji: '💳', message: 'Liability added', sub_text: `${req.name} • ${formatRM(req.amount_owed)}`, related_entity_id: result.data.id });
+      await fetchLiabilities();
+    } else setError(result.error);
     setLoading(false);
     return result;
   }, [fetchLiabilities]);
@@ -31,21 +34,28 @@ export function useLiabilities() {
     setLoading(true);
     setError(null);
     const result = await liabilitiesRepository.update(id, patch);
-    if (result.ok) await fetchLiabilities();
-    else setError(result.error);
+    if (result.ok) {
+      const name = patch.name ?? liabilities.find((l) => l.id === id)?.name ?? 'Liability';
+      const owed = patch.amount_owed ?? liabilities.find((l) => l.id === id)?.amount_owed ?? 0;
+      notify({ type: 'liability', emoji: '💳', message: 'Liability updated', sub_text: `${name} • ${formatRM(owed)}`, related_entity_id: id });
+      await fetchLiabilities();
+    } else setError(result.error);
     setLoading(false);
     return result;
-  }, [fetchLiabilities]);
+  }, [fetchLiabilities, liabilities]);
 
   const deleteLiability = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
+    const name = liabilities.find((l) => l.id === id)?.name ?? 'Liability';
     const result = await liabilitiesRepository.softDelete(id);
-    if (result.ok) await fetchLiabilities();
-    else setError(result.error);
+    if (result.ok) {
+      notify({ type: 'liability', emoji: '💳', message: 'Liability removed', sub_text: name, related_entity_id: id });
+      await fetchLiabilities();
+    } else setError(result.error);
     setLoading(false);
     return result;
-  }, [fetchLiabilities]);
+  }, [fetchLiabilities, liabilities]);
 
   return { liabilities, loading, error, fetchLiabilities, createLiability, updateLiability, deleteLiability };
 }

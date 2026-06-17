@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform , Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Camera, RefreshCw, Calendar, ChevronDown, Bell, Check } from 'lucide-react-native';
@@ -22,6 +22,7 @@ import { useLock } from '../../context/LockContext';
 import { accountColor } from '../../src/utils/accountColor';
 import { storageService } from '../../src/services/storage';
 import { transactionsRepository } from '../../src/repositories/transactions.repository';
+import { notify, formatRM } from '../../src/services/notifications';
 
 type TransactionType = 'expense' | 'income' | 'transfer';
 
@@ -41,12 +42,29 @@ const dateQuickOptions = [
 export default function AddTransactionScreen() {
   const router = useRouter();
   const searchParams = useLocalSearchParams();
-  const [type, setType] = useState<TransactionType>('expense');
-  const [amount, setAmount] = useState('');
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState('food');
-  const [account, setAccount] = useState('');
-  const [toAccount, setToAccount] = useState('');
+
+  // Edit mode: when an `editId` is passed, the form is prefilled with the
+  // transaction's existing values and submitting updates that row instead of
+  // creating a new one.
+  const editId = (searchParams.editId as string | undefined) || undefined;
+  const isEdit = !!editId;
+  const initialType: TransactionType = (() => {
+    const t = searchParams.type as string | undefined;
+    return t === 'expense' || t === 'income' || t === 'transfer' ? t : 'expense';
+  })();
+  const origAmount = Number(searchParams.amount ?? 0);
+  const origFromId = (searchParams.fromAccountId as string | undefined) || '';
+
+  const [type, setType] = useState<TransactionType>(initialType);
+  const [amount, setAmount] = useState((searchParams.amount as string) ?? '');
+  const [name, setName] = useState((searchParams.name as string) ?? '');
+  const [category, setCategory] = useState((searchParams.category as string) || 'food');
+  const [account, setAccount] = useState(
+    initialType === 'income'
+      ? (searchParams.toAccountId as string) ?? ''
+      : (searchParams.fromAccountId as string) ?? ''
+  );
+  const [toAccount, setToAccount] = useState((searchParams.toAccountId as string) ?? '');
   const [dateOption, setDateOption] = useState<'today' | 'yesterday' | 'custom'>(() => {
     const dateParam = searchParams.date as string | undefined;
     if (dateParam) {
@@ -78,17 +96,24 @@ export default function AddTransactionScreen() {
   const [hasEndDate, setHasEndDate] = useState(false);
   const [reminder, setReminder] = useState('none');
   const [showReminderPicker, setShowReminderPicker] = useState(false);
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState((searchParams.note as string) ?? '');
   const [receiptImage, setReceiptImage] = useState<{ uri: string; base64: string } | null>(null);
 
   const { user } = useAuth();
   const { suspend: suspendLock } = useLock();
   const now = new Date();
   const { accounts, loading: acctsLoading, error: acctsError, fetchAccounts } = useAccounts();
-  const { loading: txLoading, error: txError, create } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { loading: txLoading, error: txError, create, update } = useTransactions(now.getFullYear(), now.getMonth() + 1);
   const { categories: customCategories, loading: catLoading, error: catError, fetchCategories: fetchCustomCategories } = useCustomCategories();
 
-  const categories = type === 'expense' ? expenseCategories : incomeCategories;
+  // Merge built-in categories with the user's custom ones for the active type.
+  // Custom categories only exist for expense/income; transfer falls back to the
+  // built-in income list with no custom entries.
+  const baseCategories = type === 'expense' ? expenseCategories : incomeCategories;
+  const customForType = customCategories
+    .filter((c) => c.transaction_type === type)
+    .map((c) => ({ id: c.id, emoji: c.icon ?? '🏷️', name: c.name, color: c.color }));
+  const categories = [...baseCategories, ...customForType];
 
   // Income/expense source/destination: banks + wallets only.
   const bankAccountOptions = accounts
@@ -128,6 +153,53 @@ export default function AddTransactionScreen() {
     fetchAccounts();
     if (user) fetchCustomCategories(user.id);
   }, [fetchAccounts, fetchCustomCategories, user]));
+
+  // In edit mode the category column stores a custom category's *name* (built-in
+  // categories store their slug id). Once custom categories load, map that name
+  // back to its chip id so the right chip is selected. Runs once per edit.
+  const mappedCategory = useRef(false);
+  useEffect(() => {
+    if (!isEdit || mappedCategory.current || customCategories.length === 0) return;
+    const match = customCategories.find(
+      (c) => c.transaction_type === type && c.name === category
+    );
+    if (match) setCategory(match.id);
+    mappedCategory.current = true;
+  }, [isEdit, customCategories, type, category]);
+
+  // Re-populate the form whenever we navigate in for an edit. A fresh `nonce` is
+  // sent on every edit tap, so this re-runs even when the screen instance is
+  // reused (re-editing the same transaction) — something the useState
+  // initializers, which only read params at mount, can't do.
+  const nonce = searchParams.nonce as string | undefined;
+  useEffect(() => {
+    if (!editId) return;
+    const tp = searchParams.type as string | undefined;
+    const t: TransactionType =
+      tp === 'income' || tp === 'transfer' || tp === 'expense' ? tp : 'expense';
+    setType(t);
+    setAmount((searchParams.amount as string) ?? '');
+    setName((searchParams.name as string) ?? '');
+    setCategory((searchParams.category as string) || 'food');
+    setAccount(
+      t === 'income'
+        ? (searchParams.toAccountId as string) ?? ''
+        : (searchParams.fromAccountId as string) ?? ''
+    );
+    setToAccount((searchParams.toAccountId as string) ?? '');
+    setNote((searchParams.note as string) ?? '');
+    const dateParam = searchParams.date as string | undefined;
+    if (dateParam) {
+      const [year, month, day, hour = 12, minute = 0] = dateParam.split(/[-T:Z]/).map(Number);
+      const d = new Date(year, month - 1, day, hour, minute);
+      if (!isNaN(d.getTime())) {
+        setCustomDate(d);
+        setDateOption('custom');
+      }
+    }
+    mappedCategory.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nonce]);
 
   if (acctsLoading || catLoading) return <LoadingView />;
   if (acctsError || catError) return <ErrorView error={acctsError ?? catError!} onRetry={() => { fetchAccounts(); if (user) fetchCustomCategories(user.id); }} />;
@@ -231,10 +303,17 @@ export default function AddTransactionScreen() {
           ? src?.tabung_accounts?.saved_amount ?? 0
           : 0
       );
-      if (parseFloat(amount) > srcBalance) {
+      // When editing, the source account's stored balance already excludes the
+      // original outflow. If the source account is unchanged, add that amount
+      // back so the user isn't blocked from keeping/raising the same expense.
+      let available = srcBalance;
+      if (isEdit && origFromId === account) {
+        available += origAmount;
+      }
+      if (parseFloat(amount) > available) {
         Alert.alert(
           'Not enough balance',
-          `${src?.name ?? 'This account'} has only RM ${srcBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} available.`
+          `${src?.name ?? 'This account'} has only RM ${available.toLocaleString('en-US', { minimumFractionDigits: 2 })} available.`
         );
         return;
       }
@@ -249,17 +328,25 @@ export default function AddTransactionScreen() {
       : type === 'transfer' ? toAccount
       : undefined;
 
-    const result = await create({
+    // Built-in chips use a slug id (e.g. "food"); custom chips use the category's
+    // UUID. Persist the readable name for custom categories so the column doesn't
+    // store a raw UUID.
+    const customCat = customCategories.find((c) => c.id === category);
+    const categoryValue = customCat ? customCat.name : category;
+
+    const payload = {
       user_id: user.id,
       type,
       name,
       amount: parseFloat(amount),
       from_account_id: fromId,
       to_account_id: toId,
-      category,
+      category: categoryValue,
       date: transactionDate,
       note: note || undefined,
-    });
+    };
+
+    const result = editId ? await update(editId, payload) : await create(payload);
 
     if (result.ok) {
       if (receiptImage) {
@@ -268,6 +355,21 @@ export default function AddTransactionScreen() {
           await transactionsRepository.update(result.data.id, { receipt_url: `${user.id}/${result.data.id}.jpg` });
         }
       }
+
+      // Record a notification (in-app entry + OS banner) for every type of
+      // transaction, on both create and edit.
+      const accountName = (id?: string) =>
+        accounts.find((a: any) => a.id === id)?.name ?? 'account';
+      const amt = formatRM(parseFloat(amount));
+      const verb = isEdit ? 'updated' : 'added';
+      const notif =
+        type === 'income'
+          ? { emoji: '💰', message: `Income ${verb}`, sub_text: `${name} • +${amt} to ${accountName(toId)}` }
+          : type === 'transfer'
+          ? { emoji: '🔄', message: isEdit ? 'Transfer updated' : 'Transfer completed', sub_text: `${amt} from ${accountName(fromId)} to ${accountName(toId)}` }
+          : { emoji: '💸', message: `Expense ${verb}`, sub_text: `${name} • -${amt} from ${accountName(fromId)}` };
+      await notify({ type, ...notif, related_entity_id: result.data.id });
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       resetForm();
       router.back();
@@ -283,7 +385,7 @@ export default function AddTransactionScreen() {
         <Pressable onPress={() => router.back()} className="p-2">
           <X size={24} color="#ffffff" />
         </Pressable>
-        <Text className="text-lg font-semibold text-foreground">Add Transaction</Text>
+        <Text className="text-lg font-semibold text-foreground">{isEdit ? 'Edit Transaction' : 'Add Transaction'}</Text>
         <View className="w-10" />
       </View>
 
@@ -716,7 +818,7 @@ export default function AddTransactionScreen() {
 
           {/* Submit Button */}
           <Button
-            title={type === 'transfer' ? 'Transfer' : 'Submit'}
+            title={isEdit ? 'Save Changes' : type === 'transfer' ? 'Transfer' : 'Submit'}
             onPress={handleSubmit}
             variant="primary"
             size="lg"

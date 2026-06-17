@@ -6,7 +6,7 @@ export type RecurringStatus = 'active' | 'paused' | 'ended';
 export type ReminderOffset = 'none' | 'same_day' | '1_day' | '3_days' | '1_week';
 export type AssetType = 'real_estate' | 'stocks' | 'unit_trust' | 'fixed_deposit' | 'asb' | 'gold' | 'vehicle' | 'business' | 'others';
 export type LiabilityType = 'mortgage' | 'car_loan' | 'credit_card' | 'study_loan' | 'medical_loan' | 'business_loan' | 'others';
-export type NotificationType = 'expense' | 'income' | 'transfer' | 'recurring' | 'alert' | 'tabung' | 'milestone' | 'asset' | 'cashflow' | 'note' | 'affirmation' | 'project';
+export type NotificationType = 'expense' | 'income' | 'transfer' | 'recurring' | 'alert' | 'tabung' | 'milestone' | 'asset' | 'liability' | 'cashflow' | 'note' | 'affirmation' | 'project';
 export type AffirmationCategory = 'saving' | 'investing' | 'mindset' | 'awareness';
 export type FinancialIdentity = 'employee' | 'entrepreneur' | 'investor' | 'business_owner';
 

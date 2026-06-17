@@ -1,5 +1,6 @@
 import { View, Text, Pressable } from 'react-native';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { RefreshCw, Image, ChevronRight } from 'lucide-react-native';
 import { TransactionDetail, TransactionData } from './TransactionDetail';
 import type { Transaction } from '../../src/types/database.types';
@@ -29,11 +30,35 @@ function formatTxDate(dateStr: string): string {
 }
 
 export function RecentTransactions({ transactions, onSeeAll, onTransactionPress, onTransactionDeleted }: RecentTransactionsProps) {
+  const router = useRouter();
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionData | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
   const txs: Transaction[] = transactions ?? [];
   const displayTxs = txs.slice(0, 5);
+
+  const handleEdit = (id: string) => {
+    const tx = txs.find((t) => t.id === id);
+    if (!tx) return;
+    setModalVisible(false);
+    router.push({
+      pathname: '/(main)/add-transaction',
+      params: {
+        editId: tx.id,
+        type: tx.type,
+        name: tx.name,
+        amount: String(tx.amount),
+        category: tx.category ?? '',
+        fromAccountId: tx.from_account_id ?? '',
+        toAccountId: tx.to_account_id ?? '',
+        date: tx.date,
+        note: tx.note ?? '',
+        // Unique per tap so the edit screen re-prefills even when its instance
+        // is reused (re-editing the same transaction).
+        nonce: String(Date.now()),
+      },
+    });
+  };
 
   const handleTransactionPress = (tx: Transaction) => {
     const data: TransactionData = {
@@ -116,6 +141,7 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress,
           setModalVisible(false);
           onTransactionDeleted?.(id);
         }}
+        onEdit={handleEdit}
       />
     </>
   );

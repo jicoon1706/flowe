@@ -26,8 +26,8 @@ export default function NotificationsScreen() {
   const notifications = hookNotifications.map(n => ({
     id: n.id,
     emoji: n.emoji ?? '🔔',
-    message: n.title ?? 'Notification',
-    subText: n.body ?? '',
+    message: n.message ?? 'Notification',
+    subText: n.sub_text ?? '',
     time: new Date(n.created_at),
     isRead: n.is_read || localReadIds.has(n.id),
   }));

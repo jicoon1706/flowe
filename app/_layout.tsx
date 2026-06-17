@@ -4,13 +4,21 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-LogBox.ignoreLogs(['[Reanimated] Reading from `value` during component render']);
+LogBox.ignoreLogs([
+  '[Reanimated] Reading from `value` during component render',
+  // expo-notifications warns that remote push isn't available in Expo Go on
+  // Android (SDK 53+). We only use local notifications, which work fine — so
+  // these are noise during Expo Go testing. A dev build removes them entirely.
+  '`expo-notifications` functionality is not fully supported in Expo Go',
+  'expo-notifications: Android Push notifications (remote notifications)',
+]);
 import { StatusBar } from 'expo-status-bar';
 import './global.css';
 import { authRepository } from '../src/repositories';
 import { flags } from '../src/lib/secureStore';
 import { OnboardingProvider } from '../context/OnboardingContext';
 import { AuthProvider } from '../context/AuthContext';
+import { setupNotifications } from '../src/services/notifications';
 
 type GateState = 'loading' | 'error' | 'auth' | 'onboarding' | 'main';
 
@@ -47,6 +55,7 @@ export default function RootLayout() {
   useEffect(() => {
     _refreshGate = resolve;
     resolve();
+    setupNotifications();
     return () => { _refreshGate = null; };
   }, []);
 
