@@ -1,28 +1,56 @@
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { isRunningInExpoGo } from 'expo';
 import { supabase } from '../lib/supabase';
 import { notificationsRepository } from '../repositories/notifications.repository';
 import type { NotificationType } from '../types';
 
-// Show a banner even when the app is in the foreground (the common case here,
-// since transactions are added while the app is open).
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// OS notifications aren't supported in Expo Go on SDK 53+. Merely importing
+// expo-notifications there auto-registers a device push-token listener, which
+// logs a noisy "removed from Expo Go" error on Android. So in Expo Go we skip
+// the module entirely (in-app notifications are still recorded) — OS banners
+// require a development build. Outside Expo Go we lazy-load the module so that
+// import side effect never runs in Expo Go.
+const osNotificationsSupported = !isRunningInExpoGo();
+
+type NotificationsModule = typeof import('expo-notifications');
+let notificationsModule: NotificationsModule | null = null;
+let handlerSet = false;
+
+function getNotifications(): NotificationsModule | null {
+  if (!osNotificationsSupported) return null;
+  if (!notificationsModule) {
+    notificationsModule = require('expo-notifications') as NotificationsModule;
+  }
+  if (!handlerSet) {
+    handlerSet = true;
+    // Show a banner even when the app is in the foreground (the common case
+    // here, since transactions are added while the app is open).
+    notificationsModule.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  }
+  return notificationsModule;
+}
 
 let permissionGranted: boolean | null = null;
 
 /**
  * Request OS notification permission and register the Android channel. Safe to
  * call multiple times — the permission check is cached after the first grant.
- * Call once on app start.
+ * Call once on app start. A no-op (returns false) in Expo Go.
  */
 export async function setupNotifications(): Promise<boolean> {
+  const Notifications = getNotifications();
+  if (!Notifications) {
+    permissionGranted = false;
+    return false;
+  }
+
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Default',
@@ -45,12 +73,14 @@ export async function setupNotifications(): Promise<boolean> {
 /**
  * Fire an immediate local notification (OS banner). Ensures permission first so
  * callers don't have to. Never throws — notification failures shouldn't break
- * the action that triggered them.
+ * the action that triggered them. A no-op in Expo Go.
  */
 export async function presentLocalNotification(title: string, body: string): Promise<void> {
   try {
     if (permissionGranted === null) await setupNotifications();
     if (!permissionGranted) return;
+    const Notifications = getNotifications();
+    if (!Notifications) return;
     await Notifications.scheduleNotificationAsync({
       content: { title, body },
       trigger: null, // null = deliver immediately

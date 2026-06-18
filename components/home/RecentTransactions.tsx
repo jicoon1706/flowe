@@ -1,13 +1,13 @@
 import { View, Text, Pressable } from 'react-native';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { RefreshCw, Image, ChevronRight } from 'lucide-react-native';
 import { TransactionDetail, TransactionData } from './TransactionDetail';
-import type { Transaction } from '../../src/types/database.types';
-
-const CATEGORY_ICONS: Record<string, string> = {
-  Food: '🍔', Transport: '🚗', Bills: '🧾', Income: '💼', Transfer: '🔄',
-};
+import type { Transaction, CustomCategory } from '../../src/types/database.types';
+import { resolveCategory } from '../../src/utils/resolveCategory';
+import { useCustomCategories } from '../../src/hooks/useCustomCategories';
+import { useAuth } from '../../context/AuthContext';
 
 interface RecentTransactionsProps {
   transactions?: Transaction[];
@@ -31,8 +31,18 @@ function formatTxDate(dateStr: string): string {
 
 export function RecentTransactions({ transactions, onSeeAll, onTransactionPress, onTransactionDeleted }: RecentTransactionsProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const { categories: customCategories, fetchCategories: fetchCustomCategories } = useCustomCategories();
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionData | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    if (user) fetchCustomCategories(user.id);
+  }, [fetchCustomCategories, user]));
+
+  const customByName: Record<string, CustomCategory> = Object.fromEntries(
+    customCategories.map((c) => [c.name, c])
+  );
 
   const txs: Transaction[] = transactions ?? [];
   const displayTxs = txs.slice(0, 5);
@@ -61,11 +71,12 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress,
   };
 
   const handleTransactionPress = (tx: Transaction) => {
+    const cat = resolveCategory(tx, customByName);
     const data: TransactionData = {
       id: tx.id,
       name: tx.name,
-      category: tx.category ?? 'Other',
-      categoryIcon: CATEGORY_ICONS[tx.category ?? 'Other'] ?? '📦',
+      category: cat.name,
+      categoryIcon: cat.emoji,
       amount: (tx.type === 'expense' || tx.type === 'tabung_topup' ? '-' : '+') + tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 }),
       type: tx.type as 'expense' | 'income' | 'transfer',
       date: formatTxDate(tx.date),
@@ -107,7 +118,7 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress,
             >
               <View className="flex-row items-center gap-3">
                 <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
-                  <Text className="text-base">{CATEGORY_ICONS[tx.category ?? 'Other'] ?? '📦'}</Text>
+                  <Text className="text-base">{resolveCategory(tx, customByName).emoji}</Text>
                 </View>
                 <View>
                   <View className="flex-row items-center gap-1.5">

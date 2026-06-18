@@ -7,8 +7,12 @@ import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Card } from '../../components/ui/Card';
 import { TransactionDetail } from '../../components/home/TransactionDetail';
 import { useTransactions } from '../../src/hooks/useTransactions';
+import { useCustomCategories } from '../../src/hooks/useCustomCategories';
+import { useAuth } from '../../context/AuthContext';
 import { LoadingView } from '../../components/ui/LoadingView';
 import { ErrorView } from '../../components/ui/ErrorView';
+import { resolveCategory } from '../../src/utils/resolveCategory';
+import type { Transaction, CustomCategory } from '../../src/types/database.types';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -23,6 +27,7 @@ interface DayTransaction {
   recurring: boolean;
   recurringFreq?: 'weekly' | 'monthly' | 'yearly';
   account: string;
+  toAccount?: string;
   note?: string;
   hasReceipt?: boolean;
   receiptPath?: string;
@@ -37,11 +42,20 @@ export default function CalendarScreen() {
   const month = selectedDate.getMonth() + 1;
 
   const { transactions, loading, error, refetch } = useTransactions(year, month);
+  const { user } = useAuth();
+  const { categories: customCategories, fetchCategories: fetchCustomCategories } = useCustomCategories();
 
-  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+  useFocusEffect(useCallback(() => {
+    refetch();
+    if (user) fetchCustomCategories(user.id);
+  }, [refetch, fetchCustomCategories, user]));
 
   if (loading) return <LoadingView />;
   if (error) return <ErrorView error={error} onRetry={refetch} />;
+
+  const customByName: Record<string, CustomCategory> = Object.fromEntries(
+    customCategories.map((c) => [c.name, c])
+  );
 
   const monthName = selectedDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
@@ -106,11 +120,13 @@ export default function CalendarScreen() {
 
   const dayTransactions: DayTransaction[] = selectedDayTxs
     .filter(tx => tx.type === 'income' || tx.type === 'expense' || tx.type === 'transfer')
-    .map(tx => ({
+    .map(tx => {
+    const cat = resolveCategory(tx as Transaction, customByName);
+    return {
     id: tx.id,
     name: tx.name,
-    category: tx.category ?? 'Others',
-    categoryIcon: '📦',
+    category: cat.name,
+    categoryIcon: cat.emoji,
     amount: `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}RM ${Number(tx.amount).toLocaleString('en-US')}`,
     type: tx.type as 'income' | 'expense' | 'transfer',
     date: new Date(tx.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -123,7 +139,8 @@ export default function CalendarScreen() {
     note: tx.note ?? undefined,
     hasReceipt: !!tx.receipt_url,
     receiptPath: tx.receipt_url ?? undefined,
-  }));
+  };
+  });
 
   const navigateMonth = (delta: number) => {
     const newDate = new Date(selectedDate);

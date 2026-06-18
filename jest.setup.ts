@@ -1,5 +1,12 @@
 import '@testing-library/react-native/matchers';
 
+// jest-expo reports isRunningInExpoGo() as true; treat the test env as a
+// dev/standalone build so OS-notification code paths are exercised.
+jest.mock('expo', () => ({
+  ...jest.requireActual('expo'),
+  isRunningInExpoGo: jest.fn(() => false),
+}));
+
 // Mock Expo modules that onboarding code depends on
 jest.mock('expo-crypto', () => ({
   digestStringAsync: jest.fn(() => Promise.resolve('mocked-hash')),
