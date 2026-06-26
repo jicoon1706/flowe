@@ -55,6 +55,32 @@ export const recurringRepository = {
     return { ok: true, data: data as RecurringRule };
   },
 
+  /**
+   * Active rules whose next occurrence is due (next_date on or before `today`,
+   * a 'YYYY-MM-DD' string). Paused/ended rules are skipped. Used by the
+   * recurring processor to materialize due rules into real transactions.
+   */
+  async fetchDue(today: string): Promise<Result<RecurringRule[], SupabaseError>> {
+    const { data, error } = await supabase
+      .from('recurring_rules')
+      .select()
+      .eq('status', 'active')
+      .lte('next_date', today);
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data as RecurringRule[] };
+  },
+
+  /** Move a rule's next occurrence forward and stamp when it was last applied. */
+  async advance(id: string, nextDate: string): Promise<Result<void, SupabaseError>> {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('recurring_rules')
+      .update({ next_date: nextDate, last_applied_at: now, updated_at: now })
+      .eq('id', id);
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: undefined };
+  },
+
   async updateStatus(id: string, status: RecurringStatus): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase
       .from('recurring_rules')

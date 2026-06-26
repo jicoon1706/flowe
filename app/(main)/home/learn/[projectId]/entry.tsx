@@ -29,16 +29,20 @@ export default function EntryDetailScreen() {
   const entryImages = ((entry as any)?.learn_entry_images ?? []) as any[];
   const entryTime = entry?.created_at ? new Date(entry.created_at).toLocaleString() : '';
 
+  // Key the effect on the actual image paths so newly added images get signed
+  // URLs too (the entry id alone doesn't change when images are added/removed).
+  const imagePaths = entryImages.map((img: any) => img.storage_path).filter(Boolean);
+  const pathsKey = imagePaths.join(',');
+
   useEffect(() => {
-    const paths: string[] = entryImages.map((img: any) => img.storage_path).filter(Boolean);
-    if (paths.length === 0) return;
-    Promise.all(
-      paths.map(async (path) => {
-        const result = await storageService.getLearnImageUrl(path);
-        return [path, result.ok ? result.data : ''] as const;
-      })
-    ).then((pairs) => setImageUrls(Object.fromEntries(pairs)));
-  }, [entry?.id]);
+    if (imagePaths.length === 0) return;
+    let cancelled = false;
+    storageService.getLearnImageUrls(imagePaths).then((result) => {
+      if (!cancelled && result.ok) setImageUrls((prev) => ({ ...prev, ...result.data }));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathsKey]);
 
   if (loading) return <LoadingView />;
   if (error) return <ErrorView error={error} onRetry={() => projectId && fetchEntries(projectId)} />;
@@ -71,12 +75,12 @@ export default function EntryDetailScreen() {
 
         {/* Image Grid */}
         {entryImages.length > 0 && (
-          <View className="flex-row flex-wrap mb-6">
+          <View className="flex-row flex-wrap justify-between mb-6">
             {entryImages.map((img: any, index: number) => (
               <Pressable
                 key={index}
                 onPress={() => setLightboxImage(index)}
-                className="w-[48%] aspect-square rounded-xl bg-muted mb-2 mr-[4%]"
+                className="w-[48%] aspect-square rounded-xl bg-muted mb-3"
               >
                 <Image
                   source={{ uri: imageUrls[img.storage_path] ?? '' }}

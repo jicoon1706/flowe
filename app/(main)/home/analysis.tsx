@@ -7,20 +7,32 @@ import { useAnalysis } from '../../../src/hooks/useAnalysis';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import { DonutChart } from '../../../components/ui/DonutChart';
+import { expenseCategories, incomeCategories } from '../../../constants/categories';
+import { useCustomCategories } from '../../../src/hooks/useCustomCategories';
+import { useAuth } from '../../../context/AuthContext';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const CATEGORY_COLORS = ['#C5FF00', '#00d4ff', '#ff6b6b', '#ffd93d', '#a78bfa', '#6bcf7f', '#94a3b8'];
-const CATEGORY_EMOJIS: Record<string, string> = {
-  'Food & Drink': '🍔', Transport: '🚗', Bills: '🧾', Shopping: '🛍️',
-  Entertainment: '🎬', Health: '💊', Others: '📦', Salary: '💼', Freelance: '💻',
-  Gift: '🎁', Allowance: '💰', Investment: '📈', Rental: '🏠', Business: '🏪',
-};
+
+// Transactions persist the category as either a built-in slug id (e.g. "food",
+// "salary") or a custom category's readable name. Build a lookup keyed by both
+// the id and the name so we resolve the same emoji shown in add-transaction.
+const CATEGORY_EMOJIS: Record<string, string> = [...expenseCategories, ...incomeCategories].reduce(
+  (acc, c) => {
+    acc[c.id] = c.emoji;
+    acc[c.name] = c.emoji;
+    return acc;
+  },
+  {} as Record<string, string>
+);
 
 const INCOME_COLORS = ['#22C55E', '#3B82F6', '#EC4899', '#F59E0B', '#6366F1', '#14B8A6', '#6B7280'];
 
 export default function AnalysisScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { categories: customCategories, fetchCategories: fetchCustomCategories } = useCustomCategories();
   const [toggleMode, setToggleMode] = useState<'expense' | 'income'>('expense');
 
   const now = new Date();
@@ -38,7 +50,20 @@ export default function AnalysisScreen() {
 
   const { analysis, loading, error, refetch } = useAnalysis(monthParam);
 
-  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+  useFocusEffect(useCallback(() => {
+    refetch();
+    if (user) fetchCustomCategories(user.id);
+  }, [refetch, fetchCustomCategories, user]));
+
+  // Custom categories are stored on transactions by their readable name; map
+  // that name to the icon/color the user picked in settings/categories.
+  const customByName = customCategories.reduce(
+    (acc, c) => {
+      acc[c.name] = { emoji: c.icon ?? '🏷️', color: c.color };
+      return acc;
+    },
+    {} as Record<string, { emoji: string; color?: string }>
+  );
 
   if (loading) return <LoadingView />;
   if (error) return <ErrorView error={error} onRetry={() => {}} />;
@@ -48,21 +73,27 @@ export default function AnalysisScreen() {
   const incomeTotal = analysis?.income ?? 0;
   const expensesTotal = analysis?.expenses ?? 0;
 
-  const expenseCategories = (analysis?.expense_by_category ?? []).map((cat, i) => ({
-    name: cat.category,
-    amount: cat.amount,
-    percentage: cat.percentage,
-    color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-    emoji: CATEGORY_EMOJIS[cat.category] ?? '📦',
-  }));
+  const expenseCategories = (analysis?.expense_by_category ?? []).map((cat, i) => {
+    const custom = customByName[cat.category];
+    return {
+      name: cat.category,
+      amount: cat.amount,
+      percentage: cat.percentage,
+      color: custom?.color ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+      emoji: custom?.emoji ?? CATEGORY_EMOJIS[cat.category] ?? '📦',
+    };
+  });
 
-  const incomeCategories = (analysis?.income_by_category ?? []).map((cat, i) => ({
-    name: cat.category,
-    amount: cat.amount,
-    percentage: cat.percentage,
-    color: INCOME_COLORS[i % INCOME_COLORS.length],
-    emoji: CATEGORY_EMOJIS[cat.category] ?? '💰',
-  }));
+  const incomeCategories = (analysis?.income_by_category ?? []).map((cat, i) => {
+    const custom = customByName[cat.category];
+    return {
+      name: cat.category,
+      amount: cat.amount,
+      percentage: cat.percentage,
+      color: custom?.color ?? INCOME_COLORS[i % INCOME_COLORS.length],
+      emoji: custom?.emoji ?? CATEGORY_EMOJIS[cat.category] ?? '💰',
+    };
+  });
 
   const monthlyTrend = analysis?.monthly_trend ?? [];
   const maxChartValue = Math.max(

@@ -24,6 +24,14 @@ import * as Haptics from 'expo-haptics';
 
 const FREQUENCIES = ['Weekly', 'Monthly', 'Yearly'] as const;
 
+/** Local 'YYYY-MM-DD' — avoids the UTC day-shift that toISOString() causes. */
+function localYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function RecurringScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -72,8 +80,10 @@ export default function RecurringScreen() {
       type: 'expense',
       name: newName.trim(),
       amount: parseFloat(newAmount),
+      category: 'bills',
       frequency: newFrequency.toLowerCase() as 'weekly' | 'monthly' | 'yearly',
-      start_date: newNextDate.toISOString().slice(0, 10),
+      start_date: localYMD(newNextDate),
+      next_date: localYMD(newNextDate),
       from_account_id: newAccountId || bankAccounts[0]?.id,
     });
     if (result.ok) {

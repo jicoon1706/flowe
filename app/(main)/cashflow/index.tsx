@@ -24,6 +24,10 @@ import type { Asset, Liability, AssetType, LiabilityType } from '../../../src/ty
 // ─── Month config ────────────────────────────────────────────────────────────
 const MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'];
 
+// Index of the current calendar month within MONTHS (falls back to the last month).
+const CURRENT_MONTH = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+const CURRENT_MONTH_INDEX = MONTHS.indexOf(CURRENT_MONTH) === -1 ? MONTHS.length - 1 : MONTHS.indexOf(CURRENT_MONTH);
+
 // ─── Mock fallback data ────────────────────────────────────────────────────────
 const MONTHLY_TREND = [
   { month: 'Dec', assets: 260000, liabilities: 228000 },
@@ -41,7 +45,7 @@ interface UILiability { id: string; name: string; type: string; icon: string; am
 // ─── Main screen ────────────────────────────────────────────────────────────────
 export default function CashFlowScreen() {
   const router = useRouter();
-  const [monthIndex, setMonthIndex] = useState(4); // May 2026
+  const [monthIndex, setMonthIndex] = useState(CURRENT_MONTH_INDEX); // default to current month
   const [balanceSheetTab, setBalanceSheetTab] = useState<'assets' | 'liabilities'>('assets');
   const [manageTab, setManageTab] = useState<'assets' | 'liabilities'>('assets');
   const [showAddAsset, setShowAddAsset] = useState(false);
@@ -65,6 +69,7 @@ export default function CashFlowScreen() {
   const anyError = txError || astError || liabError;
 
   useFocusEffect(useCallback(() => {
+    setMonthIndex(CURRENT_MONTH_INDEX);
     fetchAssets();
     fetchLiabilities();
     refetchTxns();

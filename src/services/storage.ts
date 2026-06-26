@@ -62,6 +62,18 @@ export const storageService = {
     return { ok: true, data: data.signedUrl };
   },
 
+  // Batch sign many learn images in a single request (much faster than N calls).
+  async getLearnImageUrls(paths: string[]): Promise<Result<Record<string, string>, SupabaseError>> {
+    if (paths.length === 0) return { ok: true, data: {} };
+    const { data, error } = await supabase.storage.from('learn-images').createSignedUrls(paths, 60 * 60);
+    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    const map: Record<string, string> = {};
+    for (const item of data ?? []) {
+      if (item.path && item.signedUrl) map[item.path] = item.signedUrl;
+    }
+    return { ok: true, data: map };
+  },
+
   async deleteLearnImage(path: string): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase.storage.from('learn-images').remove([path]);
     if (error) return { ok: false, error: { code: error.code, message: error.message } };
