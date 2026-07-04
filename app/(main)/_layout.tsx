@@ -4,7 +4,6 @@ import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Calendar, DollarSign, Home, Plus, Settings } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
-import { processDueRecurring } from '@/src/services/recurring';
 
 function AddButton(props: { onPress?: (e?: any) => void }) {
   const router = useRouter();
@@ -204,12 +203,9 @@ function TabBarVisibilityWrapper({ children }: { children: React.ReactNode }) {
 }
 
 export default function MainLayout() {
-  // On every app open, materialize any recurring rules whose date has arrived
-  // into real dated transactions (and catch up missed periods). Fire-and-forget.
-  useEffect(() => {
-    processDueRecurring();
-  }, []);
-
+  // Recurring rules whose date has arrived are no longer auto-materialized; they
+  // wait for the user to approve/reject them via the home-screen popup (see
+  // usePendingRecurring + PendingRecurringModal).
   return (
     <LockProvider>
       <TabBarProvider>

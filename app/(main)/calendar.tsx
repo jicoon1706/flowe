@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, RefreshCw, Image } from 'lucide-react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Card } from '../../components/ui/Card';
 import { TransactionDetail } from '../../components/home/TransactionDetail';
@@ -41,6 +41,7 @@ export default function CalendarScreen() {
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth() + 1;
 
+  const router = useRouter();
   const { transactions, loading, error, refetch } = useTransactions(year, month);
   const { user } = useAuth();
   const { categories: customCategories, fetchCategories: fetchCustomCategories } = useCustomCategories();
@@ -141,6 +142,27 @@ export default function CalendarScreen() {
     receiptPath: tx.receipt_url ?? undefined,
   };
   });
+
+  const handleEdit = (id: string) => {
+    const tx = transactions.find((t) => t.id === id);
+    if (!tx) return;
+    setModalVisible(false);
+    router.push({
+      pathname: '/(main)/add-transaction',
+      params: {
+        editId: tx.id,
+        type: tx.type,
+        name: tx.name,
+        amount: String(tx.amount),
+        category: tx.category ?? '',
+        fromAccountId: tx.from_account_id ?? '',
+        toAccountId: tx.to_account_id ?? '',
+        date: tx.date,
+        note: tx.note ?? '',
+        nonce: String(Date.now()),
+      },
+    });
+  };
 
   const navigateMonth = (delta: number) => {
     const newDate = new Date(selectedDate);
@@ -330,6 +352,7 @@ export default function CalendarScreen() {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onDeleted={() => { setModalVisible(false); refetch(); }}
+        onEdit={handleEdit}
       />
     </SafeAreaView>
   );

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../src/lib/supabase';
 import { ScrollView, Pressable, Text, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,9 @@ import { BalanceBanner } from '../../components/home/BalanceBanner';
 import { AccountCards } from '../../components/home/AccountCards';
 import { Shortcuts } from '../../components/home/Shortcuts';
 import { RecentTransactions } from '../../components/home/RecentTransactions';
+import { PendingRecurringModal } from '../../components/home/PendingRecurringModal';
+import { usePendingRecurring } from '../../src/hooks/usePendingRecurring';
+import { notificationsRepository } from '../../src/repositories/notifications.repository';
 import { useLock } from '../../context/LockContext';
 import { flags } from '../../src/lib/secureStore';
 import { edgeFunctionsService } from '../../src/services/edgeFunctions';
@@ -52,6 +55,14 @@ export default function HomeScreen() {
   const [displayName, setDisplayName] = useState<string>('User');
   const [affirmationItems, setAffirmationItems] = useState<{ emoji: string; category: string; quote: string }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const { pending, acting, fetchPending, approve, reject } = usePendingRecurring();
+  const [showPending, setShowPending] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnread = useCallback(async () => {
+    const result = await notificationsRepository.getUnreadCount();
+    if (result.ok) setUnreadCount(result.data);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -123,14 +134,34 @@ export default function HomeScreen() {
         }));
         setAffirmationItems(items);
       });
-    await Promise.all([fetchAccounts(), fetchTransactions(), profilePromise, affirmPromise]);
+    await Promise.all([fetchAccounts(), fetchTransactions(), fetchPending(), fetchUnread(), profilePromise, affirmPromise]);
     setRefreshing(false);
   }
 
   useFocusEffect(useCallback(() => {
     fetchAccounts();
     fetchTransactions();
-  }, [fetchAccounts, fetchTransactions]));
+    fetchPending();
+    fetchUnread();
+  }, [fetchAccounts, fetchTransactions, fetchPending, fetchUnread]));
+
+  // On the date arriving, surface the approve/reject popup automatically — but
+  // only once per app session, so closing it doesn't re-open on every refocus.
+  const autoShownRef = useRef(false);
+  useEffect(() => {
+    if (!autoShownRef.current && pending.length > 0) {
+      autoShownRef.current = true;
+      setShowPending(true);
+    }
+  }, [pending.length]);
+
+  const handleApprove = async (rule: typeof pending[number]) => {
+    const res = await approve(rule);
+    if (res.ok) {
+      fetchTransactions();
+      fetchAccounts();
+    }
+  };
 
   if (accountsLoading || cfLoading) return <LoadingView />;
   if (accountsError) return <ErrorView error={accountsError} onRetry={fetchAccounts} />;
@@ -177,6 +208,9 @@ export default function HomeScreen() {
           name={displayName}
           onBellPress={() => router.push('/home/notifications')}
           onLockPress={lock}
+          onPendingPress={() => setShowPending(true)}
+          pendingCount={pending.length}
+          hasNotification={unreadCount > 0 || pending.length > 0}
         />
         <AffirmationCard
           index={affirmationIndex}
@@ -215,6 +249,15 @@ export default function HomeScreen() {
           onTransactionDeleted={() => { fetchTransactions(); fetchAccounts(); }}
         />
       </ScrollView>
+
+      <PendingRecurringModal
+        visible={showPending}
+        pending={pending}
+        acting={acting}
+        onApprove={handleApprove}
+        onReject={reject}
+        onClose={() => setShowPending(false)}
+      />
     </SafeAreaView>
   );
 }

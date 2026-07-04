@@ -91,6 +91,27 @@ export default function AccountDetailScreen() {
     setDetailVisible(true);
   };
 
+  const handleEditTx = (txId: string) => {
+    const tx = transactions.find((t) => t.id === txId);
+    if (!tx) return;
+    setDetailVisible(false);
+    router.push({
+      pathname: '/(main)/add-transaction',
+      params: {
+        editId: tx.id,
+        type: tx.type,
+        name: tx.name,
+        amount: String(tx.amount),
+        category: tx.category ?? '',
+        fromAccountId: tx.from_account_id ?? '',
+        toAccountId: tx.to_account_id ?? '',
+        date: tx.date,
+        note: tx.note ?? '',
+        nonce: String(Date.now()),
+      },
+    });
+  };
+
   const handleOpenEdit = () => {
     setEditName(account?.name ?? '');
     setEditBalance(balance.toString());
@@ -320,6 +341,7 @@ export default function AccountDetailScreen() {
         visible={detailVisible}
         onClose={() => setDetailVisible(false)}
         onDeleted={() => { setDetailVisible(false); refetchTransactions(); fetchAccounts(); }}
+        onEdit={handleEditTx}
       />
     </SafeAreaView>
   );

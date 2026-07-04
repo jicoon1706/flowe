@@ -115,39 +115,25 @@ export default function AddTransactionScreen() {
     .map((c) => ({ id: c.id, emoji: c.icon ?? '🏷️', name: c.name, color: c.color }));
   const categories = [...baseCategories, ...customForType];
 
-  // Income/expense source/destination: banks + wallets only.
-  const bankAccountOptions = accounts
-    .filter((a: any) => a.type === 'bank' || a.type === 'wallet')
-    .map((a: any) => {
-      const bal = Number(
-        a.type === 'bank'
-          ? a.bank_accounts?.current_balance ?? 0
-          : a.wallet_accounts?.current_balance ?? 0
-      );
-      return {
-        id: a.id,
-        name: a.name,
-        balance: bal.toLocaleString('en-US', { minimumFractionDigits: 2 }),
-        color: accountColor(a),
-      };
-    });
-
-  // Transfer source/destination: banks + tabung (savings goals).
-  const transferAccountOptions = accounts
-    .filter((a: any) => a.type === 'bank' || a.type === 'tabung')
-    .map((a: any) => {
-      const bal = Number(
-        a.type === 'bank'
-          ? a.bank_accounts?.current_balance ?? 0
-          : a.tabung_accounts?.saved_amount ?? 0
-      );
-      return {
-        id: a.id,
-        name: a.name,
-        balance: bal.toLocaleString('en-US', { minimumFractionDigits: 2 }),
-        color: accountColor(a),
-      };
-    });
+  // Source/destination for every transaction type: all accounts (banks,
+  // wallets, and tabung savings goals).
+  const allAccountOptions = accounts.map((a: any) => {
+    const bal = Number(
+      a.type === 'bank'
+        ? a.bank_accounts?.current_balance ?? 0
+        : a.type === 'wallet'
+        ? a.wallet_accounts?.current_balance ?? 0
+        : a.type === 'tabung'
+        ? a.tabung_accounts?.saved_amount ?? 0
+        : 0
+    );
+    return {
+      id: a.id,
+      name: a.name,
+      balance: bal.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+      color: accountColor(a),
+    };
+  });
 
   useFocusEffect(useCallback(() => {
     fetchAccounts();
@@ -458,11 +444,11 @@ export default function AddTransactionScreen() {
             value={account}
             onChange={setAccount}
             label={type === 'transfer' ? 'From' : type === 'expense' ? 'From Account' : 'To Account'}
-            accounts={type === 'transfer' ? transferAccountOptions : bankAccountOptions}
+            accounts={allAccountOptions}
           />
 
           {type === 'transfer' && (
-            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" accounts={transferAccountOptions} />
+            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" accounts={allAccountOptions} />
           )}
 
           {/* Date */}

@@ -2,7 +2,8 @@ import { supabase } from '../lib/supabase';
 import { recurringRepository } from '../repositories/recurring.repository';
 import { transactionsRepository } from '../repositories/transactions.repository';
 import { notify, formatRM } from './notifications';
-import type { RecurringFrequency } from '../types';
+import type { RecurringFrequency, RecurringRule } from '../types';
+import type { Result, SupabaseError } from '../utils/result';
 
 /** Local 'YYYY-MM-DD' for a Date (avoids UTC shift from toISOString). */
 function toYMD(dt: Date): string {
@@ -110,4 +111,67 @@ export async function processDueRecurring(): Promise<number> {
   } finally {
     running = false;
   }
+}
+
+/** The occurrence date currently awaiting the user's decision. */
+export function occurrenceDate(rule: RecurringRule): string {
+  return rule.next_date ?? rule.start_date;
+}
+
+/** Roll a rule's next_date one interval past its current occurrence. */
+function rolledNextDate(rule: RecurringRule): string {
+  const anchorDay = Number(rule.start_date.split('-')[2]) || 1;
+  return addInterval(occurrenceDate(rule), rule.frequency, anchorDay);
+}
+
+/**
+ * Approve one due occurrence: materialize it into a real dated transaction and
+ * roll the rule's next_date forward one interval. Returns the create Result so
+ * callers can surface failures (and refresh balances/transactions on success).
+ */
+export async function approveRecurring(rule: RecurringRule): Promise<Result<unknown, SupabaseError>> {
+  const occurrence = occurrenceDate(rule);
+  const res = await transactionsRepository.create({
+    user_id: rule.user_id,
+    type: rule.type,
+    name: rule.name,
+    amount: Number(rule.amount),
+    category: rule.category ?? (rule.type === 'expense' ? 'bills' : 'others'),
+    from_account_id: rule.type === 'expense' ? rule.from_account_id : undefined,
+    to_account_id: rule.type === 'income' ? rule.to_account_id : undefined,
+    date: occurrence,
+    is_recurring: true,
+    recurring_id: rule.id,
+  });
+  if (!res.ok) return res;
+
+  await recurringRepository.advance(rule.id, rolledNextDate(rule));
+  await notify({
+    type: 'recurring',
+    emoji: '🔁',
+    message: `${rule.name} charged`,
+    sub_text: `${formatRM(Number(rule.amount))} • ${occurrence}`,
+    related_entity_id: rule.id,
+  });
+  return res;
+}
+
+/**
+ * Reject one due occurrence: roll next_date forward one interval WITHOUT
+ * creating a transaction, so this period is skipped and the rule stays on
+ * schedule for the next one.
+ */
+export async function skipRecurring(rule: RecurringRule): Promise<Result<void, SupabaseError>> {
+  const occurrence = occurrenceDate(rule);
+  const res = await recurringRepository.advance(rule.id, rolledNextDate(rule));
+  if (res.ok) {
+    await notify({
+      type: 'recurring',
+      emoji: '⏭️',
+      message: `${rule.name} skipped`,
+      sub_text: `${occurrence}`,
+      related_entity_id: rule.id,
+    });
+  }
+  return res;
 }
