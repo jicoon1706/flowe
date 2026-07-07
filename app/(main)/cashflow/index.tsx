@@ -21,13 +21,6 @@ import { ErrorView } from '../../../components/ui/ErrorView';
 import { useAuth } from '../../../context/AuthContext';
 import type { Asset, Liability, AssetType, LiabilityType } from '../../../src/types/database.types';
 
-// ─── Month config ────────────────────────────────────────────────────────────
-const MONTHS = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'];
-
-// Index of the current calendar month within MONTHS (falls back to the last month).
-const CURRENT_MONTH = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-const CURRENT_MONTH_INDEX = MONTHS.indexOf(CURRENT_MONTH) === -1 ? MONTHS.length - 1 : MONTHS.indexOf(CURRENT_MONTH);
-
 // ─── Mock fallback data ────────────────────────────────────────────────────────
 const MONTHLY_TREND = [
   { month: 'Dec', assets: 260000, liabilities: 228000 },
@@ -45,7 +38,7 @@ interface UILiability { id: string; name: string; type: string; icon: string; am
 // ─── Main screen ────────────────────────────────────────────────────────────────
 export default function CashFlowScreen() {
   const router = useRouter();
-  const [monthIndex, setMonthIndex] = useState(CURRENT_MONTH_INDEX); // default to current month
+  const [selectedDate, setSelectedDate] = useState(new Date()); // default to current month
   const [balanceSheetTab, setBalanceSheetTab] = useState<'assets' | 'liabilities'>('assets');
   const [manageTab, setManageTab] = useState<'assets' | 'liabilities'>('assets');
   const [showAddAsset, setShowAddAsset] = useState(false);
@@ -53,10 +46,15 @@ export default function CashFlowScreen() {
   const [editingAsset, setEditingAsset] = useState<UIAsset | null>(null);
   const [editingLiability, setEditingLiability] = useState<UILiability | null>(null);
 
-  const currentMonth = MONTHS[monthIndex] ?? '2026-05';
-  const [yearStr, monthStr] = currentMonth.split('-');
-  const year = Number(yearStr);
-  const month = Number(monthStr);
+  const year = selectedDate.getFullYear();
+  const month = selectedDate.getMonth() + 1;
+  const currentMonth = `${year}-${String(month).padStart(2, '0')}`;
+  const monthLabel = selectedDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+  // Whether the selected month is after the current calendar month.
+  // Future months have no data yet, so they start from the "poor" pattern.
+  const now = new Date();
+  const isFutureMonth = year > now.getFullYear() || (year === now.getFullYear() && month > now.getMonth() + 1);
 
   // ─── Hook calls ────────────────────────────────────────────────────────────
   const { user } = useAuth();
@@ -69,7 +67,6 @@ export default function CashFlowScreen() {
   const anyError = txError || astError || liabError;
 
   useFocusEffect(useCallback(() => {
-    setMonthIndex(CURRENT_MONTH_INDEX);
     fetchAssets();
     fetchLiabilities();
     refetchTxns();
@@ -80,7 +77,8 @@ export default function CashFlowScreen() {
   if (anyError) return <ErrorView error={anyError} onRetry={() => { fetchAssets(); fetchLiabilities(); refetchTxns(); }} />;
 
   // ─── Map DB types to UI component types ───────────────────────────────────
-  const assets: UIAsset[] = rawAssets.map((a: Asset) => ({
+  // Future months have no data yet — show the empty "poor" starting pattern.
+  const assets: UIAsset[] = isFutureMonth ? [] : rawAssets.map((a: Asset) => ({
     id: a.id,
     name: a.name,
     type: a.type,
@@ -91,7 +89,7 @@ export default function CashFlowScreen() {
     note: a.note,
   }));
 
-  const liabilities: UILiability[] = rawLiabilities.map((l: Liability) => ({
+  const liabilities: UILiability[] = isFutureMonth ? [] : rawLiabilities.map((l: Liability) => ({
     id: l.id,
     name: l.name,
     type: l.type,
@@ -101,8 +99,8 @@ export default function CashFlowScreen() {
   }));
 
   // ─── Income / expense items (from local transactions) ──────────────────────
-  const incomeItems = incomeTxns.map(t => ({ label: t.name || t.category || 'Income', amount: Number(t.amount) }));
-  const expenseItems = expenseTxns.map(t => ({ label: t.name || t.category || 'Expense', amount: Number(t.amount) }));
+  const incomeItems = isFutureMonth ? [] : incomeTxns.map(t => ({ label: t.name || t.category || 'Income', amount: Number(t.amount) }));
+  const expenseItems = isFutureMonth ? [] : expenseTxns.map(t => ({ label: t.name || t.category || 'Expense', amount: Number(t.amount) }));
 
   // ─── Computed totals ────────────────────────────────────────────────────────
   const totalIncome = incomeItems.reduce((s, i) => s + i.amount, 0);
@@ -119,7 +117,9 @@ export default function CashFlowScreen() {
   const financialClass = assets.length === 0 ? 'poor' :
     passiveFromAssets >= totalExpenses ? 'rich' : 'middle';
 
-  const monthlyTrend = summary?.monthly_trend?.length ? summary.monthly_trend : MONTHLY_TREND;
+  const monthlyTrend = isFutureMonth
+    ? []
+    : summary?.monthly_trend?.length ? summary.monthly_trend : MONTHLY_TREND;
 
   const currMonth = monthlyTrend[monthlyTrend.length - 1];
   const prevMonth = monthlyTrend.length > 1 ? monthlyTrend[monthlyTrend.length - 2] : null;
@@ -127,6 +127,14 @@ export default function CashFlowScreen() {
     - ((prevMonth?.assets ?? 0) - (prevMonth?.liabilities ?? 0));
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
+  const navigateMonth = (delta: number) => {
+    setSelectedDate((prev) => {
+      const next = new Date(prev);
+      next.setMonth(next.getMonth() + delta);
+      return next;
+    });
+  };
+
   const handleAddAsset = async (a: NewAsset) => {
     if (!user) return;
     const result = editingAsset
@@ -214,11 +222,11 @@ export default function CashFlowScreen() {
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
         {/* Month Navigator */}
         <View className="flex-row items-center justify-between px-4 py-3">
-          <Pressable onPress={() => setMonthIndex((i) => Math.max(0, i - 1))} className="p-2">
+          <Pressable onPress={() => navigateMonth(-1)} className="p-2">
             <ChevronLeft size={24} color="#ffffff" />
           </Pressable>
-          <Text className="text-lg font-semibold text-foreground">{MONTHS[monthIndex]}</Text>
-          <Pressable onPress={() => setMonthIndex((i) => Math.min(MONTHS.length - 1, i + 1))} className="p-2">
+          <Text className="text-lg font-semibold text-foreground">{monthLabel}</Text>
+          <Pressable onPress={() => navigateMonth(1)} className="p-2">
             <ChevronRight size={24} color="#ffffff" />
           </Pressable>
         </View>

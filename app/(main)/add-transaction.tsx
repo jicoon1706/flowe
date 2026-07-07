@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform , Alert, Image } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, Modal, Platform , Alert, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Camera, RefreshCw, Calendar, ChevronDown, Bell, Check } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -17,6 +17,8 @@ import { ErrorView } from '../../components/ui/ErrorView';
 import { useAccounts } from '../../src/hooks/useAccounts';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
+import { useReceiptScan } from '../../src/hooks/useReceiptScan';
+import type { ReceiptData } from '../../src/types';
 import { useAuth } from '../../context/AuthContext';
 import { useLock } from '../../context/LockContext';
 import { accountColor } from '../../src/utils/accountColor';
@@ -105,6 +107,7 @@ export default function AddTransactionScreen() {
   const { accounts, loading: acctsLoading, error: acctsError, fetchAccounts } = useAccounts();
   const { loading: txLoading, error: txError, create, update } = useTransactions(now.getFullYear(), now.getMonth() + 1);
   const { categories: customCategories, loading: catLoading, error: catError, fetchCategories: fetchCustomCategories } = useCustomCategories();
+  const { scan, loading: scanning } = useReceiptScan();
 
   // Merge built-in categories with the user's custom ones for the active type.
   // Custom categories only exist for expense/income; transfer falls back to the
@@ -206,7 +209,24 @@ export default function AddTransactionScreen() {
     return opt?.label || 'No reminder';
   };
 
-  async function handlePickReceipt(source: 'camera' | 'library') {
+  // Prefill the form from an OCR'd receipt. Receipts are always expenses, and
+  // only amount / name / date are filled — category & account stay for the user
+  // to choose (any empty/zero field the model couldn't read is left untouched).
+  function applyReceipt(data: ReceiptData) {
+    setType('expense');
+    if (data.total_amount && data.total_amount > 0) setAmount(String(data.total_amount));
+    if (data.merchant_name) setName(data.merchant_name);
+    if (data.transaction_date) {
+      const [y, m, d] = data.transaction_date.split('-').map(Number);
+      const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+      if (y && m && d && !isNaN(dt.getTime())) {
+        setCustomDate(dt);
+        setDateOption('custom');
+      }
+    }
+  }
+
+  async function handlePickReceipt(source: 'camera' | 'library', ocr = false) {
     const permission = source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -227,6 +247,21 @@ export default function AddTransactionScreen() {
     const asset = result.assets[0];
     if (!asset?.base64) return;
     setReceiptImage({ uri: asset.uri, base64: asset.base64 });
+
+    // Only the "Scan Receipt" action runs OCR; a plain "Attach Image" just keeps
+    // the photo. The image stays attached either way, so a failed scan still
+    // leaves the user with the receipt to fill in by hand.
+    if (ocr) {
+      const data = await scan(asset.base64);
+      if (data) {
+        applyReceipt(data);
+      } else {
+        Alert.alert(
+          "Couldn't read receipt",
+          "We couldn't extract the details automatically. The photo is attached — please fill in the amount, name, and date."
+        );
+      }
+    }
   }
 
   function resetForm() {
@@ -379,11 +414,22 @@ export default function AddTransactionScreen() {
         {/* Scan Receipt */}
         <View className="px-4 pt-4">
           <Pressable
-            onPress={() => handlePickReceipt('camera')}
+            onPress={() => handlePickReceipt('camera', true)}
+            disabled={scanning}
             className="w-full bg-primary rounded-2xl py-4 flex-row items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            style={{ opacity: scanning ? 0.7 : 1 }}
           >
-            <Camera size={20} color="#000000" />
-            <Text className="text-base font-bold text-primary-foreground">Scan Receipt</Text>
+            {scanning ? (
+              <>
+                <ActivityIndicator color="#000000" />
+                <Text className="text-base font-bold text-primary-foreground">Reading receipt…</Text>
+              </>
+            ) : (
+              <>
+                <Camera size={20} color="#000000" />
+                <Text className="text-base font-bold text-primary-foreground">Scan Receipt</Text>
+              </>
+            )}
           </Pressable>
         </View>
 

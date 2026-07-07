@@ -12,3 +12,4 @@ export { useSettings } from './useSettings';
 export { useRecurring } from './useRecurring';
 export { useAffirmations } from './useAffirmations';
 export { useCustomCategories } from './useCustomCategories';
+export { useReceiptScan } from './useReceiptScan';
