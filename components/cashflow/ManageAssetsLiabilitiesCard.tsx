@@ -2,7 +2,7 @@ import { View, Text, Pressable } from 'react-native';
 import { useState } from 'react';
 import { Trash, Pencil, Plus, Check, X, Wallet, Scale } from 'lucide-react-native';
 
-interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
+interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; quantity?: number; unit?: string; }
 interface Liability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
 
 interface ManageAssetsLiabilitiesCardProps {
@@ -81,6 +81,9 @@ export function ManageAssetsLiabilitiesCard({
           const name = isAsset ? (item as Asset).name : (item as Liability).name;
           const type = isAsset ? (item as Asset).type : (item as Liability).type;
           const icon = isAsset ? (item as Asset).icon : (item as Liability).icon;
+          // Only assets carry a physical amount, and only some of those.
+          const qty = isAsset ? (item as Asset).quantity : undefined;
+          const qtyUnit = isAsset ? (item as Asset).unit : undefined;
           const isDeleting = deleteId === item.id;
 
           return (
@@ -103,7 +106,10 @@ export function ManageAssetsLiabilitiesCard({
                   <Text className="font-semibold text-sm text-foreground" numberOfLines={1}>
                     {name}
                   </Text>
-                  <Text className="text-[11px] text-muted-foreground mb-0.5">{type}</Text>
+                  <Text className="text-[11px] text-muted-foreground mb-0.5">
+                    {type}
+                    {qty != null && qtyUnit ? ` · ${Number(qty.toFixed(4))} ${qtyUnit}` : ''}
+                  </Text>
                   <View className="flex-row items-baseline gap-2">
                     <Text className="text-sm font-bold" style={{ color: accentColor }}>
                       RM {v.toLocaleString()}

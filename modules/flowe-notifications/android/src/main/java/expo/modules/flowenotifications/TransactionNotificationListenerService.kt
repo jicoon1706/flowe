@@ -40,6 +40,13 @@ class TransactionNotificationListenerService : NotificationListenerService() {
     val combined = "$title $text"
     if (!looksLikeTransaction(combined)) return
 
+    // Android calls onNotificationPosted again every time the source app
+    // *updates* a notification, and replays the whole shade on
+    // onListenerConnected. Without this the same payment is queued and
+    // announced two or three times over — the duplicate the user sees.
+    // Identity is the content, not the id: banks reuse notification ids freely.
+    if (isDuplicate(sbn.packageName, title, text, sbn.postTime)) return
+
     val capture = Capture(
       id = UUID.randomUUID().toString(),
       packageName = sbn.packageName,
@@ -57,6 +64,32 @@ class TransactionNotificationListenerService : NotificationListenerService() {
     QuickCaptureNotifier.post(context, capture, extractAmount(combined))
   }
 
+  /**
+   * True when this exact alert has already been queued moments ago.
+   *
+   * Two guards, because the duplicates arrive by two different routes: an
+   * in-memory window catches an app editing its own notification while Flowe
+   * is running, and a scan of the queue catches the shade replay that happens
+   * when the listener reconnects (a fresh process has an empty window).
+   */
+  private fun isDuplicate(packageName: String, title: String, text: String, postedAt: Long): Boolean {
+    val signature = "$packageName|$title|$text"
+    val now = System.currentTimeMillis()
+
+    synchronized(recentSignatures) {
+      recentSignatures.entries.removeAll { now - it.value > DEDUPE_WINDOW_MS }
+      if (recentSignatures.containsKey(signature)) return true
+      recentSignatures[signature] = now
+    }
+
+    return CaptureStore.all(applicationContext).any {
+      it.packageName == packageName &&
+        it.title == title &&
+        it.text == text &&
+        kotlin.math.abs(it.postedAt - postedAt) < DEDUPE_WINDOW_MS
+    }
+  }
+
   private fun looksLikeTransaction(text: String): Boolean {
     if (IGNORE.any { text.contains(it, ignoreCase = true) }) return false
     return AMOUNT.containsMatchIn(text)
@@ -66,6 +99,15 @@ class TransactionNotificationListenerService : NotificationListenerService() {
     AMOUNT.find(text)?.groupValues?.getOrNull(1)
 
   companion object {
+    /**
+     * How long two identical alerts are treated as the same event. Generous
+     * enough to swallow an app rewriting its notification a few seconds later,
+     * short enough that two genuinely identical payments (the same amount, at
+     * the same merchant, minutes apart) are both recorded.
+     */
+    private const val DEDUPE_WINDOW_MS = 60_000L
+    private val recentSignatures = LinkedHashMap<String, Long>()
+
     private val AMOUNT = Regex("""(?:RM|MYR)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
     private val IGNORE = listOf("OTP", "one-time password", "verification code", "do not share", "promo")
   }

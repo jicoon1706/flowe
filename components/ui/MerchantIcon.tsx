@@ -18,7 +18,7 @@ interface MerchantIconProps {
  * icon also falls back on a failed or offline fetch. The row always renders
  * something.
  */
-export function MerchantIcon({ name, fallback, size = 36 }: MerchantIconProps) {
+export function MerchantIcon({ name, fallback, size = 44 }: MerchantIconProps) {
   // The curated list arrives shortly after launch; re-match when it does.
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   useEffect(() => subscribeMerchantSources(rerender), []);
@@ -39,7 +39,7 @@ export function MerchantIcon({ name, fallback, size = 36 }: MerchantIconProps) {
         <Image
           source={{ uri: url }}
           onError={() => setFailed(true)}
-          style={{ width: size * 0.64, height: size * 0.64 }}
+          style={{ width: size * 0.74, height: size * 0.74 }}
           contentFit="contain"
           // Logos are identical for every user and never change per session, so
           // they're worth keeping on disk rather than refetching each launch.
@@ -47,7 +47,7 @@ export function MerchantIcon({ name, fallback, size = 36 }: MerchantIconProps) {
           transition={120}
         />
       ) : (
-        <Text style={{ fontSize: size * 0.44 }}>{fallback}</Text>
+        <Text style={{ fontSize: size * 0.46 }}>{fallback}</Text>
       )}
     </View>
   );

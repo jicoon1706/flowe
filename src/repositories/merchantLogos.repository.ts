@@ -30,3 +30,48 @@ export const merchantLogosRepository = {
     return supabase.storage.from('merchant-logos').getPublicUrl(path).data.publicUrl;
   },
 };
+
+/** A merchant a user has asked Flowe to start recognising. */
+export interface MerchantLogoRequest {
+  id: string;
+  merchant: string;
+  example_name?: string | null;
+  category?: string | null;
+  status: 'pending' | 'added' | 'declined';
+  created_at: string;
+}
+
+export interface CreateMerchantLogoRequest {
+  user_id: string;
+  merchant: string;
+  /** A transaction name it shows up under, so the keyword can be matched for real. */
+  example_name?: string;
+  category?: string;
+}
+
+export const merchantLogoRequestsRepository = {
+  /** This user's own requests, newest first. */
+  async fetchMine(): Promise<Result<MerchantLogoRequest[], SupabaseError>> {
+    const { data, error } = await supabase
+      .from('merchant_logo_requests')
+      .select('id, merchant, example_name, category, status, created_at')
+      .order('created_at', { ascending: false });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data as MerchantLogoRequest[] };
+  },
+
+  async create(req: CreateMerchantLogoRequest): Promise<Result<MerchantLogoRequest, SupabaseError>> {
+    const { data, error } = await supabase
+      .from('merchant_logo_requests')
+      .insert({
+        user_id: req.user_id,
+        merchant: req.merchant,
+        example_name: req.example_name ?? null,
+        category: req.category ?? null,
+      })
+      .select()
+      .single();
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data as MerchantLogoRequest };
+  },
+};

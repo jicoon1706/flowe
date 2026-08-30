@@ -1,21 +1,14 @@
 import { useState, useCallback } from 'react';
 import { recurringRepository } from '../repositories/recurring.repository';
-import { approveRecurring, skipRecurring } from '../services/recurring';
+import { approveRecurring, skipRecurring, dueThroughYMD } from '../services/recurring';
 import type { RecurringRule } from '../types';
-
-/** Today as a local 'YYYY-MM-DD' string (avoids the UTC shift toISOString causes). */
-function todayYMD(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
 /**
  * Recurring rules whose date has arrived and are waiting on the user to approve
  * (create the transaction) or reject (skip this period). Each due rule surfaces
  * as one pending item for its current occurrence.
+ *
+ * "Arrived" means 5am local on the day — see `dueThroughYMD`.
  */
 export function usePendingRecurring() {
   const [pending, setPending] = useState<RecurringRule[]>([]);
@@ -24,7 +17,9 @@ export function usePendingRecurring() {
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
-    const result = await recurringRepository.fetchDue(todayYMD());
+    // Not simply "today": a rule dated today only comes due at 5am local, so
+    // opening the app at 1am shouldn't put tomorrow's bills in front of anyone.
+    const result = await recurringRepository.fetchDue(dueThroughYMD());
     if (result.ok) setPending(result.data);
     setLoading(false);
   }, []);

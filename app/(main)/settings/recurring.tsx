@@ -23,6 +23,7 @@ function bankColor(account: any): string {
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import * as Haptics from 'expo-haptics';
+import { useKeyboardHeight } from '../../../src/hooks/useKeyboardHeight';
 
 const FREQUENCIES = ['Weekly', 'Monthly', 'Yearly'] as const;
 type Frequency = typeof FREQUENCIES[number];
@@ -41,6 +42,7 @@ function parseYMD(value: string | undefined): Date {
 }
 
 export default function RecurringScreen() {
+  const keyboardHeight = useKeyboardHeight();
   const router = useRouter();
   const { user } = useAuth();
   const { accounts, fetchAccounts } = useAccounts();
@@ -280,7 +282,14 @@ export default function RecurringScreen() {
       {editing && (
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}>
         <Pressable className="flex-1 bg-black/50 justify-end" onPress={closeSheet}>
-          <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            className="bg-card rounded-t-3xl p-6 pb-8"
+            onPress={(e) => e.stopPropagation()}
+            // Lifts the sheet clear of the keyboard: a modal window is not
+            // resized by the manifest's adjustResize, so without this the
+            // field being typed into can sit underneath it.
+            style={{ paddingBottom: keyboardHeight ? keyboardHeight + 16 : undefined }}
+          >
             <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
 
             <View className="flex-row items-center justify-between mb-6">

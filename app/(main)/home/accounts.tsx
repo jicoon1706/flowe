@@ -11,6 +11,7 @@ import type { AssetType } from '../../../src/types';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { useKeyboardHeight } from '../../../src/hooks/useKeyboardHeight';
 
 type FilterType = 'All' | 'Bank' | 'Tabung' | 'Investment';
 
@@ -24,6 +25,7 @@ const INVESTMENT_TYPES: { value: AssetType; label: string }[] = [
 ];
 
 export default function AccountsScreen() {
+  const keyboardHeight = useKeyboardHeight();
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<FilterType>('All');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -317,7 +319,14 @@ export default function AccountsScreen() {
         onRequestClose={() => { setShowAddModal(false); resetForm(); }}
       >
         <Pressable className="flex-1 bg-black/50 justify-end" onPress={() => { setShowAddModal(false); resetForm(); }}>
-          <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            className="bg-card rounded-t-3xl p-6 pb-8"
+            onPress={(e) => e.stopPropagation()}
+            // Lifts the sheet clear of the keyboard: a modal window is not
+            // resized by the manifest's adjustResize, so without this the
+            // field being typed into can sit underneath it.
+            style={{ paddingBottom: keyboardHeight ? keyboardHeight + 16 : undefined }}
+          >
             <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
 
             {/* Header with Close */}

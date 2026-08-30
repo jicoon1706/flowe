@@ -9,6 +9,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useCustomCategories } from '../../../src/hooks/useCustomCategories';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
+import { useKeyboardHeight } from '../../../src/hooks/useKeyboardHeight';
 
 const PRESET_COLORS = [
   '#F97316', '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444',
@@ -28,6 +29,7 @@ interface CategoryRow {
 }
 
 export default function CategoriesScreen() {
+  const keyboardHeight = useKeyboardHeight();
   const router = useRouter();
   const { user } = useAuth();
   const {
@@ -130,7 +132,14 @@ export default function CategoriesScreen() {
     editing ? (
     <View className="absolute inset-0 z-50" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       <Pressable className="flex-1 bg-black/50 justify-end" onPress={() => setEditing(null)}>
-        <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
+        <Pressable
+            className="bg-card rounded-t-3xl p-6 pb-8"
+            onPress={(e) => e.stopPropagation()}
+            // Lifts the sheet clear of the keyboard: a modal window is not
+            // resized by the manifest's adjustResize, so without this the
+            // field being typed into can sit underneath it.
+            style={{ paddingBottom: keyboardHeight ? keyboardHeight + 16 : undefined }}
+          >
           <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
 
           <View className="flex-row items-center justify-between mb-6">

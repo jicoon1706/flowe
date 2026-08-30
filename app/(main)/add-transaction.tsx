@@ -25,6 +25,7 @@ import { useLock } from '../../context/LockContext';
 import { accountColor } from '../../src/utils/accountColor';
 import { merchantCategory } from '../../src/utils/merchantLogo';
 import { localYMD } from '../../src/utils/date';
+import { KeyboardAvoider } from '../../components/ui/KeyboardAvoider';
 import { storageService } from '../../src/services/storage';
 import { transactionsRepository } from '../../src/repositories/transactions.repository';
 import { assetsRepository } from '../../src/repositories/assets.repository';
@@ -529,7 +530,13 @@ export default function AddTransactionScreen() {
         <View className="w-10" />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+      <KeyboardAvoider>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        className="flex-1"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 24 }}
+      >
         {/* Scan Receipt */}
         <View className="px-4 pt-4">
           <Pressable
@@ -1011,6 +1018,7 @@ export default function AddTransactionScreen() {
           />
         </View>
       </ScrollView>
+      </KeyboardAvoider>
     </SafeAreaView>
   );
 }

@@ -25,6 +25,9 @@ object QuickCaptureNotifier {
   const val EXTRA_TYPE = "type"
   const val KEY_NAME_INPUT = "name"
 
+  /** Answer meaning "this isn't a transaction" — see [ignoreAction]. */
+  const val TYPE_IGNORE = "ignore"
+
   fun post(context: Context, capture: Capture, amount: String?) {
     ensureChannel(context)
 
@@ -45,6 +48,11 @@ object QuickCaptureNotifier {
       .setContentIntent(openAppIntent(context, capture))
       .addAction(action(context, capture, "expense", "Expense"))
       .addAction(action(context, capture, "income", "Income"))
+      // Not every alert Flowe catches is money moving — a promo naming a
+      // ringgit amount, a balance reminder, a refund notice. Without a way to
+      // say so the only options were to file it wrongly or leave it sitting in
+      // the shade forever.
+      .addAction(ignoreAction(context, capture))
       .build()
 
     try {
@@ -53,6 +61,25 @@ object QuickCaptureNotifier {
       // POST_NOTIFICATIONS not granted — the capture is still queued, so it will
       // show up in the app; there's nothing to recover here.
     }
+  }
+
+  /**
+   * "Not a transaction" — drops the detection outright. No inline text field:
+   * there is nothing to name, and an extra field would only slow down the one
+   * action the user wants to be instant.
+   */
+  private fun ignoreAction(context: Context, capture: Capture): NotificationCompat.Action {
+    val intent = Intent(context, QuickCaptureReceiver::class.java).apply {
+      putExtra(EXTRA_CAPTURE_ID, capture.id)
+      putExtra(EXTRA_TYPE, TYPE_IGNORE)
+    }
+    val pending = PendingIntent.getBroadcast(
+      context,
+      (capture.id + TYPE_IGNORE).hashCode(),
+      intent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    return NotificationCompat.Action.Builder(0, "Ignore", pending).build()
   }
 
   /**

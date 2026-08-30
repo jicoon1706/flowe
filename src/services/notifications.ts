@@ -90,6 +90,62 @@ export async function presentLocalNotification(title: string, body: string): Pro
   }
 }
 
+/**
+ * Schedule a local notification for a specific moment.
+ *
+ * `identifier` is the caller's own key, so re-scheduling the same thing
+ * replaces it rather than stacking a second copy — which is what happens if you
+ * let the OS assign ids and the app is opened twice before the trigger fires.
+ * A time already past is dropped: the OS would otherwise fire it immediately,
+ * which for a 5am reminder means waking someone at 11pm.
+ *
+ * Never throws. A no-op in Expo Go.
+ */
+export async function scheduleLocalNotificationAt(
+  when: Date,
+  title: string,
+  body: string,
+  identifier: string
+): Promise<void> {
+  try {
+    if (when.getTime() <= Date.now()) return;
+    if (permissionGranted === null) await setupNotifications();
+    if (!permissionGranted) return;
+    const Notifications = getNotifications();
+    if (!Notifications) return;
+    await Notifications.scheduleNotificationAsync({
+      identifier,
+      content: { title, body },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: when,
+      },
+    });
+  } catch (e) {
+    console.warn('[notifications] failed to schedule:', e);
+  }
+}
+
+/**
+ * Drop every notification this app scheduled whose identifier starts with
+ * `prefix`. Used to clear a whole family of reminders before re-scheduling it,
+ * so a rule the user paused or deleted doesn't still fire tomorrow morning.
+ */
+export async function cancelScheduledWithPrefix(prefix: string): Promise<void> {
+  try {
+    const Notifications = getNotifications();
+    if (!Notifications) return;
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter((n) => n.identifier.startsWith(prefix))
+        .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
+    );
+  } catch (e) {
+    console.warn('[notifications] failed to cancel scheduled:', e);
+  }
+}
+
 /** Format a number as a Malaysian Ringgit amount, e.g. 1234.5 -> "RM 1,234.50". */
 export function formatRM(value: number): string {
   return `RM ${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;

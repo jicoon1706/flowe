@@ -36,7 +36,7 @@ const MONTHLY_TREND = [
 ];
 
 // ─── Component-level asset/liability shape (for UI components) ────────────────
-interface UIAsset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; dateAcquired?: string; note?: string; }
+interface UIAsset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; dateAcquired?: string; note?: string; quantity?: number; unit?: string; }
 interface UILiability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
 
 // ─── Main screen ────────────────────────────────────────────────────────────────
@@ -109,6 +109,8 @@ export default function CashFlowScreen() {
     type: a.type,
     icon: a.icon ?? '📦',
     value: a.current_value,
+    quantity: a.quantity,
+    unit: a.unit,
     monthlyIncome: a.monthly_income,
     dateAcquired: a.date_acquired,
     note: a.note,
@@ -168,6 +170,8 @@ export default function CashFlowScreen() {
           type: a.type as AssetType,
           icon: a.icon,
           current_value: a.value,
+          quantity: a.quantity,
+          unit: a.unit,
           monthly_income: a.monthlyIncome,
           date_acquired: a.dateAcquired,
           note: a.note,
@@ -178,6 +182,8 @@ export default function CashFlowScreen() {
           type: a.type as AssetType,
           icon: a.icon,
           current_value: a.value,
+          quantity: a.quantity,
+          unit: a.unit,
           monthly_income: a.monthlyIncome,
           date_acquired: a.dateAcquired,
           note: a.note,
@@ -186,14 +192,18 @@ export default function CashFlowScreen() {
       // Funded from an account: record the money leaving it, exactly as a
       // transfer into this asset from the Add Transaction screen would — a
       // transfer with no destination account, filed under the asset's name.
-      // The asset was already created holding the value, so only the account
-      // side is left to write.
-      if (!editingAsset && a.fundFromAccountId) {
+      // The asset row already holds the new total, so only the account side is
+      // left to write.
+      //
+      // `contribution` — not `value` — is what moved: on a top-up the total is
+      // the running balance, and charging that to an account would re-spend
+      // everything the asset had ever received.
+      if (a.fundFromAccountId && a.contribution > 0) {
         await transactionsRepository.create({
           user_id: user.id,
           type: 'transfer',
-          name: `Into ${a.name}`,
-          amount: a.value,
+          name: editingAsset ? `Top-up ${a.name}` : `Into ${a.name}`,
+          amount: a.contribution,
           category: a.name,
           from_account_id: a.fundFromAccountId,
           date: localYMD(new Date()),

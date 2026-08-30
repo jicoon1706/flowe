@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, TextInput, Animated, Easing, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Check, Sparkle } from '../ui/icons';
+import { X, Check, Sparkle, Ban } from '../ui/icons';
 import { expenseCategories, incomeCategories } from '../../constants/categories';
 import { accountColor } from '../../src/utils/accountColor';
 import { merchantCategory } from '../../src/utils/merchantLogo';
@@ -14,6 +14,10 @@ interface DetectedTransactionIslandProps {
     detected: DetectedTransaction,
     values: { name: string; type: 'expense' | 'income'; accountId: string; category?: string }
   ) => Promise<{ ok: boolean }>;
+  /**
+   * Throws the detection away for good: it wasn't a transaction. Distinct from
+   * `onSnooze`, which keeps it queued for later.
+   */
   onDismiss: (id: string) => void;
   /** Called when the island times out — hides it, but keeps the detection. */
   onSnooze: (id: string) => void;
@@ -22,9 +26,11 @@ interface DetectedTransactionIslandProps {
 /**
  * How long the collapsed island hovers before it steps aside. The detection
  * isn't lost: its Android notification stays in the shade, where the user can
- * still file it (or reopen Flowe on it) whenever they get to it.
+ * still file it (or reopen Flowe on it) whenever they get to it. Ten seconds is
+ * long enough to read the amount and decide, short enough that it never becomes
+ * something to swat away.
  */
-const AUTO_HIDE_MS = 20_000;
+const AUTO_HIDE_MS = 10_000;
 
 /**
  * The floating capsule that drops in when Flowe spots a payment in a bank or
@@ -248,6 +254,21 @@ export function DetectedTransactionIsland({
               <Check size={16} color={canSave ? '#000' : '#a0a0a0'} />
               <Text className={`text-sm font-semibold ${canSave ? 'text-black' : 'text-muted-foreground'}`}>
                 {saving ? 'Saving…' : !accountId ? 'Choose an account' : 'Save transaction'}
+              </Text>
+            </Pressable>
+
+            {/* Plenty of what Flowe catches is neither expense nor income — a
+                promo quoting a ringgit figure, a balance reminder, a refund
+                notice. Saying so outright drops it, so it stops coming back;
+                the X above does the same but reads as "close for now". */}
+            <Pressable
+              onPress={() => onDismiss(detected.id)}
+              disabled={saving}
+              className="flex-row items-center justify-center gap-2 py-2.5 mt-2 rounded-2xl border border-border"
+            >
+              <Ban size={14} color="#a0a0a0" />
+              <Text className="text-xs font-semibold text-muted-foreground">
+                Not a transaction — ignore
               </Text>
             </Pressable>
           </View>

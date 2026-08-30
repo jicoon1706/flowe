@@ -1,7 +1,7 @@
 import { View, Text, Pressable } from 'react-native';
 import { Plus, Wallet, Scale } from 'lucide-react-native';
 
-interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; }
+interface Asset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; quantity?: number; unit?: string; }
 interface Liability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
 
 interface BalanceSheetCardProps {
@@ -19,8 +19,10 @@ interface BalanceSheetCardProps {
 const ASSET_COLOR = '#C5FF00';
 const LIABILITY_COLOR = '#ff6b6b';
 
-function ItemRow({ icon, name, type, value, monthly, isLiability }: {
+function ItemRow({ icon, name, type, value, monthly, isLiability, quantity, unit }: {
   icon: string; name: string; type: string; value: number; monthly: number; isLiability: boolean;
+  /** Physical amount held, for an asset measured in something other than ringgit. */
+  quantity?: number; unit?: string;
 }) {
   const color = isLiability ? LIABILITY_COLOR : ASSET_COLOR;
   return (
@@ -36,7 +38,12 @@ function ItemRow({ icon, name, type, value, monthly, isLiability }: {
       </View>
       <View className="flex-1">
         <Text className="text-sm font-semibold text-foreground">{name}</Text>
-        <Text className="text-xs text-muted-foreground">{type}</Text>
+        <Text className="text-xs text-muted-foreground">
+          {type}
+          {/* What's actually held — for gold the weight is the thing that was
+              bought; the ringgit figure only tracks it at today's rate. */}
+          {quantity != null && unit ? ` · ${Number(quantity.toFixed(4))} ${unit}` : ''}
+        </Text>
       </View>
       <View className="items-end">
         <Text className="text-sm font-bold" style={{ color }}>
@@ -127,7 +134,7 @@ export function BalanceSheetCard({
             return <ItemRow key={l.id} icon={l.icon} name={l.name} type={l.type} value={l.amountOwed} monthly={l.monthlyPayment} isLiability />;
           }
           const a = item as Asset;
-          return <ItemRow key={a.id} icon={a.icon} name={a.name} type={a.type} value={a.value} monthly={a.monthlyIncome} isLiability={false} />;
+          return <ItemRow key={a.id} icon={a.icon} name={a.name} type={a.type} value={a.value} monthly={a.monthlyIncome} quantity={a.quantity} unit={a.unit} isLiability={false} />;
         })}
         <Pressable
           onPress={onAdd}

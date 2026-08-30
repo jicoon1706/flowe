@@ -168,6 +168,13 @@ export default function SettingsScreen() {
             onPress={() => router.push('/settings/recurring')}
           />
           <View className="border-t border-border" />
+          <SettingsRow
+            label="Request a Merchant"
+            value="Missing logo?"
+            icon={<Sparkle size={16} color="#a0a0a0" />}
+            onPress={() => router.push('/settings/merchant-request')}
+          />
+          <View className="border-t border-border" />
         </SettingsGroup>
 
         <SettingsGroup title="Affirmations">

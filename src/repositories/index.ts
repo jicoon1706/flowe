@@ -11,4 +11,4 @@ export { affirmationsRepository } from './affirmations.repository';
 export { settingsRepository } from './settings.repository';
 export { customCategoriesRepository } from './customCategories.repository';
 export { authConfigRepository } from './authConfig.repository';
-export { merchantLogosRepository } from './merchantLogos.repository';
+export { merchantLogosRepository, merchantLogoRequestsRepository } from './merchantLogos.repository';

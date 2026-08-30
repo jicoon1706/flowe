@@ -8,6 +8,10 @@ export interface CreateAssetRequest {
   type: AssetType;
   icon?: string;
   current_value: number;
+  /** Physical amount held (grams of gold, say). Omitted for unitless assets. */
+  quantity?: number;
+  /** Unit for `quantity`, e.g. 'g'. */
+  unit?: string;
   monthly_income?: number;
   date_acquired?: string;
   note?: string;
@@ -33,6 +37,8 @@ export const assetsRepository = {
         type: req.type,
         icon: req.icon,
         current_value: req.current_value,
+        quantity: req.quantity ?? null,
+        unit: req.unit ?? null,
         monthly_income: req.monthly_income ?? 0,
         date_acquired: req.date_acquired,
         note: req.note,

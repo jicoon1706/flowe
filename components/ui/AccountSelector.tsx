@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, Modal } from 'react-native';
+import { View, Text, Pressable, Modal, ScrollView } from 'react-native';
 import { ChevronDown, Check } from 'lucide-react-native';
 
 interface Account {
@@ -88,7 +88,15 @@ export function AccountSelector({
           <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
             <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
             <Text className="text-lg font-semibold text-foreground mb-4">{title}</Text>
-            <View className="gap-2">
+            {/* Bounded and scrollable: a user with many accounts (banks, wallets
+                and every tabung) otherwise runs the list off the bottom of the
+                screen with no way to reach the last few. */}
+            <ScrollView
+              style={{ maxHeight: 380 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8 }}
+              keyboardShouldPersistTaps="handled"
+            >
               {accounts.map((account) => (
                 <Pressable
                   key={account.id}
@@ -117,7 +125,7 @@ export function AccountSelector({
                   {account.id === value && <Check size={20} color="#C5FF00" />}
                 </Pressable>
               ))}
-            </View>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>

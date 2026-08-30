@@ -147,6 +147,13 @@ export interface Asset {
   type: AssetType;
   icon?: string;
   current_value: number;
+  /**
+   * Physical amount held, for an asset measured in something other than
+   * ringgit — grams of gold, above all. Undefined for the rest.
+   */
+  quantity?: number;
+  /** Unit for `quantity`, e.g. 'g'. */
+  unit?: string;
   monthly_income: number;
   date_acquired?: string;
   note?: string;

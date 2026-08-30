@@ -16,9 +16,17 @@ jest.mock('@/src/repositories/recurring.repository', () => ({
   },
 }));
 
+// The real module reaches Supabase (and through it AsyncStorage) at import
+// time, so it's stubbed whole rather than partially. `dueThroughYMD` stands in
+// as plain local-today: the cutoff rule itself is covered in recurring.test.ts,
+// and what matters here is that the hook passes a local YYYY-MM-DD through.
 jest.mock('@/src/services/recurring', () => ({
   approveRecurring: jest.fn(),
   skipRecurring: jest.fn(),
+  dueThroughYMD: jest.fn(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }),
 }));
 
 // --- Imports (after mocks) --------------------------------------------------

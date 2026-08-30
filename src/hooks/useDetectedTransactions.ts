@@ -53,9 +53,16 @@ export function useDetectedTransactions(userId: string | undefined, accounts: an
       postedAt: capture.postedAt,
     });
     if (!parsed) return null;
+    // The shade also offers "Ignore", which the native side handles by deleting
+    // the capture outright — so it should never arrive here. Guarded anyway:
+    // anything that isn't one of the two real types must not become one.
+    const answered =
+      capture.chosenType === 'expense' || capture.chosenType === 'income'
+        ? capture.chosenType
+        : undefined;
     return {
       id: capture.id,
-      parsed: capture.chosenType ? { ...parsed, type: capture.chosenType } : parsed,
+      parsed: answered ? { ...parsed, type: answered } : parsed,
       sourceLabel: sourceForPackage(capture.packageName)?.label ?? capture.packageName,
       accountId: resolveDetectedAccount(parsed, accountsRef.current),
       suggestedName: capture.chosenName ?? undefined,
@@ -138,7 +145,8 @@ export function useDetectedTransactions(userId: string | undefined, accounts: an
     for (const item of detected) {
       // Answered from the shade *and* we know the account: file it without
       // bothering the user — that's the "never open the app" path.
-      const answered = captures.find((c) => c.id === item.id)?.chosenType;
+      const shadeAnswer = captures.find((c) => c.id === item.id)?.chosenType;
+      const answered = shadeAnswer === 'expense' || shadeAnswer === 'income' ? shadeAnswer : undefined;
       if (answered && item.accountId) {
         const name = item.suggestedName || item.parsed.merchant || item.sourceLabel;
         const result = await save(item, {

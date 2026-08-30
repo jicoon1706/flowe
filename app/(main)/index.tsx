@@ -11,6 +11,7 @@ import { Shortcuts } from '../../components/home/Shortcuts';
 import { RecentTransactions } from '../../components/home/RecentTransactions';
 import { PendingRecurringModal } from '../../components/home/PendingRecurringModal';
 import { usePendingRecurring } from '../../src/hooks/usePendingRecurring';
+import { scheduleRecurringReminders } from '../../src/services/recurring';
 import { notificationsRepository } from '../../src/repositories/notifications.repository';
 import { useLock } from '../../context/LockContext';
 import { flags } from '../../src/lib/secureStore';
@@ -144,6 +145,17 @@ export default function HomeScreen() {
     fetchPending();
     fetchUnread();
   }, [fetchAccounts, fetchTransactions, fetchPending, fetchUnread]));
+
+  // Put a 5am reminder on each active rule's next occurrence. Once per session
+  // is enough — the whole set is rebuilt each run, so doing it on every focus
+  // would just cancel and re-add the same notifications. Needs a signed-in
+  // session, which is why it lives here rather than in the root layout.
+  const remindersScheduledRef = useRef(false);
+  useEffect(() => {
+    if (!user || remindersScheduledRef.current) return;
+    remindersScheduledRef.current = true;
+    scheduleRecurringReminders();
+  }, [user]);
 
   // On the date arriving, surface the approve/reject popup automatically — but
   // only once per app session, so closing it doesn't re-open on every refocus.

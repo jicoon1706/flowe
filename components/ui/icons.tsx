@@ -45,6 +45,7 @@ export const TrendingDown = (props: Props) => <MaterialIcons name="trending-down
 export const Paperclip = (props: Props) => <MaterialIcons name="attach-file" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Clock = (props: Props) => <MaterialIcons name="schedule" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const X = (props: Props) => <MaterialIcons name="close" size={props.size ?? 24} color={props.color ?? '#fff'} />;
+export const Ban = (props: Props) => <MaterialIcons name="block" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const User = (props: Props) => <MaterialIcons name="person" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Landmark = (props: Props) => <MaterialIcons name="account-balance" size={props.size ?? 24} color={props.color ?? '#fff'} />;
 export const Wallet = (props: Props) => <MaterialIcons name="account-balance-wallet" size={props.size ?? 24} color={props.color ?? '#fff'} />;

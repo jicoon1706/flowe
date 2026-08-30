@@ -1,7 +1,12 @@
 import { supabase } from '../lib/supabase';
 import { recurringRepository } from '../repositories/recurring.repository';
 import { transactionsRepository } from '../repositories/transactions.repository';
-import { notify, formatRM } from './notifications';
+import {
+  notify,
+  formatRM,
+  scheduleLocalNotificationAt,
+  cancelScheduledWithPrefix,
+} from './notifications';
 import type { RecurringFrequency, RecurringRule } from '../types';
 import type { Result, SupabaseError } from '../utils/result';
 
@@ -13,9 +18,71 @@ function toYMD(dt: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** Today as a local 'YYYY-MM-DD' string. */
-function todayYMD(): string {
-  return toYMD(new Date());
+/**
+ * The hour a recurring payment comes due, in the phone's own timezone.
+ *
+ * Every date in this app is a local calendar date (see utils/date.ts) and every
+ * clock reading comes from the device, so for a phone set to Malaysia this is
+ * 5am MYT. Five in the morning is early enough that the charge is already
+ * there when the day starts, and late enough that opening the app at midnight
+ * doesn't post tomorrow's bills into tonight.
+ */
+export const RECURRING_HOUR = 5;
+
+/**
+ * The last date whose occurrences have actually come due.
+ *
+ * Normally today — but before {@link RECURRING_HOUR} today hasn't arrived yet
+ * as far as recurring rules are concerned, so the cutoff is yesterday. Without
+ * this a rule dated the 1st fires the instant the calendar flips at midnight.
+ */
+export function dueThroughYMD(now: Date = new Date()): string {
+  const cutoff = new Date(now);
+  if (cutoff.getHours() < RECURRING_HOUR) cutoff.setDate(cutoff.getDate() - 1);
+  return toYMD(cutoff);
+}
+
+/** 05:00 local on a 'YYYY-MM-DD' date. */
+function dueMoment(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d, RECURRING_HOUR, 0, 0, 0);
+}
+
+/** Identifier prefix for the reminders this module schedules. */
+const REMINDER_PREFIX = 'flowe-recurring-';
+
+/**
+ * Put a 5am reminder on the calendar for every active rule's next occurrence.
+ *
+ * The whole set is cleared and rebuilt each run, which is what keeps a paused,
+ * edited or deleted rule from still firing tomorrow morning. Only the next
+ * occurrence of each rule is scheduled: the app re-runs this every time it
+ * opens, which is well before the one after that comes around.
+ */
+export async function scheduleRecurringReminders(): Promise<void> {
+  try {
+    await cancelScheduledWithPrefix(REMINDER_PREFIX);
+
+    const rules = await recurringRepository.fetchAllActive();
+    if (!rules.ok) return;
+
+    await Promise.all(
+      rules.data
+        .filter((rule) => rule.status === 'active')
+        .map((rule) => {
+          const occurrence = rule.next_date ?? rule.start_date;
+          if (rule.end_date && occurrence > rule.end_date) return Promise.resolve();
+          return scheduleLocalNotificationAt(
+            dueMoment(occurrence),
+            `🔁 ${rule.name} is due`,
+            `${formatRM(Number(rule.amount))} • open Flowe to confirm it`,
+            `${REMINDER_PREFIX}${rule.id}`
+          );
+        })
+    );
+  } catch (e) {
+    console.warn('[recurring] failed to schedule reminders:', e);
+  }
 }
 
 /**
@@ -58,7 +125,9 @@ export async function processDueRecurring(): Promise<number> {
     const userId = userData.user?.id;
     if (!userId) return 0;
 
-    const today = todayYMD();
+    // Not `todayYMD()`: an occurrence dated today isn't due until 5am local,
+    // so before then the cutoff is yesterday.
+    const today = dueThroughYMD();
     const due = await recurringRepository.fetchDue(today);
     if (!due.ok) return 0;
 
