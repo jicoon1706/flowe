@@ -10,6 +10,7 @@ import { accountsRepository } from '../../../../src/repositories/accounts.reposi
 import type { Transaction } from '../../../../src/types';
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
+import { SearchBar } from '../../../../components/ui/SearchBar';
 import { useAuth } from '../../../../context/AuthContext';
 
 const EDIT_ICONS = ['🐷', '💰', '🏠', '🎁', '🚗', '🚀', '🌴', '🏢', '🚂', '🎯', '💎', '⭐'];
@@ -37,6 +38,17 @@ export default function TabungDetailScreen() {
   }, [fetchAccounts, fetchTransactions]));
 
   const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const trimmedQuery = query.trim().toLowerCase();
+  // The goal progress above stays whole-account; only this list narrows.
+  const visibleTransactions = trimmedQuery
+    ? transactions.filter((t) =>
+        [t.name, t.note, String(t.amount)].some((field) =>
+          field?.toLowerCase().includes(trimmedQuery)
+        )
+      )
+    : transactions;
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([fetchAccounts(), fetchTransactions()]);
@@ -288,11 +300,16 @@ export default function TabungDetailScreen() {
         {/* Transaction History */}
         <View className="px-4 mb-4">
           <Text className="text-sm font-medium text-muted-foreground mb-4">Transaction History</Text>
-          {transactions.length === 0 ? (
-            <Text className="text-sm text-muted-foreground text-center py-4">Top-up history will appear here</Text>
+          <View className="mb-3">
+            <SearchBar value={query} onChangeText={setQuery} placeholder="Search top-ups and withdrawals" />
+          </View>
+          {visibleTransactions.length === 0 ? (
+            <Text className="text-sm text-muted-foreground text-center py-4">
+              {trimmedQuery ? 'No transactions match your search' : 'Top-up history will appear here'}
+            </Text>
           ) : (
             <View className="gap-2">
-              {transactions.map((tx) => {
+              {visibleTransactions.map((tx) => {
                 const isTopUp = tx.type === 'tabung_topup';
                 return (
                   <View

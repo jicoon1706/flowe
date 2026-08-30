@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <application>
+    <!--
+      Reading other apps' notifications requires the user to grant Flowe
+      "Notification access" in system settings; the BIND_NOTIFICATION_LISTENER_SERVICE
+      permission below is what makes Flowe appear in that list. Android never
+      grants it silently.
+    -->
+    <service
+      android:name="expo.modules.flowenotifications.TransactionNotificationListenerService"
+      android:label="Flowe transaction detection"
+      android:exported="false"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+
+    <receiver
+      android:name="expo.modules.flowenotifications.QuickCaptureReceiver"
+      android:exported="false" />
+  </application>
+</manifest>

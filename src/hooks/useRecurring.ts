@@ -30,6 +30,29 @@ export function useRecurring() {
     return result;
   }, [fetchRecurring]);
 
+  const updateRecurring = useCallback(
+    async (id: string, patch: Partial<CreateRecurringRuleRequest>) => {
+      setLoading(true);
+      setError(null);
+      const result = await recurringRepository.update(id, patch);
+      if (result.ok) await fetchRecurring();
+      else setError(result.error);
+      setLoading(false);
+      return result;
+    },
+    [fetchRecurring]
+  );
+
+  const deleteRecurring = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    const result = await recurringRepository.delete(id);
+    if (result.ok) await fetchRecurring();
+    else setError(result.error);
+    setLoading(false);
+    return result;
+  }, [fetchRecurring]);
+
   const updateStatus = useCallback(async (id: string, status: 'active' | 'paused' | 'ended') => {
     setLoading(true);
     setError(null);
@@ -40,5 +63,5 @@ export function useRecurring() {
     return result;
   }, [fetchRecurring]);
 
-  return { recurringRules, loading, error, fetchRecurring, createRecurring, updateStatus };
+  return { recurringRules, loading, error, fetchRecurring, createRecurring, updateRecurring, deleteRecurring, updateStatus };
 }

@@ -46,3 +46,37 @@ app-example
 # generated native folders
 /ios
 /android
+
+# claude local
+.claude/settings.local.json
+
+# env files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# native module build output
+modules/*/android/build/
+modules/*/android/.gradle/
+modules/*/ios/build/
+*.keystore
+
+# EAS
+.eas-build-local-nodejs/
+eas-build-*.log
+
+# logs
+*.log
+logs/
+
+# editors
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+ehthumbs.db
+
+# misc temp
+*.tmp
+.tmp/

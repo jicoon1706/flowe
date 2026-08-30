@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, Image } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal, Image, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, Pencil, Trash2, X } from '../../../../../components/ui/icons';
@@ -10,6 +10,7 @@ import { ErrorView } from '../../../../../components/ui/ErrorView';
 import { learnRepository } from '../../../../../src/repositories/learn.repository';
 import { storageService } from '../../../../../src/services/storage';
 import type { LearnEntry } from '../../../../../src/types';
+import { isPdfPath, pdfLabel } from '../../../../../src/utils/attachments';
 
 export default function EntryDetailScreen() {
   const router = useRouter();
@@ -26,12 +27,16 @@ export default function EntryDetailScreen() {
 
   const entry: LearnEntry | undefined = entries.find((e: LearnEntry) => e.id === entryId);
   const entryText = entry?.body ?? '';
-  const entryImages = ((entry as any)?.learn_entry_images ?? []) as any[];
+  const attachments = ((entry as any)?.learn_entry_images ?? []) as any[];
+  // PDFs share the attachment table with photos, but only photos belong in the
+  // grid/lightbox — a PDF gets a row that hands off to the system viewer.
+  const entryImages = attachments.filter((a: any) => !isPdfPath(a.storage_path));
+  const entryPdfs = attachments.filter((a: any) => isPdfPath(a.storage_path));
   const entryTime = entry?.created_at ? new Date(entry.created_at).toLocaleString() : '';
 
   // Key the effect on the actual image paths so newly added images get signed
   // URLs too (the entry id alone doesn't change when images are added/removed).
-  const imagePaths = entryImages.map((img: any) => img.storage_path).filter(Boolean);
+  const imagePaths = attachments.map((img: any) => img.storage_path).filter(Boolean);
   const pathsKey = imagePaths.join(',');
 
   useEffect(() => {
@@ -86,6 +91,30 @@ export default function EntryDetailScreen() {
                   source={{ uri: imageUrls[img.storage_path] ?? '' }}
                   className="w-full h-full rounded-xl"
                 />
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {/* PDF Attachments */}
+        {entryPdfs.length > 0 && (
+          <View className="mb-6">
+            {entryPdfs.map((pdf: any) => (
+              <Pressable
+                key={pdf.id}
+                onPress={() => {
+                  const url = imageUrls[pdf.storage_path];
+                  if (!url) return;
+                  Linking.openURL(url).catch(() =>
+                    Alert.alert('Could not open', 'No app on this device can open the PDF.')
+                  );
+                }}
+                className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3 mb-2"
+              >
+                <Text className="text-lg mr-3">📄</Text>
+                <Text className="flex-1 text-sm text-foreground" numberOfLines={1}>
+                  {pdfLabel(pdf.storage_path)}
+                </Text>
               </Pressable>
             ))}
           </View>

@@ -22,6 +22,7 @@ import type { ReceiptData } from '../../src/types';
 import { useAuth } from '../../context/AuthContext';
 import { useLock } from '../../context/LockContext';
 import { accountColor } from '../../src/utils/accountColor';
+import { localYMD } from '../../src/utils/date';
 import { storageService } from '../../src/services/storage';
 import { transactionsRepository } from '../../src/repositories/transactions.repository';
 import { notify, formatRM } from '../../src/services/notifications';
@@ -216,10 +217,16 @@ export default function AddTransactionScreen() {
     setType('expense');
     if (data.total_amount && data.total_amount > 0) setAmount(String(data.total_amount));
     if (data.merchant_name) setName(data.merchant_name);
+    // The Edge Function already rejects unreadable, future, and implausibly old
+    // dates, so an empty string here means "couldn't read it" — leave the form
+    // on Today rather than filing the transaction under a guessed date.
     if (data.transaction_date) {
       const [y, m, d] = data.transaction_date.split('-').map(Number);
-      const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-      if (y && m && d && !isNaN(dt.getTime())) {
+      // Keep the receipt's own clock time when it printed one; it makes the
+      // transaction sort correctly against others on the same day.
+      const [hh, mm] = (data.transaction_time ?? '').split(':').map(Number);
+      const dt = new Date(y, (m ?? 1) - 1, d ?? 1, hh || 0, mm || 0);
+      if (y && m && d && !isNaN(dt.getTime()) && dt.getTime() <= Date.now()) {
         setCustomDate(dt);
         setDateOption('custom');
       }
@@ -300,12 +307,13 @@ export default function AddTransactionScreen() {
       return;
     }
 
-    const transactionDate = (dateOption === 'today'
-      ? new Date()
-      : dateOption === 'yesterday'
-      ? new Date(Date.now() - 86400000)
-      : customDate
-    ).toISOString().slice(0, 10);
+    const transactionDate = localYMD(
+      dateOption === 'today'
+        ? new Date()
+        : dateOption === 'yesterday'
+        ? new Date(Date.now() - 86400000)
+        : customDate
+    );
 
     if (type === 'transfer' && !toAccount) {
       Alert.alert('Missing account', 'Please select a destination account.');

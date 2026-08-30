@@ -24,7 +24,7 @@ function categoryLabel(cat: string | null | undefined): string {
   if (!cat) return 'All';
   return cat.charAt(0).toUpperCase() + cat.slice(1);
 }
-import { AlertTriangle, Bell, ChevronRight, Database, Heart, Settings, Shield, User } from 'lucide-react-native';
+import { AlertTriangle, Bell, ChevronRight, Database, Heart, Settings, Shield, Sparkles as Sparkle, User } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
@@ -148,6 +148,12 @@ export default function SettingsScreen() {
             label="Notifications"
             icon={<Bell size={16} color="#a0a0a0" />}
             onPress={() => router.push('/settings/notifications')}
+          />
+          <View className="border-t border-border" />
+          <SettingsRow
+            label="Auto-detect Transactions"
+            icon={<Sparkle size={16} color="#a0a0a0" />}
+            onPress={() => router.push('/settings/auto-detect')}
           />
           <View className="border-t border-border" />
           <SettingsRow

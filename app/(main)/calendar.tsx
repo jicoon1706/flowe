@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, Image } from 'lucide-react-native
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Card } from '../../components/ui/Card';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { TransactionDetail } from '../../components/home/TransactionDetail';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
@@ -37,6 +38,7 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTransaction, setSelectedTransaction] = useState<DayTransaction | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [query, setQuery] = useState('');
 
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth() + 1;
@@ -119,9 +121,7 @@ export default function CalendarScreen() {
     ? 'Today'
     : `${selectedDay} ${selectedDate.toLocaleString('en-US', { month: 'short' })}`;
 
-  const dayTransactions: DayTransaction[] = selectedDayTxs
-    .filter(tx => tx.type === 'income' || tx.type === 'expense' || tx.type === 'transfer')
-    .map(tx => {
+  const toDayTransaction = (tx: (typeof transactions)[number]): DayTransaction => {
     const cat = resolveCategory(tx as Transaction, customByName);
     return {
     id: tx.id,
@@ -141,7 +141,29 @@ export default function CalendarScreen() {
     hasReceipt: !!tx.receipt_url,
     receiptPath: tx.receipt_url ?? undefined,
   };
-  });
+  };
+
+  const isTransactionRow = (tx: (typeof transactions)[number]) =>
+    tx.type === 'income' || tx.type === 'expense' || tx.type === 'transfer';
+
+  const dayTransactions: DayTransaction[] = selectedDayTxs
+    .filter(isTransactionRow)
+    .map(toDayTransaction);
+
+  // Search spans the whole month on screen (not just the selected day) and
+  // matches name, category, note and account, so "maybank" or "grab" both work.
+  const trimmedQuery = query.trim().toLowerCase();
+  const searching = trimmedQuery.length > 0;
+  const searchResults: DayTransaction[] = searching
+    ? transactions
+        .filter(isTransactionRow)
+        .map(toDayTransaction)
+        .filter((tx) =>
+          [tx.name, tx.category, tx.note, tx.account, tx.toAccount].some((field) =>
+            field?.toLowerCase().includes(trimmedQuery)
+          )
+        )
+    : [];
 
   const handleEdit = (id: string) => {
     const tx = transactions.find((t) => t.id === id);
@@ -188,6 +210,15 @@ export default function CalendarScreen() {
           </Pressable>
         </View>
 
+        {/* Search */}
+        <View className="px-4 mb-3">
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search this month's transactions"
+          />
+        </View>
+
         {/* Summary Cards */}
         <View className="flex-row gap-2 px-4 mb-4">
           <Card className="flex-1">
@@ -210,6 +241,8 @@ export default function CalendarScreen() {
           </Card>
         </View>
 
+        {!searching && (
+        <>
         {/* Calendar Grid */}
         <View className="px-4 mb-4">
           <View className="bg-card border border-border rounded-2xl p-6">
@@ -299,16 +332,23 @@ export default function CalendarScreen() {
           </View>
         </View>
 
+        </>
+        )}
+
         {/* Day Transactions */}
         <View className="px-4 mb-6 pb-8">
-          <Text className="text-sm font-semibold text-foreground mb-3">{selectedDayLabel}</Text>
-          {dayTransactions.length === 0 ? (
+          <Text className="text-sm font-semibold text-foreground mb-3">
+            {searching
+              ? `${searchResults.length} result${searchResults.length === 1 ? '' : 's'} in ${monthName}`
+              : selectedDayLabel}
+          </Text>
+          {(searching ? searchResults : dayTransactions).length === 0 ? (
             <Text className="text-sm text-muted-foreground text-center py-4">
-              No transactions on this day
+              {searching ? 'No transactions match your search' : 'No transactions on this day'}
             </Text>
           ) : (
             <View className="gap-2">
-              {dayTransactions.map((tx) => (
+              {(searching ? searchResults : dayTransactions).map((tx) => (
                 <Pressable
                   key={tx.id}
                   onPress={() => {

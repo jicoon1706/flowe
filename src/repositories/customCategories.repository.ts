@@ -19,6 +19,23 @@ export const customCategoriesRepository = {
     return { ok: true, data: data as CustomCategory };
   },
 
+  // Only name/icon/colour are editable: transaction_type is what the category
+  // is filed under, and changing it would strand the transactions already
+  // tagged with it on the wrong tab.
+  async update(
+    id: string,
+    patch: Partial<Pick<CustomCategory, 'name' | 'icon' | 'color'>>
+  ): Promise<Result<CustomCategory, SupabaseError>> {
+    const { data, error } = await supabase
+      .from('custom_categories')
+      .update(patch as any)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data as CustomCategory };
+  },
+
   async softDelete(id: string): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase
       .from('custom_categories')

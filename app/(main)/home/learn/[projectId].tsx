@@ -10,12 +10,13 @@ import { ErrorView } from '../../../../components/ui/ErrorView';
 import { learnRepository } from '../../../../src/repositories/learn.repository';
 import { storageService } from '../../../../src/services/storage';
 import type { LearnEntry } from '../../../../src/types';
+import { isPdfPath } from '../../../../src/utils/attachments';
 
 interface Project {
   id: string;
   name: string;
   emoji: string;
-  entries: { id: string; text: string; images: string[]; timeAgo: string }[];
+  entries: { id: string; text: string; images: string[]; pdfCount: number; timeAgo: string }[];
 }
 
 export default function ProjectDetailScreen() {
@@ -46,7 +47,7 @@ export default function ProjectDetailScreen() {
     const paths: string[] = entries
       .flatMap((e: LearnEntry) => ((e as any).learn_entry_images ?? []) as any[])
       .map((img: any) => img.storage_path)
-      .filter(Boolean);
+      .filter((path: string) => path && !isPdfPath(path));
     if (paths.length === 0) return;
     Promise.all(
       paths.map(async (path) => {
@@ -74,14 +75,21 @@ export default function ProjectDetailScreen() {
     id: projectId!,
     name: projectName,
     emoji: '📁',
-    entries: entries.map((e: LearnEntry) => ({
-      id: e.id,
-      text: e.body ?? '',
-      images: (((e as any).learn_entry_images ?? []) as any[])
-        .map((img: any) => imageUrls[img.storage_path] ?? '')
-        .filter(Boolean),
-      timeAgo: e.updated_at ? new Date(e.updated_at).toLocaleString() : 'Recently',
-    })),
+    entries: entries.map((e: LearnEntry) => {
+      const attachments = ((e as any).learn_entry_images ?? []) as any[];
+      return {
+        id: e.id,
+        text: e.body ?? '',
+        // Only photos have a thumbnail; PDFs are summarised as a count so the
+        // preview row doesn't render an empty tile for them.
+        images: attachments
+          .filter((att: any) => !isPdfPath(att.storage_path))
+          .map((img: any) => imageUrls[img.storage_path] ?? '')
+          .filter(Boolean),
+        pdfCount: attachments.filter((att: any) => isPdfPath(att.storage_path)).length,
+        timeAgo: e.updated_at ? new Date(e.updated_at).toLocaleString() : 'Recently',
+      };
+    }),
   };
 
   return (
@@ -122,7 +130,7 @@ export default function ProjectDetailScreen() {
                 <Text className="text-sm text-foreground mb-2" numberOfLines={2}>
                   {entry.text}
                 </Text>
-                {entry.images.length > 0 && (
+                {(entry.images.length > 0 || entry.pdfCount > 0) && (
                   <View className="flex-row mt-2">
                     {entry.images.slice(0, 3).map((img, idx) => (
                       <Image
@@ -134,6 +142,12 @@ export default function ProjectDetailScreen() {
                     {entry.images.length > 3 && (
                       <View className="w-12 h-12 rounded-lg bg-muted items-center justify-center">
                         <Text className="text-xs text-muted-foreground">+{entry.images.length - 3}</Text>
+                      </View>
+                    )}
+                    {entry.pdfCount > 0 && (
+                      <View className="h-12 px-2 rounded-lg bg-muted items-center justify-center flex-row">
+                        <Text className="text-xs mr-1">📄</Text>
+                        <Text className="text-xs text-muted-foreground">{entry.pdfCount}</Text>
                       </View>
                     )}
                   </View>

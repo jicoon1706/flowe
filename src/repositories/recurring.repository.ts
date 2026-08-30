@@ -81,6 +81,28 @@ export const recurringRepository = {
     return { ok: true, data: undefined };
   },
 
+  /**
+   * Edit an existing rule. `next_date` is passed explicitly rather than derived,
+   * because moving a rule's payment day should move the *next* occurrence — not
+   * silently re-run one the user already approved.
+   */
+  async update(
+    id: string,
+    patch: Partial<Pick<
+      CreateRecurringRuleRequest,
+      'name' | 'amount' | 'category' | 'frequency' | 'from_account_id' | 'to_account_id' | 'start_date' | 'end_date' | 'next_date'
+    >>
+  ): Promise<Result<RecurringRule, SupabaseError>> {
+    const { data, error } = await supabase
+      .from('recurring_rules')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data as RecurringRule };
+  },
+
   async updateStatus(id: string, status: RecurringStatus): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase
       .from('recurring_rules')

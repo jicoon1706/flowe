@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus, Repeat, Pause, Play, X, ChevronDown, Calendar } from 'lucide-react-native';
+import { Plus, Repeat, Pause, Play, X, ChevronDown, Calendar, Trash2 } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useRecurring } from '../../../src/hooks/useRecurring';
 import { useAccounts } from '../../../src/hooks/useAccounts';
 import { useAuth } from '../../../context/AuthContext';
 import { MALAYSIAN_BANKS } from '../../../constants/banks';
+import { localYMD } from '../../../src/utils/date';
+import type { RecurringRule } from '../../../src/types';
 
 function bankColor(account: any): string {
   const bankName = account?.bank_accounts?.bank_name?.toLowerCase();
@@ -23,28 +25,44 @@ import { ErrorView } from '../../../components/ui/ErrorView';
 import * as Haptics from 'expo-haptics';
 
 const FREQUENCIES = ['Weekly', 'Monthly', 'Yearly'] as const;
+type Frequency = typeof FREQUENCIES[number];
 
-/** Local 'YYYY-MM-DD' — avoids the UTC day-shift that toISOString() causes. */
-function localYMD(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+function titleCaseFrequency(freq: string): Frequency {
+  const match = FREQUENCIES.find((f) => f.toLowerCase() === freq?.toLowerCase());
+  return match ?? 'Monthly';
+}
+
+/** Parse a 'YYYY-MM-DD' column as a local date — `new Date(str)` reads it as UTC. */
+function parseYMD(value: string | undefined): Date {
+  if (!value) return new Date();
+  const [y, m, d] = value.split('-').map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
 }
 
 export default function RecurringScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { accounts, fetchAccounts } = useAccounts();
-  const { recurringRules, loading, error, fetchRecurring, createRecurring, updateStatus } = useRecurring();
+  const {
+    recurringRules,
+    loading,
+    error,
+    fetchRecurring,
+    createRecurring,
+    updateRecurring,
+    deleteRecurring,
+    updateStatus,
+  } = useRecurring();
   const bankAccounts = accounts.filter((a) => a.type === 'bank');
-  const [showAddModal, setShowAddModal] = useState(false);
+  // null = sheet closed, 'new' = add, otherwise the rule being edited.
+  const [editing, setEditing] = useState<'new' | RecurringRule | null>(null);
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [showFreqPicker, setShowFreqPicker] = useState(false);
   const [showNextDatePicker, setShowNextDatePicker] = useState(false);
   const [newName, setNewName] = useState('');
   const [newAmount, setNewAmount] = useState('');
-  const [newFrequency, setNewFrequency] = useState<typeof FREQUENCIES[number]>('Monthly');
+  const [newFrequency, setNewFrequency] = useState<Frequency>('Monthly');
   const [newAccountId, setNewAccountId] = useState('');
   const [newNextDate, setNewNextDate] = useState(new Date());
 
@@ -60,7 +78,7 @@ export default function RecurringScreen() {
   const totalActive = activePayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
+    const d = parseYMD(dateStr);
     return d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
@@ -70,38 +88,100 @@ export default function RecurringScreen() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   };
 
-  const handleAddPayment = async () => {
-    if (!newName.trim() || !newAmount.trim() || !user) {
+  const resetForm = () => {
+    setNewName('');
+    setNewAmount('');
+    setNewFrequency('Monthly');
+    setNewAccountId('');
+    setNewNextDate(new Date());
+    setShowAccountPicker(false);
+    setShowFreqPicker(false);
+    setShowNextDatePicker(false);
+  };
+
+  const openAdd = () => {
+    resetForm();
+    setEditing('new');
+  };
+
+  const openEdit = (rule: RecurringRule) => {
+    resetForm();
+    setNewName((rule as any).name ?? '');
+    setNewAmount(String(rule.amount));
+    setNewFrequency(titleCaseFrequency(rule.frequency));
+    setNewAccountId(rule.from_account_id ?? '');
+    setNewNextDate(parseYMD(rule.next_date ?? rule.start_date));
+    setEditing(rule);
+  };
+
+  const closeSheet = () => {
+    setEditing(null);
+    resetForm();
+  };
+
+  const handleSavePayment = async () => {
+    if (!newName.trim() || !newAmount.trim() || !user || !editing) {
       Alert.alert('Missing fields', 'Please enter a name and amount.');
       return;
     }
-    const result = await createRecurring({
-      user_id: user.id,
-      type: 'expense',
-      name: newName.trim(),
-      amount: parseFloat(newAmount),
-      category: 'bills',
-      frequency: newFrequency.toLowerCase() as 'weekly' | 'monthly' | 'yearly',
-      start_date: localYMD(newNextDate),
-      next_date: localYMD(newNextDate),
-      from_account_id: newAccountId || bankAccounts[0]?.id,
-    });
+    const amount = parseFloat(newAmount);
+    if (Number.isNaN(amount) || amount <= 0) {
+      Alert.alert('Invalid amount', 'Please enter an amount greater than zero.');
+      return;
+    }
+
+    const result = editing === 'new'
+      ? await createRecurring({
+          user_id: user.id,
+          type: 'expense',
+          name: newName.trim(),
+          amount,
+          category: 'bills',
+          frequency: newFrequency.toLowerCase() as 'weekly' | 'monthly' | 'yearly',
+          start_date: localYMD(newNextDate),
+          next_date: localYMD(newNextDate),
+          from_account_id: newAccountId || bankAccounts[0]?.id,
+        })
+      : await updateRecurring(editing.id, {
+          name: newName.trim(),
+          amount,
+          frequency: newFrequency.toLowerCase() as 'weekly' | 'monthly' | 'yearly',
+          // Editing the date moves the *next* occurrence; start_date stays as
+          // the historical record of when the rule began.
+          next_date: localYMD(newNextDate),
+          from_account_id: newAccountId || editing.from_account_id || bankAccounts[0]?.id,
+        });
+
     if (result.ok) {
-      setShowAddModal(false);
-      setNewName('');
-      setNewAmount('');
-      setNewFrequency('Monthly');
-      setNewAccountId('');
-      setNewNextDate(new Date());
+      closeSheet();
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } else {
       Alert.alert('Failed', result.error.message);
     }
   };
 
+  const handleDeletePayment = (rule: RecurringRule) => {
+    Alert.alert(
+      `Delete "${(rule as any).name}"?`,
+      'Transactions already created from this payment are kept. It just stops repeating.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await deleteRecurring(rule.id);
+            if (result.ok) closeSheet();
+            else Alert.alert('Failed', result.error.message);
+          },
+        },
+      ]
+    );
+  };
+
   const AddButton = (
     <Pressable
-      onPress={() => setShowAddModal(true)}
+      onPress={openAdd}
       className="bg-primary w-10 h-10 rounded-full items-center justify-center"
     >
       <Plus size={20} color="#000000" />
@@ -111,6 +191,9 @@ export default function RecurringScreen() {
   const selectedAccount = bankAccounts.find(a => a.id === newAccountId) ?? bankAccounts[0];
   const accountColor = selectedAccount ? bankColor(selectedAccount) : '#94a3b8';
   const accountName = (selectedAccount as any)?.name ?? 'Select Account';
+  const isNew = editing === 'new';
+  const editingRule = editing && editing !== 'new' ? editing : null;
+  const canSave = !!newName.trim() && !!newAmount.trim();
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -135,14 +218,14 @@ export default function RecurringScreen() {
           {recurringRules.map((item) => (
             <Pressable
               key={item.id}
-              onPress={() => togglePause(item.id, item.status)}
+              onPress={() => openEdit(item)}
               className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
             >
-              <View className="flex-row items-center gap-3">
+              <View className="flex-row items-center gap-3 flex-1">
                 <View className={`w-9 h-9 rounded-xl ${item.status === 'paused' ? 'bg-muted' : 'bg-primary/10'} items-center justify-center`}>
                   <Repeat size={18} color={item.status === 'paused' ? '#a0a0a0' : '#C5FF00'} />
                 </View>
-                <View>
+                <View className="flex-1">
                   <View className="flex-row items-center gap-2">
                     <Text className="text-sm font-medium text-foreground">{(item as any).name}</Text>
                     {item.status === 'paused' && (
@@ -158,20 +241,25 @@ export default function RecurringScreen() {
                     <Text className="text-xs text-muted-foreground">·</Text>
                     <View className="flex-row items-center gap-1">
                       <Calendar size={10} color="#a0a0a0" />
-                      <Text className="text-xs text-muted-foreground">{formatDate(item.start_date)}</Text>
+                      <Text className="text-xs text-muted-foreground">
+                        {formatDate(item.next_date ?? item.start_date)}
+                      </Text>
                     </View>
                   </View>
                 </View>
               </View>
-              <View className="flex-row items-center gap-2">
-                <View className={`p-2 rounded-full ${item.status === 'paused' ? 'bg-muted' : 'bg-primary/10'}`}>
-                  {item.status === 'paused' ? (
-                    <Play size={14} color="#a0a0a0" />
-                  ) : (
-                    <Pause size={14} color="#C5FF00" />
-                  )}
-                </View>
-              </View>
+              {/* Pause stays its own hit target so tapping the row can open the editor. */}
+              <Pressable
+                onPress={() => togglePause(item.id, item.status)}
+                hitSlop={8}
+                className={`p-2 rounded-full ${item.status === 'paused' ? 'bg-muted' : 'bg-primary/10'}`}
+              >
+                {item.status === 'paused' ? (
+                  <Play size={14} color="#a0a0a0" />
+                ) : (
+                  <Pause size={14} color="#C5FF00" />
+                )}
+              </Pressable>
             </Pressable>
           ))}
         </View>
@@ -184,26 +272,22 @@ export default function RecurringScreen() {
         )}
 
         <Text className="text-center text-xs text-muted-foreground mt-4 pb-8">
-          Tap pause to temporarily stop a payment
+          Tap a payment to edit it, or the pause button to stop it temporarily
         </Text>
       </ScrollView>
 
-      {/* Add Recurring Modal */}
-      {showAddModal && (
+      {/* Add / Edit Recurring Sheet */}
+      {editing && (
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}>
-        <Pressable
-          className="flex-1 bg-black/50 justify-end"
-          onPress={() => setShowAddModal(false)}
-        >
-          <Pressable
-            className="bg-card rounded-t-3xl p-6 pb-8"
-            onPress={(e) => e.stopPropagation()}
-          >
+        <Pressable className="flex-1 bg-black/50 justify-end" onPress={closeSheet}>
+          <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
             <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
 
             <View className="flex-row items-center justify-between mb-6">
-              <Text className="text-lg font-semibold text-foreground">Add Recurring Payment</Text>
-              <Pressable onPress={() => setShowAddModal(false)} className="p-2">
+              <Text className="text-lg font-semibold text-foreground">
+                {isNew ? 'Add Recurring Payment' : 'Edit Recurring Payment'}
+              </Text>
+              <Pressable onPress={closeSheet} className="p-2">
                 <X size={20} color="#a0a0a0" />
               </Pressable>
             </View>
@@ -270,7 +354,7 @@ export default function RecurringScreen() {
               >
                 <View className="flex-row items-center gap-2">
                   <Calendar size={16} color="#a0a0a0" />
-                  <Text className="text-foreground">{formatDate(newNextDate.toISOString())}</Text>
+                  <Text className="text-foreground">{formatDate(localYMD(newNextDate))}</Text>
                 </View>
                 <ChevronDown size={18} color="#a0a0a0" />
               </Pressable>
@@ -337,14 +421,24 @@ export default function RecurringScreen() {
               )}
             </View>
 
-            {/* Add Button */}
+            {editingRule && (
+              <Pressable
+                onPress={() => handleDeletePayment(editingRule)}
+                className="flex-row items-center justify-center gap-2 py-3.5 rounded-2xl bg-background border border-border mb-3"
+              >
+                <Trash2 size={16} color="#ff4444" />
+                <Text className="text-expense font-medium">Delete payment</Text>
+              </Pressable>
+            )}
+
+            {/* Save Button */}
             <Pressable
-              onPress={handleAddPayment}
-              disabled={!newName.trim() || !newAmount.trim()}
-              className={`py-4 rounded-2xl items-center justify-center ${!newName.trim() || !newAmount.trim() ? 'bg-muted' : 'bg-primary'}`}
+              onPress={handleSavePayment}
+              disabled={!canSave}
+              className={`py-4 rounded-2xl items-center justify-center ${!canSave ? 'bg-muted' : 'bg-primary'}`}
             >
-              <Text className={`font-bold text-base ${!newName.trim() || !newAmount.trim() ? 'text-muted-foreground' : 'text-black'}`}>
-                Add Payment
+              <Text className={`font-bold text-base ${!canSave ? 'text-muted-foreground' : 'text-black'}`}>
+                {isNew ? 'Add Payment' : 'Save Changes'}
               </Text>
             </Pressable>
           </Pressable>

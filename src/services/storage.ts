@@ -74,6 +74,18 @@ export const storageService = {
     return { ok: true, data: map };
   },
 
+  // PDFs live in the same bucket and the same learn_entry_images rows as photos —
+  // an entry's attachments are one ordered list, and the extension in the path is
+  // all we need to tell them apart (see isPdfPath).
+  async uploadLearnPdf(userId: string, entryId: string, fileId: string, base64Pdf: string): Promise<Result<string, SupabaseError>> {
+    const path = `${userId}/${entryId}/${fileId}.pdf`;
+    const { error } = await supabase.storage
+      .from('learn-images')
+      .upload(path, decode(base64Pdf), { contentType: 'application/pdf' });
+    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    return { ok: true, data: path };
+  },
+
   async deleteLearnImage(path: string): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase.storage.from('learn-images').remove([path]);
     if (error) return { ok: false, error: { code: error.code, message: error.message } };

@@ -9,6 +9,7 @@ import { accountsRepository } from '../../../../src/repositories/accounts.reposi
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
 import { TransactionDetail, TransactionData } from '../../../../components/home/TransactionDetail';
+import { SearchBar } from '../../../../components/ui/SearchBar';
 
 function getCategoryEmoji(category: string): string {
   const map: Record<string, string> = {
@@ -23,6 +24,7 @@ export default function AccountDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [query, setQuery] = useState('');
 
   const { accounts, loading, error, fetchAccounts } = useAccounts();
   const now = new Date();
@@ -43,6 +45,17 @@ export default function AccountDetailScreen() {
   const accountId = typeof id === 'string' ? id : '';
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0];
   const accountTransactions = transactions.filter((t) => t.from_account_id === accountId || t.to_account_id === accountId);
+
+  const trimmedQuery = query.trim().toLowerCase();
+  // The summary tiles keep showing the account's real month totals — only the
+  // history list narrows, so searching never makes the balance look wrong.
+  const visibleTransactions = trimmedQuery
+    ? accountTransactions.filter((t) =>
+        [t.name, t.category, (t as any).note, String(t.amount)].some((field) =>
+          field?.toLowerCase().includes(trimmedQuery)
+        )
+      )
+    : accountTransactions;
 
   const income = accountTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   const expense = accountTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
@@ -235,15 +248,26 @@ export default function AccountDetailScreen() {
         <View className="mt-5 mb-4">
           <View className="flex-row items-center justify-between px-4 mb-3">
             <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Transaction History</Text>
-            <Pressable>
-              <Text className="text-xs text-primary font-medium">See All</Text>
-            </Pressable>
+            {trimmedQuery ? (
+              <Text className="text-xs text-muted-foreground">
+                {visibleTransactions.length} of {accountTransactions.length}
+              </Text>
+            ) : null}
+          </View>
+          <View className="px-4 mb-3">
+            <SearchBar
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search this account"
+            />
           </View>
           <View className="gap-2 px-4">
-            {accountTransactions.length === 0 ? (
-              <Text className="text-sm text-muted-foreground text-center py-4">No transactions yet</Text>
+            {visibleTransactions.length === 0 ? (
+              <Text className="text-sm text-muted-foreground text-center py-4">
+                {trimmedQuery ? 'No transactions match your search' : 'No transactions yet'}
+              </Text>
             ) : (
-              accountTransactions.map((tx) => {
+              visibleTransactions.map((tx) => {
                 const formattedAmount = `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}RM ${Math.abs(tx.amount).toFixed(2)}`;
                 const formattedDate = new Date(tx.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
                 return (

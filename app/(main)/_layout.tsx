@@ -4,6 +4,10 @@ import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Calendar, DollarSign, Home, Plus, Settings } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
+import { DetectedTransactionIsland } from '@/components/home/DetectedTransactionIsland';
+import { useDetectedTransactions } from '@/src/hooks/useDetectedTransactions';
+import { useAccounts } from '@/src/hooks/useAccounts';
+import { useAuth } from '@/context/AuthContext';
 
 function AddButton(props: { onPress?: (e?: any) => void }) {
   const router = useRouter();
@@ -184,13 +188,39 @@ function MainTabs() {
   );
 }
 
+/**
+ * Surfaces payments Flowe detected in bank/e-wallet notifications. It lives at
+ * the layout level rather than on Home so a detection can be confirmed from
+ * wherever the user happens to be — that's the point of the feature.
+ */
+function DetectedTransactionOverlay() {
+  const { user } = useAuth();
+  const { accounts, fetchAccounts } = useAccounts();
+  const { pending, save, dismiss } = useDetectedTransactions(user?.id, accounts);
+
+  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+
+  return (
+    <DetectedTransactionIsland
+      detected={pending[0] ?? null}
+      accounts={accounts}
+      onSave={async (detected, values) => {
+        const result = await save(detected, values);
+        if (result.ok) await fetchAccounts();
+        return result;
+      }}
+      onDismiss={dismiss}
+    />
+  );
+}
+
 function TabBarVisibilityWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { hideTabBar, showTabBar } = useTabBar();
 
   useEffect(() => {
     // Hide tab bar for nested settings routes
-    const hiddenPaths = ['settings/account', 'settings/change-pin', 'settings/security', 'settings/notifications', 'settings/categories', 'settings/recurring', 'settings/affirmations', 'settings/data'];
+    const hiddenPaths = ['settings/account', 'settings/change-pin', 'settings/security', 'settings/notifications', 'settings/categories', 'settings/recurring', 'settings/auto-detect', 'settings/affirmations', 'settings/data'];
     if (hiddenPaths.some(path => pathname.includes(path))) {
       hideTabBar(pathname);
     } else {
@@ -212,6 +242,7 @@ export default function MainLayout() {
         <TabBarVisibilityWrapper>
           <MainTabs />
         </TabBarVisibilityWrapper>
+        <DetectedTransactionOverlay />
       </TabBarProvider>
     </LockProvider>
   );
