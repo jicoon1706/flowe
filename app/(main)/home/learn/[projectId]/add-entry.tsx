@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Image, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -37,16 +37,17 @@ export default function AddEntryScreen() {
   const [files, setFiles] = useState<FormFile[]>([]);
   const [removed, setRemoved] = useState<{ id: string; storagePath: string }[]>([]);
   const [saving, setSaving] = useState(false);
-  // Which entry the form currently holds. Expo Router reuses this screen for
-  // every `/add-entry?entryId=…` push, so a plain "already loaded" boolean left
-  // the previously edited entry's text and images on screen when a *different*
-  // entry was opened. Keying on the id reloads whenever the target changes.
-  const loadedForRef = useRef<string | null>(null);
 
+  // This screen lives in the tab navigator, so it is never unmounted: every
+  // `/add-entry?entryId=…` push re-focuses the same instance holding the last
+  // edit's text, files and `removed` list. Reload from the database on *every*
+  // focus — skipping the reload when the id happened to match left already
+  // uploaded files marked `kind: 'new'`, so removing one deleted nothing (the
+  // attachment came back after saving) and re-saving uploaded it twice.
   useFocusEffect(useCallback(() => {
-    const target = entryId ?? null;
-    if (loadedForRef.current === target) return;
-    loadedForRef.current = target;
+    // A tab screen keeps params it isn't given again, so "Add entry" passes an
+    // empty entryId rather than omitting it; treat empty as "new entry".
+    const target = entryId && entryId.length > 0 ? entryId : null;
 
     if (!target) {
       // New entry: start from a clean form so the last entry doesn't linger.
@@ -167,10 +168,14 @@ export default function AddEntryScreen() {
     if (!canSave || !user) return;
     setSaving(true);
     try {
-      let targetEntryId = entryId;
+      let targetEntryId = entryId && entryId.length > 0 ? entryId : undefined;
 
       if (targetEntryId) {
-        await learnRepository.updateEntry(targetEntryId, text);
+        const updated = await learnRepository.updateEntry(targetEntryId, text);
+        if (!updated.ok) {
+          Alert.alert('Error', 'Could not save entry.');
+          return;
+        }
       } else {
         const result = await createEntry(projectId!, user.id, text);
         if (!result.ok) {
@@ -180,10 +185,22 @@ export default function AddEntryScreen() {
         targetEntryId = result.data.id;
       }
 
-      // Delete files the user removed while editing.
+      // Delete files the user removed while editing. The row is what the entry
+      // renders from, so a failed delete must not be swallowed — otherwise the
+      // attachment reappears the moment the detail screen refetches.
+      let removeFailed = false;
       for (const r of removed) {
-        await learnRepository.removeImage(r.id);
+        const removedRow = await learnRepository.removeImage(r.id);
+        if (!removedRow.ok) {
+          removeFailed = true;
+          continue;
+        }
         await storageService.deleteLearnImage(r.storagePath);
+      }
+      if (removeFailed) {
+        Alert.alert('Error', 'Some attachments could not be removed.');
+      } else {
+        setRemoved([]);
       }
 
       // Upload only the newly picked files.
@@ -198,7 +215,19 @@ export default function AddEntryScreen() {
         await learnRepository.attachImage(targetEntryId!, `${user.id}/${targetEntryId}/${fileId}.${extension}`);
       }
 
-      router.back();
+      // Everything on screen is now saved; drop it so a re-focus can never
+      // re-upload the same files or re-run a delete against a stale row.
+      setFiles([]);
+      setText('');
+
+      // Back to where the entry actually lives: the entry itself when editing,
+      // otherwise the project it was just added to. These screens are tabs, so
+      // `back()` can land on Home instead of the page the user came from.
+      router.replace(
+        entryId && entryId.length > 0
+          ? `/home/learn/${projectId}/entry?entryId=${entryId}`
+          : `/home/learn/${projectId}`
+      );
     } finally {
       setSaving(false);
     }
@@ -208,10 +237,19 @@ export default function AddEntryScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="mr-3">
+        <Pressable
+          onPress={() =>
+            router.replace(
+              entryId && entryId.length > 0
+                ? `/home/learn/${projectId}/entry?entryId=${entryId}`
+                : `/home/learn/${projectId}`
+            )
+          }
+          className="mr-3"
+        >
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
-        <Text className="text-xl font-semibold text-foreground">{entryId ? 'Edit Entry' : 'Add Entry'}</Text>
+        <Text className="text-xl font-semibold text-foreground">{entryId && entryId.length > 0 ? 'Edit Entry' : 'Add Entry'}</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-4">

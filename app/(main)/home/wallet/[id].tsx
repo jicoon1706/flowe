@@ -10,6 +10,7 @@ import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
 import { TransactionDetail, TransactionData } from '../../../../components/home/TransactionDetail';
 import { SearchBar } from '../../../../components/ui/SearchBar';
+import { MerchantIcon } from '../../../../components/ui/MerchantIcon';
 
 const EDIT_COLORS = ['#6bcf7f', '#ffd93d', '#00d4ff', '#C5FF00', '#f472b6', '#a78bfa', '#34d399', '#fb923c'];
 
@@ -44,6 +45,23 @@ export default function WalletDetailScreen() {
   }, [fetchAccounts, refetchTransactions]);
 
   const accountId = typeof id === 'string' ? id : '';
+
+  /**
+   * Opens the transaction form for *this* wallet: it starts on the given type
+   * with the wallet already chosen, and returns here on save or cancel.
+   */
+  const openForm = (formType?: 'transfer') => {
+    router.push({
+      pathname: '/(main)/add-transaction',
+      params: {
+        ...(formType ? { type: formType } : {}),
+        presetAccountId: accountId,
+        returnTo: `/home/wallet/${accountId}`,
+        nonce: String(Date.now()),
+      },
+    });
+  };
+
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0];
   const walletAccount = (account as any)?.wallet_accounts;
   const balance = Number(walletAccount?.current_balance ?? 0);
@@ -197,12 +215,15 @@ export default function WalletDetailScreen() {
         {/* Action Buttons */}
         <View className="flex-row mx-4 mt-3">
           <Pressable
-            onPress={() => router.push('/add-transaction')}
+            onPress={() => openForm()}
             className="flex-1 bg-primary rounded-2xl py-3 mr-1.5 items-center"
           >
             <Text className="text-sm font-semibold text-primary-foreground">Add Transaction</Text>
           </Pressable>
-          <Pressable className="flex-1 bg-card rounded-2xl py-3 ml-1.5 items-center border border-border">
+          <Pressable
+            onPress={() => openForm('transfer')}
+            className="flex-1 bg-card rounded-2xl py-3 ml-1.5 items-center border border-border"
+          >
             <Text className="text-sm font-semibold text-foreground">Transfer</Text>
           </Pressable>
         </View>
@@ -236,9 +257,7 @@ export default function WalletDetailScreen() {
                     className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
                   >
                     <View className="flex-row items-center gap-3">
-                      <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
-                        <Text className="text-base">{tx.category ? getCategoryEmoji(tx.category) : '💰'}</Text>
-                      </View>
+                      <MerchantIcon name={tx.name} fallback={tx.category ? getCategoryEmoji(tx.category) : '💰'} />
                       <View>
                         <View className="flex-row items-center gap-1.5">
                           <Text className="text-sm font-medium text-foreground">{tx.name}</Text>

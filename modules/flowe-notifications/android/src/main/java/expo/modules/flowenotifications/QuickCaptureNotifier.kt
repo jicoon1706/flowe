@@ -38,7 +38,10 @@ object QuickCaptureNotifier {
       .setStyle(NotificationCompat.BigTextStyle().bigText(capture.text))
       .setPriority(NotificationCompat.PRIORITY_HIGH)
       .setCategory(Notification.CATEGORY_RECOMMENDATION)
-      .setAutoCancel(true)
+      // Deliberately not auto-cancelling: opening Flowe on a detection isn't the
+      // same as filing it. The notification stays until the transaction is
+      // actually saved or dismissed, which is what cancels it.
+      .setAutoCancel(false)
       .setContentIntent(openAppIntent(context, capture))
       .addAction(action(context, capture, "expense", "Expense"))
       .addAction(action(context, capture, "income", "Income"))
@@ -50,6 +53,15 @@ object QuickCaptureNotifier {
       // POST_NOTIFICATIONS not granted — the capture is still queued, so it will
       // show up in the app; there's nothing to recover here.
     }
+  }
+
+  /**
+   * Takes the quick-capture notification back down. Called once a capture has
+   * been dealt with in the app, so the shade never keeps offering to file a
+   * payment that's already been filed.
+   */
+  fun cancel(context: Context, captureId: String) {
+    NotificationManagerCompat.from(context).cancel(captureId.hashCode())
   }
 
   private fun ensureChannel(context: Context) {

@@ -16,6 +16,10 @@ import { useTransactions } from '../../../src/hooks/useTransactions';
 import { useAssets } from '../../../src/hooks/useAssets';
 import { useLiabilities } from '../../../src/hooks/useLiabilities';
 import { useCashflow } from '../../../src/hooks/useCashflow';
+import { useAccounts } from '../../../src/hooks/useAccounts';
+import { transactionsRepository } from '../../../src/repositories/transactions.repository';
+import { accountColor } from '../../../src/utils/accountColor';
+import { localYMD } from '../../../src/utils/date';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import { useAuth } from '../../../context/AuthContext';
@@ -61,7 +65,27 @@ export default function CashFlowScreen() {
   const { income: incomeTxns, expenses: expenseTxns, loading: txLoading, error: txError, refetch: refetchTxns } = useTransactions(year, month);
   const { assets: rawAssets, loading: astLoading, error: astError, fetchAssets, createAsset, updateAsset, deleteAsset } = useAssets();
   const { liabilities: rawLiabilities, loading: liabLoading, error: liabError, fetchLiabilities, createLiability, updateLiability, deleteLiability } = useLiabilities();
+  const { accounts, fetchAccounts } = useAccounts();
   const { summary } = useCashflow(currentMonth);
+
+  // Accounts an asset can be funded from, in the shape AccountSelector wants.
+  const accountOptions = accounts.map((a: any) => {
+    const bal = Number(
+      a.type === 'bank'
+        ? a.bank_accounts?.current_balance ?? 0
+        : a.type === 'wallet'
+        ? a.wallet_accounts?.current_balance ?? 0
+        : a.type === 'tabung'
+        ? a.tabung_accounts?.saved_amount ?? 0
+        : 0
+    );
+    return {
+      id: a.id,
+      name: a.name,
+      balance: bal.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+      color: accountColor(a),
+    };
+  });
 
   const loading = txLoading || astLoading || liabLoading;
   const anyError = txError || astError || liabError;
@@ -69,8 +93,9 @@ export default function CashFlowScreen() {
   useFocusEffect(useCallback(() => {
     fetchAssets();
     fetchLiabilities();
+    fetchAccounts();
     refetchTxns();
-  }, [fetchAssets, fetchLiabilities, refetchTxns]));
+  }, [fetchAssets, fetchLiabilities, fetchAccounts, refetchTxns]));
 
   // ─── Loading / error guards ────────────────────────────────────────────────
   if (loading) return <LoadingView />;
@@ -158,6 +183,24 @@ export default function CashFlowScreen() {
           note: a.note,
         });
     if (result.ok) {
+      // Funded from an account: record the money leaving it, exactly as a
+      // transfer into this asset from the Add Transaction screen would — a
+      // transfer with no destination account, filed under the asset's name.
+      // The asset was already created holding the value, so only the account
+      // side is left to write.
+      if (!editingAsset && a.fundFromAccountId) {
+        await transactionsRepository.create({
+          user_id: user.id,
+          type: 'transfer',
+          name: `Into ${a.name}`,
+          amount: a.value,
+          category: a.name,
+          from_account_id: a.fundFromAccountId,
+          date: localYMD(new Date()),
+        });
+        await fetchAccounts();
+        await refetchTxns();
+      }
       setEditingAsset(null);
       setShowAddAsset(false);
     }
@@ -307,6 +350,7 @@ export default function CashFlowScreen() {
         onClose={() => { setShowAddAsset(false); setEditingAsset(null); }}
         onSubmit={handleAddAsset}
         initial={editingAsset}
+        accounts={accountOptions}
       />
       <AddLiabilityModal
         visible={showAddLiability}

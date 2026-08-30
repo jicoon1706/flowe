@@ -1,6 +1,30 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+  <!--
+    Android 11+ hides other installed apps unless they're declared here. Flowe
+    only needs to know which of the supported bank/e-wallet apps exist, so the
+    Auto-detect screen can grey out the ones that aren't installed. Keep in sync
+    with NOTIFICATION_SOURCES in constants/notificationSources.ts.
+  -->
+  <queries>
+    <package android:name="com.maybank2u.life" />
+    <package android:name="com.maybank2u.m2umobile" />
+    <package android:name="com.cimb.cimbclicks" />
+    <package android:name="com.cimb.octo" />
+    <package android:name="com.pbb.pbengine" />
+    <package android:name="com.rhbgroup.mobilebanking" />
+    <package android:name="com.hlb.connect" />
+    <package android:name="com.ambank.amonline" />
+    <package android:name="com.bankislam.bimb" />
+    <package android:name="my.com.bsn.mybsn" />
+    <package android:name="com.setel.mobile" />
+    <package android:name="my.com.tngdigital.ewallet" />
+    <package android:name="com.grabtaxi.passenger" />
+    <package android:name="com.boost.consumer" />
+    <package android:name="com.shopee.my" />
+  </queries>
+
   <application>
     <!--
       Reading other apps' notifications requires the user to grant Flowe

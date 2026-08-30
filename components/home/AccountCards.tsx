@@ -6,17 +6,19 @@ import { accountColor } from '../../src/utils/accountColor';
 interface AccountCardsProps {
   accounts: Account[];
   onAccountPress: (id: string, type: 'bank' | 'tabung' | 'wallet') => void;
+  /** Opens the full accounts list. */
+  onSeeAll: () => void;
   visible?: boolean;
 }
 
-export function AccountCards({ accounts, onAccountPress, visible = true }: AccountCardsProps) {
+export function AccountCards({ accounts, onAccountPress, onSeeAll, visible = true }: AccountCardsProps) {
   return (
     <View className="mb-5">
       <View className="flex-row items-center justify-between px-4 mb-3">
         <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
           Accounts
         </Text>
-        <Pressable>
+        <Pressable onPress={onSeeAll}>
           <Text className="text-xs text-primary font-medium">See All</Text>
         </Pressable>
       </View>

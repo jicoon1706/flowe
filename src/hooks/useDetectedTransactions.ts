@@ -9,6 +9,7 @@ import {
 import { sourceForPackage } from '../../constants/notificationSources';
 import { localYMD } from '../utils/date';
 import { resolveDetectedAccount } from '../utils/resolveDetectedAccount';
+import { merchantCategory } from '../utils/merchantLogo';
 import { transactionsRepository } from '../repositories/transactions.repository';
 import { notify, formatRM } from '../services/notifications';
 
@@ -37,6 +38,10 @@ export function useDetectedTransactions(userId: string | undefined, accounts: an
   // Guards against a capture being written twice when a foreground event and
   // the live listener deliver it at the same moment.
   const savingRef = useRef<Set<string>>(new Set());
+  // Detections the island has shown and timed out of. The capture itself stays
+  // queued — the Android notification is still sitting in the shade — this only
+  // stops the in-app island from hovering over the user indefinitely.
+  const snoozedRef = useRef<Set<string>>(new Set());
   const accountsRef = useRef(accounts);
   accountsRef.current = accounts;
 
@@ -101,6 +106,17 @@ export function useDetectedTransactions(userId: string | undefined, accounts: an
     setPending((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
+  /**
+   * Hides a detection from the island without discarding it. Used when the
+   * island times out: the payment is still unfiled and its notification is
+   * still in the shade, so the user can come back to it there — the app just
+   * stops nagging about it on this visit.
+   */
+  const snooze = useCallback((id: string) => {
+    snoozedRef.current.add(id);
+    setPending((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!FloweNotifications.isAvailable || !FloweNotifications.isEnabled()) {
       setPending([]);
@@ -124,16 +140,25 @@ export function useDetectedTransactions(userId: string | undefined, accounts: an
       // bothering the user — that's the "never open the app" path.
       const answered = captures.find((c) => c.id === item.id)?.chosenType;
       if (answered && item.accountId) {
+        const name = item.suggestedName || item.parsed.merchant || item.sourceLabel;
         const result = await save(item, {
-          name: item.suggestedName || item.parsed.merchant || item.sourceLabel,
+          name,
           type: answered,
           accountId: item.accountId,
+          // Filed without the user seeing a form, so the merchant's usual
+          // category is the only guess available — better than none at all.
+          category: answered === 'expense' ? merchantCategory(name) : undefined,
         });
         if (result.ok) continue;
       }
       stillPending.push(item);
     }
-    setPending(stillPending);
+    // A capture that's gone (saved elsewhere, or pruned) shouldn't keep its
+    // snooze around, or an id reuse would silently hide a live detection.
+    snoozedRef.current.forEach((id) => {
+      if (!parsedIds.has(id)) snoozedRef.current.delete(id);
+    });
+    setPending(stillPending.filter((item) => !snoozedRef.current.has(item.id)));
   }, [toDetected, save]);
 
   useEffect(() => {
@@ -143,7 +168,12 @@ export function useDetectedTransactions(userId: string | undefined, accounts: an
     // Answering from the shade happens while Flowe is backgrounded, so the
     // queue is re-read whenever the app comes forward.
     const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') refresh();
+      if (state !== 'active') return;
+      // Coming back to Flowe — often by tapping the very notification that was
+      // left in the shade — is a fresh chance to deal with it, so timed-out
+      // detections are offered again.
+      snoozedRef.current.clear();
+      refresh();
     });
 
     return () => {
@@ -152,5 +182,5 @@ export function useDetectedTransactions(userId: string | undefined, accounts: an
     };
   }, [refresh]);
 
-  return { pending, save, dismiss, refresh };
+  return { pending, save, dismiss, snooze, refresh };
 }

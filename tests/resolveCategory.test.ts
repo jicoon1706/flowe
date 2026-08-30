@@ -53,9 +53,25 @@ function customCat(overrides: Partial<CustomCategory>): CustomCategory {
 describe('resolveCategory()', () => {
   it('returns the transfer icon/label for transfers, ignoring category', () => {
     // Transfers carry no real category; the type alone decides the tag.
-    expect(resolveCategory(tx({ type: 'transfer', category: 'food' }), {})).toEqual({
+    expect(
+      resolveCategory(
+        tx({ type: 'transfer', category: 'food', from_account_id: 'a1', to_account_id: 'a2' }),
+        {}
+      )
+    ).toEqual({
       emoji: '🔄',
       name: 'Transfer',
+    });
+  });
+
+  it('reads a transfer with no destination account as an investment', () => {
+    // That's how an investment is stored — money out of an account and into an
+    // asset, whose name the category column holds.
+    expect(
+      resolveCategory(tx({ type: 'transfer', category: 'ASB', from_account_id: 'a1' }), {})
+    ).toEqual({
+      emoji: '📈',
+      name: 'Investment · ASB',
     });
   });
 

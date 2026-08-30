@@ -6,6 +6,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { Card } from '../../components/ui/Card';
 import { SearchBar } from '../../components/ui/SearchBar';
+import { MerchantIcon } from '../../components/ui/MerchantIcon';
 import { TransactionDetail } from '../../components/home/TransactionDetail';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
@@ -358,9 +359,7 @@ export default function CalendarScreen() {
                   className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
                 >
                   <View className="flex-row items-center gap-3">
-                    <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
-                      <Text className="text-base">{tx.categoryIcon}</Text>
-                    </View>
+                    <MerchantIcon name={tx.name} fallback={tx.categoryIcon} />
                     <View>
                       <View className="flex-row items-center gap-1.5">
                         <Text className="text-sm font-medium text-foreground">{tx.name}</Text>

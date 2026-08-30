@@ -19,6 +19,7 @@ import { flags } from '../src/lib/secureStore';
 import { OnboardingProvider } from '../context/OnboardingContext';
 import { AuthProvider } from '../context/AuthContext';
 import { setupNotifications } from '../src/services/notifications';
+import { loadMerchantLogos } from '../src/services/merchantLogos';
 
 type GateState = 'loading' | 'error' | 'auth' | 'onboarding' | 'main';
 
@@ -56,6 +57,9 @@ export default function RootLayout() {
     _refreshGate = resolve;
     resolve();
     setupNotifications();
+    // Refreshes the merchant list in the background; the bundled copy is
+    // already in force, so nothing on screen waits for this.
+    loadMerchantLogos();
     return () => { _refreshGate = null; };
   }, []);
 

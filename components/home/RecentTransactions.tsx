@@ -7,6 +7,7 @@ import { TransactionDetail, TransactionData } from './TransactionDetail';
 import type { Transaction, CustomCategory } from '../../src/types/database.types';
 import { resolveCategory } from '../../src/utils/resolveCategory';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
+import { MerchantIcon } from '../ui/MerchantIcon';
 import { useAuth } from '../../context/AuthContext';
 
 interface RecentTransactionsProps {
@@ -117,9 +118,7 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress,
               className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
             >
               <View className="flex-row items-center gap-3">
-                <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
-                  <Text className="text-base">{resolveCategory(tx, customByName).emoji}</Text>
-                </View>
+                <MerchantIcon name={tx.name} fallback={resolveCategory(tx, customByName).emoji} />
                 <View>
                   <View className="flex-row items-center gap-1.5">
                     <Text className="text-sm font-medium text-foreground">{tx.name}</Text>

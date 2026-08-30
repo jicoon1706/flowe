@@ -2,6 +2,7 @@ package expo.modules.flowenotifications
 
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.provider.Settings
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
@@ -61,19 +62,44 @@ class FloweNotificationsModule : Module() {
       CaptureStore.setWatchedPackages(context, packages)
     }
 
+    /**
+     * Of the packages asked about, the ones actually installed on this phone.
+     * Only the apps declared in the module manifest's `<queries>` block are
+     * visible to us on Android 11+, which is exactly the supported source list.
+     */
+    Function("getInstalledPackages") { packages: List<String> ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      val manager = context.packageManager
+      packages.filter { pkg ->
+        try {
+          manager.getPackageInfo(pkg, 0)
+          true
+        } catch (e: PackageManager.NameNotFoundException) {
+          false
+        }
+      }
+    }
+
     /** Everything captured since the app last flushed the queue. */
     Function("getCaptures") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       CaptureStore.all(context).map { it.toMap() }
     }
 
+    /**
+     * Drops a capture once the app has dealt with it, and pulls its shade
+     * notification down with it — the two are the same offer, so neither should
+     * outlive the other.
+     */
     Function("removeCapture") { id: String ->
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       CaptureStore.remove(context, id)
+      QuickCaptureNotifier.cancel(context, id)
     }
 
     Function("clearCaptures") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      CaptureStore.all(context).forEach { QuickCaptureNotifier.cancel(context, it.id) }
       CaptureStore.clear(context)
     }
   }

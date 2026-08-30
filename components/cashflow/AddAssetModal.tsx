@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { X, Check, Calendar, ChevronDown } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Button } from '../ui/Button';
+import { AccountSelector } from '../ui/AccountSelector';
 
 export interface NewAsset {
   name: string;
@@ -12,6 +13,13 @@ export interface NewAsset {
   monthlyIncome: number;
   dateAcquired?: string;
   note?: string;
+  /**
+   * Set when the money for this asset comes out of one of the user's accounts:
+   * the caller records a transfer of `value` from it, the same as investing
+   * from the Transfer tab. Left unset for something already owned (a house, a
+   * car), where nothing leaves an account today.
+   */
+  fundFromAccountId?: string;
 }
 
 interface AddAssetModalProps {
@@ -19,6 +27,8 @@ interface AddAssetModalProps {
   onClose: () => void;
   onSubmit: (asset: NewAsset) => void;
   initial?: NewAsset | null;
+  /** Accounts the asset can be funded from. Empty hides the funding option. */
+  accounts?: { id: string; name: string; balance: string; color: string }[];
 }
 
 const ASSET_TYPES = [
@@ -35,7 +45,7 @@ const ASSET_TYPES = [
 
 const ACCENT = '#C5FF00';
 
-export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetModalProps) {
+export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = [] }: AddAssetModalProps) {
   const isEditing = !!initial;
   const [name, setName] = useState('');
   const [type, setType] = useState(ASSET_TYPES[0].value);
@@ -44,6 +54,13 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
   const [dateAcquired, setDateAcquired] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [note, setNote] = useState('');
+  // Funding this asset out of an account — off by default, because plenty of
+  // assets are already owned and no money moves when they're first recorded.
+  const [fundFromAccount, setFundFromAccount] = useState(false);
+  const [fundAccountId, setFundAccountId] = useState('');
+  // Only offered when creating: editing an asset's value isn't a payment, so
+  // there'd be nothing to record against an account.
+  const canFund = !isEditing && accounts.length > 0;
 
   const parseIso = (iso: string): Date | null => {
     if (!iso) return null;
@@ -80,6 +97,8 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
         setDateAcquired(null);
         setNote('');
       }
+      setFundFromAccount(false);
+      setFundAccountId('');
     }
   }, [visible, initial]);
 
@@ -90,6 +109,8 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
     setMonthlyIncome('');
     setDateAcquired(null);
     setNote('');
+    setFundFromAccount(false);
+    setFundAccountId('');
   };
 
   const handleClose = () => {
@@ -108,11 +129,16 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
       monthlyIncome: parseFloat(monthlyIncome) || 0,
       dateAcquired: dateAcquired ? toIsoDate(dateAcquired) : undefined,
       note: note.trim() || undefined,
+      fundFromAccountId: canFund && fundFromAccount ? fundAccountId : undefined,
     });
     reset();
   };
 
-  const canSubmit = name.trim().length > 0 && value.length > 0;
+  const canSubmit =
+    name.trim().length > 0 &&
+    value.length > 0 &&
+    // Funding was asked for but no account picked yet — nothing to take it from.
+    (!canFund || !fundFromAccount || !!fundAccountId);
 
   return (
     <Modal
@@ -189,6 +215,46 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial }: AddAssetM
               keyboardType="decimal-pad"
               className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4"
             />
+
+            {/* Funding — money moved out of an account into this asset, the
+                same thing a transfer into an asset does. Off for an asset the
+                user already owns. */}
+            {canFund && (
+              <>
+                <Pressable
+                  onPress={() => setFundFromAccount((v) => !v)}
+                  className="flex-row items-center gap-3 mb-3"
+                >
+                  <View
+                    className="w-5 h-5 rounded-md items-center justify-center border"
+                    style={{
+                      backgroundColor: fundFromAccount ? ACCENT : 'transparent',
+                      borderColor: fundFromAccount ? ACCENT : '#3a3a3a',
+                    }}
+                  >
+                    {fundFromAccount && <Check size={14} color="#000000" />}
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-foreground">
+                      Pay for this from an account
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      Records a transfer of RM {value || '0.00'} out of that account. Leave off if
+                      you already own it.
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {fundFromAccount && (
+                  <AccountSelector
+                    value={fundAccountId}
+                    onChange={setFundAccountId}
+                    label="From Account"
+                    accounts={accounts}
+                  />
+                )}
+              </>
+            )}
 
             {/* Monthly Income */}
             <Text className="text-sm font-semibold text-foreground mb-2">

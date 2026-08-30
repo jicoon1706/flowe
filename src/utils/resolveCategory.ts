@@ -19,6 +19,11 @@ export function resolveCategory(
   tx: Transaction,
   customByName: Record<string, CustomCategory>
 ): { emoji: string; name: string } {
+  // A transfer with no destination account is an investment — the money went
+  // into an asset, whose name the category column holds.
+  if (tx.type === 'transfer' && !tx.to_account_id) {
+    return { emoji: '📈', name: tx.category ? `Investment · ${tx.category}` : 'Investment' };
+  }
   if (tx.type === 'transfer') return { emoji: '🔄', name: 'Transfer' };
   // Built-in categories are keyed by slug. Custom categories store their
   // readable name in the column, so look them up by name to use the icon the

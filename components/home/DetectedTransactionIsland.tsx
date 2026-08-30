@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Check, Sparkle } from '../ui/icons';
 import { expenseCategories, incomeCategories } from '../../constants/categories';
 import { accountColor } from '../../src/utils/accountColor';
+import { merchantCategory } from '../../src/utils/merchantLogo';
 import type { DetectedTransaction } from '../../src/hooks/useDetectedTransactions';
 
 interface DetectedTransactionIslandProps {
@@ -14,7 +15,16 @@ interface DetectedTransactionIslandProps {
     values: { name: string; type: 'expense' | 'income'; accountId: string; category?: string }
   ) => Promise<{ ok: boolean }>;
   onDismiss: (id: string) => void;
+  /** Called when the island times out — hides it, but keeps the detection. */
+  onSnooze: (id: string) => void;
 }
+
+/**
+ * How long the collapsed island hovers before it steps aside. The detection
+ * isn't lost: its Android notification stays in the shade, where the user can
+ * still file it (or reopen Flowe on it) whenever they get to it.
+ */
+const AUTO_HIDE_MS = 20_000;
 
 /**
  * The floating capsule that drops in when Flowe spots a payment in a bank or
@@ -30,6 +40,7 @@ export function DetectedTransactionIsland({
   accounts,
   onSave,
   onDismiss,
+  onSnooze,
 }: DetectedTransactionIslandProps) {
   const insets = useSafeAreaInsets();
   const [expanded, setExpanded] = useState(false);
@@ -44,12 +55,28 @@ export function DetectedTransactionIsland({
   // carry over onto a different payment.
   useEffect(() => {
     if (!detected) return;
+    const detectedName = detected.suggestedName ?? detected.parsed.merchant ?? '';
     setExpanded(false);
-    setName(detected.suggestedName ?? detected.parsed.merchant ?? '');
+    setName(detectedName);
     setType(detected.parsed.type);
     setAccountId(detected.accountId ?? '');
-    setCategory(detected.parsed.type === 'expense' ? 'food' : 'salary');
+    setCategory(
+      detected.parsed.type === 'expense'
+        // The alert usually names the merchant, so the category is often known
+        // before the user has touched anything.
+        ? merchantCategory(detectedName) ?? 'food'
+        : 'salary'
+    );
   }, [detected]);
+
+  // Step aside after AUTO_HIDE_MS — but only while collapsed. Once the user has
+  // opened the form they're mid-edit, and yanking it away would throw away what
+  // they've typed; the timer restarts if they collapse it again.
+  useEffect(() => {
+    if (!detected || expanded || saving) return;
+    const timer = setTimeout(() => onSnooze(detected.id), AUTO_HIDE_MS);
+    return () => clearTimeout(timer);
+  }, [detected, expanded, saving, onSnooze]);
 
   useEffect(() => {
     Animated.timing(slide, {
@@ -81,7 +108,9 @@ export function DetectedTransactionIsland({
       name: name.trim(),
       type,
       accountId,
-      category: categories.find((c) => c.id === category)?.name,
+      // Built-in categories are stored by slug id, the same as the main form —
+      // storing the display name here left detected rows with a fallback icon.
+      category,
     });
     setSaving(false);
     if (!result.ok) setExpanded(true);

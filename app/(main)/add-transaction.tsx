@@ -18,13 +18,16 @@ import { useAccounts } from '../../src/hooks/useAccounts';
 import { useTransactions } from '../../src/hooks/useTransactions';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
 import { useReceiptScan } from '../../src/hooks/useReceiptScan';
+import { useAssets } from '../../src/hooks/useAssets';
 import type { ReceiptData } from '../../src/types';
 import { useAuth } from '../../context/AuthContext';
 import { useLock } from '../../context/LockContext';
 import { accountColor } from '../../src/utils/accountColor';
+import { merchantCategory } from '../../src/utils/merchantLogo';
 import { localYMD } from '../../src/utils/date';
 import { storageService } from '../../src/services/storage';
 import { transactionsRepository } from '../../src/repositories/transactions.repository';
+import { assetsRepository } from '../../src/repositories/assets.repository';
 import { notify, formatRM } from '../../src/services/notifications';
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -58,15 +61,27 @@ export default function AddTransactionScreen() {
   const origAmount = Number(searchParams.amount ?? 0);
   const origFromId = (searchParams.fromAccountId as string | undefined) || '';
 
+  // Set when the form was opened from an account's own page: that account is
+  // the one the user means, so it's preselected whichever type they pick.
+  const presetAccountId = (searchParams.presetAccountId as string | undefined) || '';
+  // Where to go after saving. Opened from an account page, the user expects to
+  // land back on that account, not wherever the navigator's history points.
+  const returnTo = (searchParams.returnTo as string | undefined) || '';
+
   const [type, setType] = useState<TransactionType>(initialType);
   const [amount, setAmount] = useState((searchParams.amount as string) ?? '');
   const [name, setName] = useState((searchParams.name as string) ?? '');
   const [category, setCategory] = useState((searchParams.category as string) || 'food');
   const [account, setAccount] = useState(
-    initialType === 'income'
-      ? (searchParams.toAccountId as string) ?? ''
-      : (searchParams.fromAccountId as string) ?? ''
+    presetAccountId ||
+      (initialType === 'income'
+        ? (searchParams.toAccountId as string) ?? ''
+        : (searchParams.fromAccountId as string) ?? '')
   );
+  // A transfer's destination: either an account id or an asset id. Sending money
+  // to an asset is an investment — it's stored as a transfer with no destination
+  // account and the asset's name in the category column (see handleSubmit),
+  // which is what keeps it out of the expense totals while the asset absorbs it.
   const [toAccount, setToAccount] = useState((searchParams.toAccountId as string) ?? '');
   const [dateOption, setDateOption] = useState<'today' | 'yesterday' | 'custom'>(() => {
     const dateParam = searchParams.date as string | undefined;
@@ -109,6 +124,7 @@ export default function AddTransactionScreen() {
   const { loading: txLoading, error: txError, create, update } = useTransactions(now.getFullYear(), now.getMonth() + 1);
   const { categories: customCategories, loading: catLoading, error: catError, fetchCategories: fetchCustomCategories } = useCustomCategories();
   const { scan, loading: scanning } = useReceiptScan();
+  const { assets, fetchAssets } = useAssets();
 
   // Merge built-in categories with the user's custom ones for the active type.
   // Custom categories only exist for expense/income; transfer falls back to the
@@ -118,6 +134,16 @@ export default function AddTransactionScreen() {
     .filter((c) => c.transaction_type === type)
     .map((c) => ({ id: c.id, emoji: c.icon ?? '🏷️', name: c.name, color: c.color }));
   const categories = [...baseCategories, ...customForType];
+
+  // Assets a transfer can go into, shaped like accounts so the same selector
+  // renders them — current value stands in for the balance.
+  const assetOptions = assets.map((a) => ({
+    id: a.id,
+    name: a.name,
+    balance: Number(a.current_value).toLocaleString('en-US', { minimumFractionDigits: 2 }),
+    color: '#6366F1',
+    hint: 'Asset',
+  }));
 
   // Source/destination for every transaction type: all accounts (banks,
   // wallets, and tabung savings goals).
@@ -139,14 +165,41 @@ export default function AddTransactionScreen() {
     };
   });
 
+  // Where a transfer can land: another account, or one of the user's assets.
+  const transferDestinations = [...allAccountOptions, ...assetOptions];
+  // The destination is an asset → this transfer is an investment.
+  const investAsset = assets.find((a) => a.id === toAccount);
+
   useFocusEffect(useCallback(() => {
     fetchAccounts();
+    fetchAssets();
     if (user) fetchCustomCategories(user.id);
-  }, [fetchAccounts, fetchCustomCategories, user]));
+  }, [fetchAccounts, fetchAssets, fetchCustomCategories, user]));
+
+  // Reopening an investment: it's a transfer with no destination account and
+  // the asset's name in the category column, so match that asset back once
+  // assets have loaded and select it as the destination.
+  useEffect(() => {
+    if (!isEdit || type !== 'transfer' || toAccount || assets.length === 0) return;
+    if (searchParams.toAccountId) return;
+    const match = assets.find((a) => a.name === category);
+    if (match) setToAccount(match.id);
+  }, [isEdit, type, toAccount, assets, category, searchParams.toAccountId]);
 
   // In edit mode the category column stores a custom category's *name* (built-in
   // categories store their slug id). Once custom categories load, map that name
   // back to its chip id so the right chip is selected. Runs once per edit.
+  // Guess the category from the merchant as the user types the name — "McD
+  // Bangi" is Food & Drink, "Setel" is Transport. Only ever a head start: once
+  // the user picks a chip themselves, their choice is left alone for the rest
+  // of the form, and editing an existing transaction never re-guesses.
+  const categoryTouched = useRef(false);
+  useEffect(() => {
+    if (isEdit || categoryTouched.current || type !== 'expense') return;
+    const guess = merchantCategory(name);
+    if (guess) setCategory(guess);
+  }, [name, type, isEdit]);
+
   const mappedCategory = useRef(false);
   useEffect(() => {
     if (!isEdit || mappedCategory.current || customCategories.length === 0) return;
@@ -171,6 +224,7 @@ export default function AddTransactionScreen() {
     setAmount((searchParams.amount as string) ?? '');
     setName((searchParams.name as string) ?? '');
     setCategory((searchParams.category as string) || 'food');
+    categoryTouched.current = true;
     setAccount(
       t === 'income'
         ? (searchParams.toAccountId as string) ?? ''
@@ -188,6 +242,19 @@ export default function AddTransactionScreen() {
       }
     }
     mappedCategory.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nonce]);
+
+  // Same problem for a fresh transaction opened from an account page: this
+  // screen is a tab, so its instance is reused and the useState initializers
+  // above don't re-run. The nonce sent with every tap is what re-applies the
+  // account (and type) the user opened the form with.
+  useEffect(() => {
+    if (editId || !presetAccountId) return;
+    const tp = searchParams.type as string | undefined;
+    if (tp === 'expense' || tp === 'income' || tp === 'transfer') setType(tp);
+    setAccount(presetAccountId);
+    setToAccount('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);
 
@@ -276,6 +343,7 @@ export default function AddTransactionScreen() {
     setAmount('');
     setName('');
     setCategory('food');
+    categoryTouched.current = false;
     setAccount('');
     setToAccount('');
     setDateOption('today');
@@ -316,11 +384,15 @@ export default function AddTransactionScreen() {
     );
 
     if (type === 'transfer' && !toAccount) {
-      Alert.alert('Missing account', 'Please select a destination account.');
+      Alert.alert('Missing destination', 'Please select an account or asset to transfer into.');
+      return;
+    }
+    if (type === 'transfer' && toAccount === account) {
+      Alert.alert('Same account', 'Pick a different destination from the source account.');
       return;
     }
 
-    // Balance check for expense and transfer (money leaving the source account).
+    // Balance check for every type where money leaves the source account.
     if (type === 'expense' || type === 'transfer') {
       const src = accounts.find((a: any) => a.id === account);
       const srcBalance = Number(
@@ -348,20 +420,19 @@ export default function AddTransactionScreen() {
       }
     }
 
-    const fromId =
-      type === 'expense' ? account
-      : type === 'transfer' ? account
-      : undefined;
+    const fromId = type === 'expense' || type === 'transfer' ? account : undefined;
+    // A transfer into an asset has no destination *account* — that's what marks
+    // it as an investment. The asset it fed is recorded in the category below.
     const toId =
       type === 'income' ? account
-      : type === 'transfer' ? toAccount
+      : type === 'transfer' && !investAsset ? toAccount
       : undefined;
 
     // Built-in chips use a slug id (e.g. "food"); custom chips use the category's
     // UUID. Persist the readable name for custom categories so the column doesn't
-    // store a raw UUID.
+    // store a raw UUID. An investment files itself under the asset it feeds.
     const customCat = customCategories.find((c) => c.id === category);
-    const categoryValue = customCat ? customCat.name : category;
+    const categoryValue = investAsset ? investAsset.name : customCat ? customCat.name : category;
 
     const payload = {
       user_id: user.id,
@@ -378,6 +449,34 @@ export default function AddTransactionScreen() {
     const result = editId ? await update(editId, payload) : await create(payload);
 
     if (result.ok) {
+      // Move the money into the asset. On an edit the previous contribution is
+      // taken back out first — including when the user switched assets — so the
+      // asset's value always reflects the transaction as it now stands.
+      // The asset this transaction fed before the edit, if it fed one: an
+      // investment stores its asset's name in the category column.
+      const origAssetName = (searchParams.category as string | undefined) ?? '';
+      const origAsset =
+        isEdit && !searchParams.toAccountId && searchParams.type === 'transfer'
+          ? assets.find((a) => a.name === origAssetName)
+          : undefined;
+      // Take the old contribution back out whenever it no longer belongs there
+      // — the user switched assets, or turned the investment into an ordinary
+      // transfer/expense — so the asset isn't left permanently inflated.
+      if (origAsset && origAsset.id !== investAsset?.id) {
+        await assetsRepository.update(origAsset.id, {
+          current_value: Math.max(0, Number(origAsset.current_value) - origAmount),
+        });
+      }
+      if (investAsset) {
+        const alreadyIn = origAsset && origAsset.id === investAsset.id ? origAmount : 0;
+        await assetsRepository.update(investAsset.id, {
+          current_value: Math.max(
+            0,
+            Number(investAsset.current_value) - alreadyIn + parseFloat(amount)
+          ),
+        });
+      }
+
       if (receiptImage) {
         const upload = await storageService.uploadReceipt(user.id, result.data.id, receiptImage.base64);
         if (upload.ok) {
@@ -392,16 +491,25 @@ export default function AddTransactionScreen() {
       const amt = formatRM(parseFloat(amount));
       const verb = isEdit ? 'updated' : 'added';
       const notif =
-        type === 'income'
+        investAsset
+          ? { emoji: '📈', message: `Investment ${verb}`, sub_text: `${name} • ${amt} from ${accountName(fromId)} into ${investAsset.name}` }
+          : type === 'income'
           ? { emoji: '💰', message: `Income ${verb}`, sub_text: `${name} • +${amt} to ${accountName(toId)}` }
           : type === 'transfer'
           ? { emoji: '🔄', message: isEdit ? 'Transfer updated' : 'Transfer completed', sub_text: `${amt} from ${accountName(fromId)} to ${accountName(toId)}` }
           : { emoji: '💸', message: `Expense ${verb}`, sub_text: `${name} • -${amt} from ${accountName(fromId)}` };
-      await notify({ type, ...notif, related_entity_id: result.data.id });
+      await notify({
+        type,
+        ...notif,
+        related_entity_id: result.data.id,
+      });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       resetForm();
-      router.back();
+      // Opened from an account (or any screen that asked for it): go back to
+      // exactly that screen rather than wherever the history happens to lead.
+      if (returnTo) router.replace(returnTo as any);
+      else router.back();
     } else {
       Alert.alert('Failed to save', result.error.message);
     }
@@ -411,7 +519,10 @@ export default function AddTransactionScreen() {
     <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="p-2">
+        <Pressable
+          onPress={() => (returnTo ? router.replace(returnTo as any) : router.back())}
+          className="p-2"
+        >
           <X size={24} color="#ffffff" />
         </Pressable>
         <Text className="text-lg font-semibold text-foreground">{isEdit ? 'Edit Transaction' : 'Add Transaction'}</Text>
@@ -451,7 +562,7 @@ export default function AddTransactionScreen() {
                 className={`flex-1 py-2.5 rounded-xl ${type === t ? 'bg-primary' : ''}`}
               >
                 <Text
-                  className={`text-sm font-semibold text-center ${
+                  className={`text-xs font-semibold text-center ${
                     type === t ? 'text-primary-foreground' : 'text-muted-foreground'
                   }`}
                 >
@@ -475,7 +586,12 @@ export default function AddTransactionScreen() {
               Name
             </Text>
             <TextInput
-              placeholder={type === 'expense' ? 'What was this expense?' : 'What was this income?'}
+              placeholder={
+                type === 'expense' ? 'What was this expense?'
+                : investAsset ? 'What was this contribution?'
+                : type === 'transfer' ? 'What was this transfer for?'
+                : 'What was this income?'
+              }
               placeholderTextColor="#a0a0a0"
               value={name}
               onChangeText={setName}
@@ -483,26 +599,55 @@ export default function AddTransactionScreen() {
             />
           </View>
 
-          {/* Category */}
-          <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
-            Category
-          </Text>
-          <CategoryChips
-            categories={categories}
-            selected={category}
-            onSelect={setCategory}
-          />
+          {/* Category — a transfer into an asset is filed against that asset
+              instead, so the chips would only get in the way. */}
+          {!investAsset && (
+            <>
+              <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1.5">
+                Category
+              </Text>
+              <CategoryChips
+                categories={categories}
+                selected={category}
+                onSelect={(id) => {
+                  // An explicit pick stops the merchant guess overriding it.
+                  categoryTouched.current = true;
+                  setCategory(id);
+                }}
+              />
+            </>
+          )}
 
           {/* Account Selector */}
           <AccountSelector
             value={account}
             onChange={setAccount}
-            label={type === 'transfer' ? 'From' : type === 'expense' ? 'From Account' : 'To Account'}
+            label={
+              type === 'transfer' ? 'From'
+              : type === 'expense' ? 'From Account'
+              : 'To Account'
+            }
             accounts={allAccountOptions}
           />
 
+          {/* A transfer can land in another account or in an asset — picking an
+              asset is how the user invests. */}
           {type === 'transfer' && (
-            <AccountSelector value={toAccount} onChange={setToAccount} label="To Account" accounts={allAccountOptions} />
+            <>
+              <AccountSelector
+                value={toAccount}
+                onChange={setToAccount}
+                label="To Account or Asset"
+                title="Transfer Into"
+                accounts={transferDestinations}
+              />
+              {investAsset && (
+                <Text className="text-xs text-muted-foreground -mt-2 mb-4">
+                  Money leaves the account but isn&apos;t spent — {investAsset.name}&apos;s value goes
+                  up by the same amount, so it never counts as an expense.
+                </Text>
+              )}
+            </>
           )}
 
           {/* Date */}

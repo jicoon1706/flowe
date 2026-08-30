@@ -80,3 +80,10 @@ ehthumbs.db
 # misc temp
 *.tmp
 .tmp/
+
+# Merchant logo staging area — uploaded to Supabase Storage, not bundled.
+logos/*
+!logos/README.md
+
+# Supabase CLI scratch
+supabase/.temp/

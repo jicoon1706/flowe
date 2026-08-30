@@ -22,6 +22,7 @@ interface FloweNotificationsNativeModule {
   setEnabled(enabled: boolean): void;
   getWatchedPackages(): string[];
   setWatchedPackages(packages: string[]): void;
+  getInstalledPackages(packages: string[]): string[];
   getCaptures(): CapturedNotification[];
   removeCapture(id: string): void;
   clearCaptures(): void;
@@ -60,6 +61,15 @@ export function getWatchedPackages(): string[] {
 
 export function setWatchedPackages(packages: string[]): void {
   native?.setWatchedPackages(packages);
+}
+
+/**
+ * Of `packages`, the ones installed on this phone. Off-Android (or without a
+ * dev build) nothing is knowable, so every package is reported as installed and
+ * the UI stays unrestricted rather than greying everything out.
+ */
+export function getInstalledPackages(packages: string[]): string[] {
+  return native?.getInstalledPackages(packages) ?? packages;
 }
 
 export function getCaptures(): CapturedNotification[] {

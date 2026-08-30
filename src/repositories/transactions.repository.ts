@@ -87,11 +87,46 @@ async function applyBalanceEffect(
   } else if (tx.type === 'transfer' && tx.from_account_id && tx.to_account_id) {
     await adjustAccountBalance(tx.from_account_id, -amount);
     await adjustAccountBalance(tx.to_account_id, amount);
+  } else if (tx.type === 'transfer' && tx.from_account_id) {
+    // A transfer with no destination account is an investment: the money leaves
+    // the account for an asset, which lives outside the accounts tables and is
+    // adjusted by the caller. Still not an expense — it just isn't spent.
+    await adjustAccountBalance(tx.from_account_id, -amount);
   } else if (tx.type === 'tabung_topup' && tx.to_account_id) {
     await adjustAccountBalance(tx.to_account_id, amount);
   } else if (tx.type === 'tabung_withdraw' && tx.to_account_id) {
     await adjustAccountBalance(tx.to_account_id, -amount);
   }
+}
+
+/**
+ * Takes a deleted investment back out of the asset it fed.
+ *
+ * An investment is stored as a transfer with no destination account, with the
+ * asset's name in the category column (see add-transaction.tsx). The account
+ * side is reversed by `applyBalanceEffect` like any other transfer; this is the
+ * other half, so deleting one doesn't leave the asset permanently inflated.
+ */
+async function reverseInvestment(
+  tx: Pick<Transaction, 'type' | 'amount' | 'category' | 'to_account_id'>,
+) {
+  if (tx.type !== 'transfer' || tx.to_account_id || !tx.category) return;
+
+  const { data: asset } = await supabase
+    .from('assets')
+    .select('id, current_value')
+    .eq('name', tx.category)
+    .eq('is_active', true)
+    .maybeSingle();
+  if (!asset) return;
+
+  await supabase
+    .from('assets')
+    .update({
+      current_value: Math.max(0, Number(asset.current_value) - Number(tx.amount)),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', asset.id);
 }
 
 export const transactionsRepository = {
@@ -243,7 +278,7 @@ export const transactionsRepository = {
     // Load the transaction first so we can reverse its balance impact.
     const { data: tx, error: fetchError } = await supabase
       .from('transactions')
-      .select('type, amount, from_account_id, to_account_id')
+      .select('type, amount, category, from_account_id, to_account_id')
       .eq('id', id)
       .single();
     if (fetchError) return { ok: false, error: fromSupabaseError(fetchError) };
@@ -252,6 +287,7 @@ export const transactionsRepository = {
     if (error) return { ok: false, error: fromSupabaseError(error) };
 
     await applyBalanceEffect(tx as Pick<Transaction, 'type' | 'amount' | 'from_account_id' | 'to_account_id'>, -1);
+    await reverseInvestment(tx as Pick<Transaction, 'type' | 'amount' | 'category' | 'to_account_id'>);
 
     return { ok: true, data: undefined };
   },

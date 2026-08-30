@@ -159,7 +159,12 @@ export default function ProjectDetailScreen() {
 
         {/* FAB Add Entry */}
         <Pressable
-          onPress={() => router.push(`/home/learn/${project.id}/add-entry`)}
+          onPress={() =>
+            // add-entry is a tab screen, so its params persist between visits —
+            // an omitted entryId would keep the last edited one and make "Add"
+            // overwrite that entry instead of creating a new one.
+            router.push(`/home/learn/${project.id}/add-entry?entryId=`)
+          }
           className="absolute bottom-6 right-6 left-6 bg-primary rounded-2xl py-3 items-center active:scale-[0.98] transition-transform"
         >
           <Text className="text-sm font-semibold text-primary-foreground">+ Add Entry</Text>

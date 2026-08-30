@@ -196,7 +196,7 @@ function MainTabs() {
 function DetectedTransactionOverlay() {
   const { user } = useAuth();
   const { accounts, fetchAccounts } = useAccounts();
-  const { pending, save, dismiss } = useDetectedTransactions(user?.id, accounts);
+  const { pending, save, dismiss, snooze } = useDetectedTransactions(user?.id, accounts);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
@@ -210,6 +210,7 @@ function DetectedTransactionOverlay() {
         return result;
       }}
       onDismiss={dismiss}
+      onSnooze={snooze}
     />
   );
 }

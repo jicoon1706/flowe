@@ -10,6 +10,7 @@ import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
 import { TransactionDetail, TransactionData } from '../../../../components/home/TransactionDetail';
 import { SearchBar } from '../../../../components/ui/SearchBar';
+import { MerchantIcon } from '../../../../components/ui/MerchantIcon';
 
 function getCategoryEmoji(category: string): string {
   const map: Record<string, string> = {
@@ -104,6 +105,23 @@ export default function AccountDetailScreen() {
     setDetailVisible(true);
   };
 
+  /**
+   * Opens the transaction form for *this* account: it starts on the given type
+   * with the account already chosen (as the source, or the destination for
+   * income), and returns here on save or cancel.
+   */
+  const openForm = (formType?: 'transfer') => {
+    router.push({
+      pathname: '/(main)/add-transaction',
+      params: {
+        ...(formType ? { type: formType } : {}),
+        presetAccountId: accountId,
+        returnTo: `/home/account/${accountId}`,
+        nonce: String(Date.now()),
+      },
+    });
+  };
+
   const handleEditTx = (txId: string) => {
     const tx = transactions.find((t) => t.id === txId);
     if (!tx) return;
@@ -120,6 +138,7 @@ export default function AccountDetailScreen() {
         toAccountId: tx.to_account_id ?? '',
         date: tx.date,
         note: tx.note ?? '',
+        returnTo: `/home/account/${accountId}`,
         nonce: String(Date.now()),
       },
     });
@@ -231,15 +250,19 @@ export default function AccountDetailScreen() {
           </View>
         </View>
 
-        {/* Action Buttons */}
+        {/* Action Buttons — both open the form already pointed at this account,
+            and send the user back here once they're done. */}
         <View className="flex-row mx-4 mt-3">
           <Pressable
-            onPress={() => router.push('/add-transaction')}
+            onPress={() => openForm()}
             className="flex-1 bg-primary rounded-2xl py-3 mr-1.5 items-center"
           >
             <Text className="text-sm font-semibold text-primary-foreground">Add Transaction</Text>
           </Pressable>
-          <Pressable className="flex-1 bg-card rounded-2xl py-3 ml-1.5 items-center border border-border">
+          <Pressable
+            onPress={() => openForm('transfer')}
+            className="flex-1 bg-card rounded-2xl py-3 ml-1.5 items-center border border-border"
+          >
             <Text className="text-sm font-semibold text-foreground">Transfer</Text>
           </Pressable>
         </View>
@@ -277,9 +300,7 @@ export default function AccountDetailScreen() {
                     className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
                   >
                     <View className="flex-row items-center gap-3">
-                      <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center">
-                        <Text className="text-base">{tx.category ? getCategoryEmoji(tx.category) : '💰'}</Text>
-                      </View>
+                      <MerchantIcon name={tx.name} fallback={tx.category ? getCategoryEmoji(tx.category) : '💰'} />
                       <View>
                         <View className="flex-row items-center gap-1.5">
                           <Text className="text-sm font-medium text-foreground">{tx.name}</Text>

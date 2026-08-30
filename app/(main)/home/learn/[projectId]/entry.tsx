@@ -54,15 +54,16 @@ export default function EntryDetailScreen() {
 
   const handleDelete = async () => {
     if (entryId) await learnRepository.deleteEntry(entryId);
-    router.back();
-    router.back();
+    // The entry is gone, so there is nothing to go back to — land on the
+    // project that held it rather than unwinding two screens blindly.
+    router.replace(`/home/learn/${projectId}`);
   };
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="mr-3">
+        <Pressable onPress={() => router.replace(`/home/learn/${projectId}`)} className="mr-3">
           <ChevronLeft size={24} color="#fff" />
         </Pressable>
         <Text className="flex-1 text-lg font-semibold text-foreground">Entry</Text>

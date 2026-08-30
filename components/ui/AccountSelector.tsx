@@ -7,6 +7,8 @@ interface Account {
   name: string;
   balance: string;
   color: string;
+  /** Small badge next to the name — used to mark assets in a list of accounts. */
+  hint?: string;
 }
 
 interface AccountSelectorProps {
@@ -14,6 +16,8 @@ interface AccountSelectorProps {
   onChange: (id: string) => void;
   label?: string;
   accounts?: Account[];
+  /** Heading of the picker sheet, when "Select Account" isn't the whole truth. */
+  title?: string;
 }
 
 const defaultAccounts: Account[] = [
@@ -27,6 +31,7 @@ export function AccountSelector({
   onChange,
   label = 'Account',
   accounts = defaultAccounts,
+  title = 'Select Account',
 }: AccountSelectorProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const selected = accounts.find((a) => a.id === value);
@@ -50,7 +55,14 @@ export function AccountSelector({
             <>
               <View className="w-6 h-6 rounded-lg" style={{ backgroundColor: selected.color + '30' }} />
               <View>
-                <Text className="text-sm font-medium text-foreground">{selected.name}</Text>
+                <View className="flex-row items-center gap-1.5">
+                  <Text className="text-sm font-medium text-foreground">{selected.name}</Text>
+                  {selected.hint && (
+                    <Text className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                      {selected.hint}
+                    </Text>
+                  )}
+                </View>
                 <Text className="text-xs text-muted-foreground">RM {selected.balance}</Text>
               </View>
             </>
@@ -75,7 +87,7 @@ export function AccountSelector({
         >
           <Pressable className="bg-card rounded-t-3xl p-6 pb-8" onPress={(e) => e.stopPropagation()}>
             <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
-            <Text className="text-lg font-semibold text-foreground mb-4">Select Account</Text>
+            <Text className="text-lg font-semibold text-foreground mb-4">{title}</Text>
             <View className="gap-2">
               {accounts.map((account) => (
                 <Pressable
@@ -91,7 +103,14 @@ export function AccountSelector({
                   <View className="flex-row items-center gap-3">
                     <View className="w-8 h-8 rounded-lg" style={{ backgroundColor: account.color + '30' }} />
                     <View>
-                      <Text className="text-sm font-medium text-foreground">{account.name}</Text>
+                      <View className="flex-row items-center gap-1.5">
+                        <Text className="text-sm font-medium text-foreground">{account.name}</Text>
+                        {account.hint && (
+                          <Text className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                            {account.hint}
+                          </Text>
+                        )}
+                      </View>
                       <Text className="text-xs text-muted-foreground">RM {account.balance}</Text>
                     </View>
                   </View>
