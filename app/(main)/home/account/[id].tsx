@@ -64,7 +64,10 @@ export default function AccountDetailScreen() {
   const bankAccount = (account as any)?.bank_accounts;
   const balance = Number(bankAccount?.current_balance ?? 0);
   const bankColor = account?.color ?? '#ffd93d';
-  const last4 = bankAccount?.account_number?.slice(-4) ?? '0000';
+  // '' when the user hasn't filled them in — the card still shows placeholder
+  // digits, but the edit form must not offer '0000' as if it were real.
+  const storedLast4 = String(bankAccount?.account_number ?? '').replace(/\D/g, '').slice(-4);
+  const last4 = storedLast4 || '0000';
   const bankName = bankAccount?.bank_name ?? account?.name ?? '';
 
   const handleCopy = () => {
@@ -75,6 +78,9 @@ export default function AccountDetailScreen() {
   const [showEdit, setShowEdit] = useState(false);
   const [editName, setEditName] = useState('');
   const [editBalance, setEditBalance] = useState('');
+  // Auto-detect matches these against the digits a payment alert prints, so
+  // they're worth capturing even though nothing else in the app needs them.
+  const [editLast4, setEditLast4] = useState('');
   const [editError, setEditError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -147,6 +153,7 @@ export default function AccountDetailScreen() {
   const handleOpenEdit = () => {
     setEditName(account?.name ?? '');
     setEditBalance(balance.toString());
+    setEditLast4(storedLast4);
     setEditError('');
     setShowEdit(true);
   };
@@ -177,6 +184,14 @@ export default function AccountDetailScreen() {
       if (!balanceResult.ok) {
         setActionLoading(false);
         setEditError(balanceResult.error.message ?? 'Failed to update balance');
+        return;
+      }
+    }
+    if (editLast4 !== storedLast4) {
+      const last4Result = await accountsRepository.updateBankAccountNumber(account.id, editLast4);
+      if (!last4Result.ok) {
+        setActionLoading(false);
+        setEditError(last4Result.error.message ?? 'Failed to update account digits');
         return;
       }
     }
@@ -360,6 +375,22 @@ export default function AccountDetailScreen() {
                 value={editBalance}
                 onChangeText={(text) => setEditBalance(text.replace(/[^0-9.]/g, ''))}
               />
+            </View>
+
+            <View className="mb-4">
+              <Text className="text-xs text-muted-foreground mb-1">Last 4 Digits</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                placeholder="1234"
+                placeholderTextColor="#888"
+                keyboardType="number-pad"
+                maxLength={4}
+                value={editLast4}
+                onChangeText={(text) => setEditLast4(text.replace(/\D/g, ''))}
+              />
+              <Text className="text-[11px] text-muted-foreground mt-1">
+                Lets auto-detect file a payment alert into this account automatically.
+              </Text>
             </View>
 
             {editError ? (

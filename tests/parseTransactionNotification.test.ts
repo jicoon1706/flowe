@@ -71,4 +71,78 @@ describe('parseTransactionNotification', () => {
     );
     expect(result?.type).toBe('expense');
   });
+
+  it('ignores an alert with an amount but no word for money moving', () => {
+    // The shape every promo, fee schedule and balance reminder shares.
+    expect(
+      parseTransactionNotification(raw('com.maybank2u.life', 'Hi there', 'Your RM 250.00 is waiting'))
+    ).toBeNull();
+  });
+
+  it('ignores marketing that reads like a payment', () => {
+    const promos: [string, string][] = [
+      ['Fuel deal', 'Enjoy RM10 cashback when you pay with Setel'],
+      ['Weekend treat', 'Get up to RM88 when you spend at selected merchants'],
+      ['Big savings', 'Save RM30 on your next purchase — 50% off storewide'],
+      ['New card', 'Spend and get RM200 credited. Terms apply.'],
+    ];
+    for (const [title, text] of promos) {
+      expect(parseTransactionNotification(raw('com.setel.mobile', title, text))).toBeNull();
+    }
+  });
+
+  it('ignores reminders about money that has not moved', () => {
+    expect(
+      parseTransactionNotification(
+        raw('com.cimb.octo', 'Card statement', 'Your minimum payment of RM 150.00 is due on 15/09/2026')
+      )
+    ).toBeNull();
+    expect(
+      parseTransactionNotification(
+        raw('com.maybank2u.life', 'Balance', 'Your available balance is RM 42.10')
+      )
+    ).toBeNull();
+  });
+
+  it('still reads a genuine cashback credit', () => {
+    const result = parseTransactionNotification(
+      raw('my.com.tngdigital.ewallet', 'Cashback', 'You have received RM 1.50 into your eWallet')
+    );
+    expect(result).toMatchObject({ amount: 1.5, type: 'income', wallet: true });
+  });
+
+  it('reads the last 4 digits from the formats banks use', () => {
+    const forms = [
+      'RM 10.00 debited from a/c ending 8891',
+      'RM 10.00 debited from card ****8891',
+      'RM 10.00 debited from account no. 8891',
+    ];
+    for (const text of forms) {
+      expect(parseTransactionNotification(raw('com.maybank2u.life', 'Alert', text))?.accountLast4).toBe('8891');
+    }
+  });
+
+  it('reports the posting package, so a pinned account can be looked up', () => {
+    const result = parseTransactionNotification(
+      raw('com.setel.mobile', 'Payment successful', 'You paid RM60.00 at PETRONAS Jalan Ampang')
+    );
+    expect(result?.packageId).toBe('com.setel.mobile');
+  });
+
+  it('is confident about the direction when only one family of words matched', () => {
+    const result = parseTransactionNotification(
+      raw('com.maybank2u.life', 'Transaction Alert', 'RM 45.90 has been debited from your account at ZUS COFFEE')
+    );
+    expect(result?.typeConfident).toBe(true);
+  });
+
+  it('is not confident when the alert reads as both a debit and a credit', () => {
+    // Real wording, and the direction is then a fallback rather than a reading
+    // — auto-save refuses these and shows the toggle instead.
+    const result = parseTransactionNotification(
+      raw('com.maybank2u.life', 'Transaction Alert', 'RM 20.00 debited, payment received by ZUS COFFEE')
+    );
+    expect(result?.type).toBe('expense');
+    expect(result?.typeConfident).toBe(false);
+  });
 });

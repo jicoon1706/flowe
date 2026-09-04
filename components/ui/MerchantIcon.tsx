@@ -39,8 +39,8 @@ export function MerchantIcon({ name, fallback, size = 44 }: MerchantIconProps) {
         <Image
           source={{ uri: url }}
           onError={() => setFailed(true)}
-          style={{ width: size * 0.74, height: size * 0.74 }}
-          contentFit="contain"
+          style={{ width: size, height: size }}
+          contentFit="cover"
           // Logos are identical for every user and never change per session, so
           // they're worth keeping on disk rather than refetching each launch.
           cachePolicy="memory-disk"

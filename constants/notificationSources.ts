@@ -30,7 +30,9 @@ export const NOTIFICATION_SOURCES: NotificationSource[] = [
   { packageId: 'com.shopee.my', label: 'ShopeePay', wallet: true },
 ];
 
-export const DEFAULT_WATCHED_PACKAGES = NOTIFICATION_SOURCES.map((s) => s.packageId);
+// There is no "watch everything" default: an app the user holds no account
+// with can only produce detections they can't file, so Settings → Auto-detect
+// seeds the watch list from the apps that actually map to one of their accounts.
 
 export function sourceForPackage(packageId: string): NotificationSource | undefined {
   return NOTIFICATION_SOURCES.find((s) => s.packageId === packageId);

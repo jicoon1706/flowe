@@ -90,9 +90,22 @@ class TransactionNotificationListenerService : NotificationListenerService() {
     }
   }
 
+  /**
+   * Whether this alert is worth waking the user for.
+   *
+   * An amount alone isn't enough — a promo, a fee schedule and a balance
+   * reminder all name a ringgit figure — so the text must also say that money
+   * moved, and must not read as marketing. This mirrors the rules in
+   * src/utils/parseTransactionNotification.ts, deliberately kept a little
+   * looser: TypeScript has the final say, and it can be corrected without a
+   * native rebuild. Anything rejected here never becomes a notification at all,
+   * which is the difference the user feels.
+   */
   private fun looksLikeTransaction(text: String): Boolean {
+    if (!AMOUNT.containsMatchIn(text)) return false
     if (IGNORE.any { text.contains(it, ignoreCase = true) }) return false
-    return AMOUNT.containsMatchIn(text)
+    if (PROMO.any { it.containsMatchIn(text) }) return false
+    return MOVEMENT.containsMatchIn(text)
   }
 
   private fun extractAmount(text: String): String? =
@@ -109,6 +122,34 @@ class TransactionNotificationListenerService : NotificationListenerService() {
     private val recentSignatures = LinkedHashMap<String, Long>()
 
     private val AMOUNT = Regex("""(?:RM|MYR)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
-    private val IGNORE = listOf("OTP", "one-time password", "verification code", "do not share", "promo")
+
+    /** Alerts that are never a transaction: security codes, marketing, reminders. */
+    private val IGNORE = listOf(
+      "OTP", "one-time password", "verification code", "do not share", "password",
+      "log in", "sign in", "security alert",
+      "promo", "promosi", "discount", "diskaun", "voucher", "baucar", "rebate",
+      "coupon", "giveaway", "contest", "peraduan", "limited time", "shop now",
+      "buy now", "apply now", "claim now", "terms apply", "t&c", "valid till",
+      "valid until", "while stocks last", "reward point", "when you spend",
+      "minimum spend", "interest rate",
+      "payment due", "due on", "due date", "minimum payment", "outstanding balance",
+      "available balance", "low balance", "e-statement", "statement is ready"
+    )
+
+    /** Marketing caught by shape: a hedged amount, or one that is an incentive. */
+    private val PROMO = listOf(
+      Regex("""\b(?:up\s*to|as\s*low\s*as|save)\s*(?:RM|MYR)\s*[0-9]""", RegexOption.IGNORE_CASE),
+      Regex("""(?:RM|MYR)\s*[0-9][0-9,.]*\s*(?:off|cashback|rebate|voucher|discount|bonus|free)\b""", RegexOption.IGNORE_CASE),
+      Regex("""\b(?:get|enjoy|earn|win|grab|claim|redeem)\s+(?:up\s*to\s*)?(?:RM|MYR)\s*[0-9]""", RegexOption.IGNORE_CASE),
+      Regex("""[0-9]{1,3}\s*%\s*(?:off|discount|cashback|rebate)""", RegexOption.IGNORE_CASE)
+    )
+
+    /** A word saying money actually left or entered the user's account. */
+    private val MOVEMENT = Regex(
+      """\b(?:debited|debit|spent|paid|payment|purchase|withdrawn|withdrawal|deducted|charged|""" +
+        """transfer(?:red)?|sent|credited|credit|received|refund(?:ed)?|deposited|reload(?:ed)?|""" +
+        """topped\s*up|top[\s-]?up|transaksi|pembayaran|ditolak|diterima|masuk)\b""",
+      RegexOption.IGNORE_CASE
+    )
   }
 }

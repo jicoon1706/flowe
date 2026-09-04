@@ -33,6 +33,7 @@ export default function AccountsScreen() {
   const [newAccName, setNewAccName] = useState('');
   const [newAccBalance, setNewAccBalance] = useState('');
   const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
+  const [newAccLast4, setNewAccLast4] = useState('');
   const [newInvestType, setNewInvestType] = useState<AssetType>('stocks');
 
   function resetForm() {
@@ -40,6 +41,7 @@ export default function AccountsScreen() {
     setNewAccBalance('');
     setNewAccType('bank');
     setSelectedBankId(null);
+    setNewAccLast4('');
     setNewInvestType('stocks');
   }
 
@@ -55,6 +57,7 @@ export default function AccountsScreen() {
         name: preset.name,
         bank_name: preset.name,
         color: preset.color,
+        account_number: newAccLast4 || undefined,
         opening_balance: parseFloat(newAccBalance),
       });
     } else if (newAccType === 'investment') {
@@ -400,6 +403,26 @@ export default function AccountsScreen() {
                     );
                   })}
                 </View>
+
+                {/* Optional, but it's what lets auto-detect file a payment alert
+                    into this account instead of asking every time. */}
+                <Text className="text-sm font-medium text-muted-foreground mt-4 mb-2">
+                  Last 4 Digits (optional)
+                </Text>
+                <View className="bg-input-background border border-border rounded-xl px-4 py-3">
+                  <TextInput
+                    className="text-foreground"
+                    placeholder="1234"
+                    placeholderTextColor="#666"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    value={newAccLast4}
+                    onChangeText={(text) => setNewAccLast4(text.replace(/\D/g, ''))}
+                  />
+                </View>
+                <Text className="text-[11px] text-muted-foreground mt-1">
+                  Lets auto-detect tell this account apart from your others at the same bank.
+                </Text>
               </View>
             ) : (
               <>

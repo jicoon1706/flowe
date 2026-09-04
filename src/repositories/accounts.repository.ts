@@ -185,6 +185,21 @@ export const accountsRepository = {
     return { ok: true, data: undefined };
   },
 
+  /**
+   * Stores the last 4 digits of a bank account. Auto-detect matches these
+   * against the digits a payment alert prints, which is the only way to tell
+   * two accounts at the same bank apart. Pass an empty string to clear them.
+   */
+  async updateBankAccountNumber(accountId: string, last4: string): Promise<Result<void, SupabaseError>> {
+    const digits = last4.replace(/\D/g, '').slice(-4);
+    const { error } = await supabase
+      .from('bank_accounts')
+      .update({ account_number: digits || null })
+      .eq('account_id', accountId);
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: undefined };
+  },
+
   async updateWalletBalance(accountId: string, newBalance: number): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase
       .from('wallet_accounts')
