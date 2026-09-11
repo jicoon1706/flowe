@@ -13,6 +13,22 @@ export const settingsRepository = {
     return { ok: true, data: data as Settings };
   },
 
+  /**
+   * The user's settings row, creating it with defaults if they don't have
+   * one yet. Rows are only made lazily, so any screen reading settings for
+   * the first time may be the one that creates them.
+   */
+  async fetchOrCreate(userId: string): Promise<Result<Settings, SupabaseError>> {
+    const { data, error } = await supabase
+      .from('settings')
+      .select()
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    if (data) return { ok: true, data: data as Settings };
+    return settingsRepository.create(userId);
+  },
+
   async create(userId: string): Promise<Result<Settings, SupabaseError>> {
     const { data, error } = await supabase
       .from('settings')

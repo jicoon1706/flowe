@@ -12,6 +12,12 @@ export interface RawNotification {
   text: string;
   /** Epoch millis when Android posted it. */
   postedAt: number;
+  /**
+   * True when the user has already said this is a transaction — they tapped
+   * Expense or Income on the shade notification. Their word outranks every
+   * heuristic here: the alert is accepted as long as it names an amount.
+   */
+  confirmed?: boolean;
 }
 
 export interface ParsedNotification {
@@ -51,10 +57,33 @@ const CREDIT_HINTS = [
   'diterima', 'masuk',
 ];
 
+/**
+ * Words that say a transaction happened without saying which way the money
+ * went — "Transaction Alert: RM 20.00 at ZUS COFFEE", "DuitNow QR successful",
+ * "Payment successful". Enough to accept the alert; not enough to be sure of
+ * the direction, so these alone make an unconfident expense that the card asks
+ * about rather than one that files itself.
+ */
+const MOVEMENT_PATTERNS = [
+  /\btransa(?:ction|ksi)\b/i,
+  /\bsuccessful(?:ly)?\b|\bberjaya\b/i,
+  /\bduitnow\b|\bfpx\b|\bjompay\b|\bqr\b/i,
+  /\btransfer(?:red)?\b|\bpindahan\b/i,
+  /\bpayment\b|\bbayaran\b/i,
+  /\bspen[dt]\b|\bwithdraw(?:n|al)?\b|\bbelanja\b/i,
+  /\bcash\s*(?:in|out)\b/i,
+  // An amount followed by a counterparty is the shape of a receipt, whatever
+  // verb the bank chose: "RM 20.00 at ZUS COFFEE", "RM 50.00 to ALI".
+  /(?:rm|myr)\s*[0-9][0-9,.]*\s+(?:at|to|from|kepada|dari|di)\s+\S/i,
+];
+
 // Alerts that aren't transactions at all — OTPs, balance reminders, promos.
+// Only phrases that never appear in a real payment alert belong here: a debit
+// alert that ends "Available balance RM 1,234.56" or "You earned 12 reward
+// points" is still a debit alert, and used to be dropped for it.
 const IGNORE_HINTS = [
   // Security and account admin.
-  'otp', 'one-time password', 'one time password', 'verification code',
+  'one-time password', 'one time password', 'verification code',
   'tac ', 'do not share', 'password', 'login', 'log in', 'sign in',
   'security alert', 'statement is ready', 'e-statement',
   // Marketing. These are the alerts that were being filed as expenses: they
@@ -64,12 +93,34 @@ const IGNORE_HINTS = [
   'limited time', 'don’t miss', "don't miss", 'shop now', 'buy now',
   'apply now', 'claim now', 'claim your', 'tuntut', 'terms apply', 't&c',
   'terms and conditions', 'syarat', 'valid till', 'valid until', 'sah sehingga',
-  'while stocks last', 'sign up now', 'refer a friend', 'reward point',
+  'while stocks last', 'sign up now', 'refer a friend',
   'when you spend', 'minimum spend', 'interest rate', 'sale ends', 'offer ends',
   // Reminders about money that hasn't moved yet.
-  'payment due', 'due on', 'due date', 'minimum payment', 'outstanding balance',
-  'available balance', 'low balance', 'balance enquiry', 'reminder:',
+  'payment due', 'due on', 'due date', 'minimum payment',
+  'low balance', 'balance enquiry', 'reminder:',
 ];
+
+/**
+ * Security codes, word-bounded: 'otp' as a bare substring is also the middle
+ * of a payment at a hotpot restaurant.
+ */
+const SECURITY_PATTERN = /\b(?:otp|tac)\b/i;
+
+/**
+ * The balance a bank prints after the movement — "Available balance RM 1,234.56",
+ * "Baki: RM 50.00", "RM 950.00 left". It is an amount, so it would be read as
+ * *the* amount whenever it comes first; stripping it out before looking for the
+ * transaction amount is what keeps a balance from being filed as a payment, and
+ * a payment from being filed at the balance.
+ */
+const BALANCE_PATTERNS = [
+  /\b(?:(?:available|avail\.?|outstanding|current|remaining|closing|ledger|new)\s+)?(?:balance\b|baki\b|bal\b\.?)(?:\s+(?:is|now|of|semasa|tersedia|after\s+(?:this\s+)?(?:transaction|txn)))*\s*[:=-]?\s*(?:rm|myr)\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/gi,
+  /(?:rm|myr)\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?\s*(?:is\s+)?(?:available|remaining|left)\b/gi,
+];
+
+function stripBalances(text: string): string {
+  return BALANCE_PATTERNS.reduce((acc, pattern) => acc.replace(pattern, ' '), text);
+}
 
 /**
  * Marketing that survives the word list, caught by shape instead: a hedged
@@ -149,32 +200,43 @@ export function parseTransactionNotification(raw: RawNotification): ParsedNotifi
   if (!combined) return null;
   const lower = combined.toLowerCase();
 
-  if (matchesAny(lower, IGNORE_HINTS)) return null;
-  if (PROMO_PATTERNS.some((pattern) => pattern.test(combined))) return null;
+  // The user tapped Expense/Income on the shade notification: they have said
+  // it's a transaction, and the only thing left to read is how much.
+  if (!raw.confirmed) {
+    if (SECURITY_PATTERN.test(combined)) return null;
+    if (matchesAny(lower, IGNORE_HINTS)) return null;
+    if (PROMO_PATTERNS.some((pattern) => pattern.test(combined))) return null;
+  }
 
-  const amount = findAmount(combined);
+  // The balance after the movement is also an amount; it must not be the one
+  // we read. An alert that names nothing but a balance isn't a transaction.
+  const amount = findAmount(stripBalances(combined));
   if (amount === undefined) return null;
 
   const isDebit = matchesAny(lower, DEBIT_HINTS);
   const isCredit = matchesAny(lower, CREDIT_HINTS);
+  const isMovement = MOVEMENT_PATTERNS.some((pattern) => pattern.test(combined));
 
   // No word for money actually moving means this isn't a transaction alert,
   // whatever else it says. An amount on its own is the shape a promo, a fee
   // schedule and a balance reminder all share, so it can't be trusted: an
   // unwanted detection costs the user a wrong transaction, a missed one only
   // costs them a tap in the app.
-  if (!isDebit && !isCredit) return null;
+  if (!raw.confirmed && !isDebit && !isCredit && !isMovement) return null;
 
   // Both words present is real — "RM20 debited, payment received by merchant" —
-  // and there the debit is the movement on the user's own account.
+  // and there the debit is the movement on the user's own account. With no
+  // directional word at all, a payment is the overwhelmingly common case.
   const type: 'expense' | 'income' = isCredit && !isDebit ? 'income' : 'expense';
 
   return {
     amount,
     type,
-    // Both families matching is the "RM20 debited, payment received by
-    // merchant" shape: real, but the direction is inferred rather than read.
-    typeConfident: !(isDebit && isCredit),
+    // The direction is a reading only when exactly one family of words
+    // matched. Both — "RM20 debited, payment received by merchant" — or neither
+    // — "Transaction successful RM20 at ZUS" — is an inference, and auto-save
+    // refuses to act on it.
+    typeConfident: isDebit !== isCredit,
     packageId: raw.packageName,
     merchant: findMerchant(combined),
     accountLast4: findLast4(combined),

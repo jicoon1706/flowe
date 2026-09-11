@@ -1,13 +1,12 @@
 import { TabBarProvider, useTabBar } from '@/context/TabBarContext';
-import { LockProvider } from '@/context/LockContext';
+import { LockProvider, useLock } from '@/context/LockContext';
+import { DetectedTransactionsProvider, useDetected } from '@/context/DetectedTransactionsContext';
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Calendar, DollarSign, Home, Plus, Settings } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import { DetectedTransactionIsland } from '@/components/home/DetectedTransactionIsland';
-import { useDetectedTransactions } from '@/src/hooks/useDetectedTransactions';
-import { useAccounts } from '@/src/hooks/useAccounts';
-import { useAuth } from '@/context/AuthContext';
+import { isOpenWhileLocked } from '@/src/utils/lockRoutes';
 
 function AddButton(props: { onPress?: (e?: any) => void }) {
   const router = useRouter();
@@ -194,25 +193,47 @@ function MainTabs() {
  * wherever the user happens to be — that's the point of the feature.
  */
 function DetectedTransactionOverlay() {
-  const { user } = useAuth();
-  const { accounts, fetchAccounts } = useAccounts();
-  const { pending, save, dismiss, snooze } = useDetectedTransactions(user?.id, accounts);
-
-  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+  const { prompt, accounts, save, dismiss, snooze } = useDetected();
 
   return (
     <DetectedTransactionIsland
-      detected={pending[0] ?? null}
+      detected={prompt}
       accounts={accounts}
-      onSave={async (detected, values) => {
-        const result = await save(detected, values);
-        if (result.ok) await fetchAccounts();
-        return result;
-      }}
+      onSave={save}
       onDismiss={dismiss}
       onSnooze={snooze}
     />
   );
+}
+
+/**
+ * Raises the PIN / fingerprint prompt the moment a locked screen is opened.
+ *
+ * The app starts locked but usable — home with balances hidden, and the
+ * add-transaction form — so the prompt is tied to *where the user goes* rather
+ * than to launch. Watching the pathname catches every way in (tab bar, a card
+ * on home, a notification deep link) without each caller having to ask. If
+ * the user backs out, they're returned to somewhere that is open.
+ */
+function LockedRouteGuard() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { locked, requireUnlock } = useLock();
+
+  useEffect(() => {
+    if (!locked || isOpenWhileLocked(pathname)) return;
+    let stale = false;
+    requireUnlock().then((ok) => {
+      if (ok || stale) return;
+      if (router.canGoBack()) router.back();
+      else router.replace('/(main)');
+    });
+    // The route moved on before an answer came (the prompt is shared, so the
+    // next screen's guard owns the outcome now).
+    return () => { stale = true; };
+  }, [locked, pathname, requireUnlock, router]);
+
+  return null;
 }
 
 function TabBarVisibilityWrapper({ children }: { children: React.ReactNode }) {
@@ -221,7 +242,7 @@ function TabBarVisibilityWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Hide tab bar for nested settings routes
-    const hiddenPaths = ['settings/account', 'settings/change-pin', 'settings/security', 'settings/notifications', 'settings/categories', 'settings/recurring', 'settings/auto-detect', 'settings/affirmations', 'settings/data'];
+    const hiddenPaths = ['settings/account', 'settings/change-pin', 'settings/security', 'settings/notifications', 'settings/categories', 'settings/recurring', 'settings/auto-detect', 'settings/affirmations', 'settings/data', 'settings/budget'];
     if (hiddenPaths.some(path => pathname.includes(path))) {
       hideTabBar(pathname);
     } else {
@@ -239,12 +260,15 @@ export default function MainLayout() {
   // usePendingRecurring + PendingRecurringModal).
   return (
     <LockProvider>
-      <TabBarProvider>
-        <TabBarVisibilityWrapper>
-          <MainTabs />
-        </TabBarVisibilityWrapper>
-        <DetectedTransactionOverlay />
-      </TabBarProvider>
+      <DetectedTransactionsProvider>
+        <TabBarProvider>
+          <TabBarVisibilityWrapper>
+            <MainTabs />
+          </TabBarVisibilityWrapper>
+          <DetectedTransactionOverlay />
+          <LockedRouteGuard />
+        </TabBarProvider>
+      </DetectedTransactionsProvider>
     </LockProvider>
   );
 }

@@ -24,7 +24,7 @@ function categoryLabel(cat: string | null | undefined): string {
   if (!cat) return 'All';
   return cat.charAt(0).toUpperCase() + cat.slice(1);
 }
-import { AlertTriangle, Bell, ChevronRight, Database, Heart, Settings, Shield, Sparkles as Sparkle, User } from 'lucide-react-native';
+import { AlertTriangle, Bell, ChevronRight, Database, Heart, Settings, Shield, Sparkles as Sparkle, Target, User } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
@@ -41,6 +41,7 @@ export default function SettingsScreen() {
   const [showAffirmations, setShowAffirmations] = useState(true);
   const [dailyReminderTime, setDailyReminderTime] = useState<string | null>(null);
   const [affirmationCategory, setAffirmationCategory] = useState<string | null>(null);
+  const [dailyBudget, setDailyBudget] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -70,7 +71,7 @@ export default function SettingsScreen() {
         });
       supabase
         .from('settings')
-        .select('show_affirmations, daily_reminder_time, affirmation_category')
+        .select('show_affirmations, daily_reminder_time, affirmation_category, daily_budget')
         .eq('user_id', user.id)
         .maybeSingle()
         .then(({ data }) => {
@@ -78,6 +79,7 @@ export default function SettingsScreen() {
             setShowAffirmations(!!data.show_affirmations);
             setDailyReminderTime(data.daily_reminder_time);
             setAffirmationCategory(data.affirmation_category);
+            setDailyBudget(data.daily_budget === null || data.daily_budget === undefined ? null : Number(data.daily_budget));
           }
         });
     }, [user])
@@ -154,6 +156,13 @@ export default function SettingsScreen() {
             label="Auto-detect Transactions"
             icon={<Sparkle size={16} color="#a0a0a0" />}
             onPress={() => router.push('/settings/auto-detect')}
+          />
+          <View className="border-t border-border" />
+          <SettingsRow
+            label="Daily Budget"
+            value={dailyBudget === null ? 'Off' : `RM ${dailyBudget.toFixed(2)}`}
+            icon={<Target size={16} color="#a0a0a0" />}
+            onPress={() => router.push('/settings/budget')}
           />
           <View className="border-t border-border" />
           <SettingsRow

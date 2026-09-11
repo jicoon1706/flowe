@@ -82,6 +82,10 @@ export default function AutoDetectScreen() {
   const router = useRouter();
   const [enabled, setEnabled] = useState(false);
   const [granted, setGranted] = useState(false);
+  // Granted and connected are different things: Android drops the listener
+  // binding after an update or force-stop and the permission stays on, which
+  // is the case where "it stopped reading my notifications" comes from.
+  const [connected, setConnected] = useState(false);
   const [watched, setWatched] = useState<string[]>([]);
   /** Package id → the account its payments always belong to. */
   const [pins, setPins] = useState<Record<string, string>>({});
@@ -110,7 +114,11 @@ export default function AutoDetectScreen() {
 
   const sync = useCallback(() => {
     if (!FloweNotifications.isAvailable) return;
+    // Reclaim a dropped binding before reading its state, so the common case
+    // shows as connected rather than flashing a warning that fixes itself.
+    FloweNotifications.ensureListenerBound();
     setGranted(FloweNotifications.isPermissionGranted());
+    setConnected(FloweNotifications.isListenerConnected());
     setEnabled(FloweNotifications.isEnabled());
     setWatched(FloweNotifications.getWatchedPackages());
   }, []);
@@ -124,7 +132,13 @@ export default function AutoDetectScreen() {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') sync();
     });
-    return () => sub.remove();
+    // A rebind requested by sync() lands a moment later; read it once more so
+    // the status row settles on "connected" without the user leaving the screen.
+    const settle = setTimeout(sync, 2000);
+    return () => {
+      sub.remove();
+      clearTimeout(settle);
+    };
   }, [sync, fetchAccounts]));
 
   const seededRef = useRef(false);
@@ -380,26 +394,41 @@ export default function AutoDetectScreen() {
           </Pressable>
         )}
 
-        {/* Notification access can only be granted from system settings. */}
+        {/* Notification access can only be granted from system settings. Granted
+            but not connected is the state Android leaves the listener in after
+            an update — the app has already asked for a rebind by the time this
+            renders, and toggling access off and on in settings forces it. */}
         <Pressable
           onPress={() => FloweNotifications.openSettings()}
-          className="bg-card border border-border rounded-2xl p-5 mb-4 flex-row items-center"
+          className={`bg-card border rounded-2xl p-5 mb-4 flex-row items-center ${
+            granted && !connected ? 'border-[#ffd93d]/40' : 'border-border'
+          }`}
         >
           <View
             className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${
-              granted ? 'bg-primary/15' : 'bg-muted'
+              granted && connected ? 'bg-primary/15' : 'bg-muted'
             }`}
           >
-            <Check size={18} color={granted ? '#C5FF00' : '#a0a0a0'} />
+            {granted && !connected ? (
+              <AlertCircle size={18} color="#ffd93d" />
+            ) : (
+              <Check size={18} color={granted ? '#C5FF00' : '#a0a0a0'} />
+            )}
           </View>
           <View className="flex-1">
             <Text className="text-foreground font-medium">
-              {granted ? 'Notification access granted' : 'Grant notification access'}
+              {!granted
+                ? 'Grant notification access'
+                : connected
+                  ? 'Notification access granted'
+                  : 'Access granted, but not connected'}
             </Text>
             <Text className="text-muted-foreground text-xs mt-0.5">
-              {granted
-                ? 'Tap to review it in Android settings'
-                : 'Required — Android only lets you turn this on in system settings'}
+              {!granted
+                ? 'Required — Android only lets you turn this on in system settings'
+                : connected
+                  ? 'Tap to review it in Android settings'
+                  : 'Android dropped the connection. Reconnecting — if this stays, tap here and switch Flowe off and on.'}
             </Text>
           </View>
         </Pressable>

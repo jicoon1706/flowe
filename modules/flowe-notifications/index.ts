@@ -17,6 +17,8 @@ export interface CapturedNotification {
 
 interface FloweNotificationsNativeModule {
   isPermissionGranted(): boolean;
+  isListenerConnected(): boolean;
+  ensureListenerBound(): void;
   openSettings(): void;
   isEnabled(): boolean;
   setEnabled(enabled: boolean): void;
@@ -26,7 +28,23 @@ interface FloweNotificationsNativeModule {
   getCaptures(): CapturedNotification[];
   removeCapture(id: string): void;
   clearCaptures(): void;
+  setDailyBudget(budget: number | null): void;
+  setSpentToday(spent: number, date: string): void;
+  getBudgetSnapshot(): BudgetSnapshot;
+  recordBudgetExpense(amount: number): void;
+  showBudgetLiveUpdate(): void;
+  dismissBudgetLiveUpdate(): void;
+  canPostLiveUpdates(): boolean;
+  openAppNotificationSettings(): void;
   addListener(event: 'onCapture', listener: (capture: CapturedNotification) => void): EventSubscription;
+}
+
+/** What the native side currently believes about today's budget. */
+export interface BudgetSnapshot {
+  budget: number | null;
+  spent: number;
+  /** Local 'YYYY-MM-DD' that `spent` belongs to. */
+  date: string | null;
 }
 
 // Android-only: iOS gives no app any way to read another app's notifications.
@@ -40,6 +58,25 @@ export const isAvailable = native !== null;
 
 export function isPermissionGranted(): boolean {
   return native?.isPermissionGranted() ?? false;
+}
+
+/**
+ * Whether Android is actually delivering notifications to the listener right
+ * now. Access can be granted and this still be false — the system drops the
+ * binding after an app update or force-stop and doesn't always restore it —
+ * which is exactly when alerts silently go unread.
+ */
+export function isListenerConnected(): boolean {
+  return native?.isListenerConnected() ?? false;
+}
+
+/**
+ * Asks Android to bind the listener again if access is granted but the binding
+ * has lapsed. A no-op when it's already connected, so it's safe to call on
+ * every foreground.
+ */
+export function ensureListenerBound(): void {
+  native?.ensureListenerBound();
 }
 
 /** Opens the system "Notification access" screen — the only way to grant this. */
@@ -88,6 +125,58 @@ export function removeCapture(id: string): void {
 
 export function clearCaptures(): void {
   native?.clearCaptures();
+}
+
+// ─── Daily budget live update ───────────────────────────────────────────────
+// Android 16 "Live Updates" (a promoted, progress-styled notification; a plain
+// progress notification on older versions) showing how much of today's budget
+// is left, raised whenever a detected expense is filed and gone again a minute
+// later. The native side holds a copy of the budget and of today's spend so it
+// can show the update for a payment answered from the shade with Flowe closed.
+
+/** Stores the budget natively; null turns the live update off. */
+export function setDailyBudget(budget: number | null): void {
+  native?.setDailyBudget(budget);
+}
+
+/** Today's spend so far, as computed from the real transactions. */
+export function setSpentToday(spent: number, date: string): void {
+  native?.setSpentToday(spent, date);
+}
+
+export function getBudgetSnapshot(): BudgetSnapshot {
+  return native?.getBudgetSnapshot() ?? { budget: null, spent: 0, date: null };
+}
+
+/**
+ * Adds an expense to today's running total and shows the live update. A
+ * no-op when no budget is set. Only ever called for payments dated today.
+ */
+export function recordBudgetExpense(amount: number): void {
+  native?.recordBudgetExpense(amount);
+}
+
+/** Shows the live update with the current figures — Settings uses it as a preview. */
+export function showBudgetLiveUpdate(): void {
+  native?.showBudgetLiveUpdate();
+}
+
+export function dismissBudgetLiveUpdate(): void {
+  native?.dismissBudgetLiveUpdate();
+}
+
+/**
+ * Whether Android will promote Flowe's notification to a Live Update. Only
+ * Android 16+ has the concept and the user can switch it off per app; below
+ * that a normal progress notification is shown and this is reported true.
+ */
+export function canPostLiveUpdates(): boolean {
+  return native?.canPostLiveUpdates() ?? false;
+}
+
+/** Opens the system notification settings for Flowe, where Live Updates can be re-enabled. */
+export function openAppNotificationSettings(): void {
+  native?.openAppNotificationSettings();
 }
 
 /** Fires while the app is running; anything captured while it wasn't is in `getCaptures()`. */

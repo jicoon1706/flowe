@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -10,7 +10,17 @@ import { hashPin } from '../../src/lib/pinCrypto';
 import { flags } from '../../src/lib/secureStore';
 import { useAuth } from '../../context/AuthContext';
 
-export function LockOverlay({ onUnlock }: { onUnlock: () => void }) {
+interface LockOverlayProps {
+  onUnlock: () => void;
+  /**
+   * Lets the user step back without unlocking. The app is usable while locked
+   * (home with balances hidden, and the add-transaction form), so declining
+   * isn't a dead end — the caller takes them back to somewhere open.
+   */
+  onCancel?: () => void;
+}
+
+export function LockOverlay({ onUnlock, onCancel }: LockOverlayProps) {
   const { user } = useAuth();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
@@ -48,6 +58,18 @@ export function LockOverlay({ onUnlock }: { onUnlock: () => void }) {
     return () => { cancelled = true; };
   }, [promptBiometric]);
 
+  // The hardware back button means the same as "Not now": the prompt covers
+  // whatever screen was opened, and backing out of it must not strand the
+  // user behind an overlay they can't dismiss.
+  useEffect(() => {
+    if (!onCancel) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onCancel();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onCancel]);
+
   useEffect(() => {
     if (pin.length !== 6) return;
     let cancelled = false;
@@ -77,13 +99,24 @@ export function LockOverlay({ onUnlock }: { onUnlock: () => void }) {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+    // Above the detection island (zIndex 100): a PIN pad with a payment
+    // capsule floating over it is confusing, and the island is still there
+    // once the prompt is gone.
+    <SafeAreaView className="flex-1 bg-background" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200 }}>
       <View className="flex-1 items-center px-6 max-w-md mx-auto w-full">
-        <View className="w-14 h-14 rounded-2xl bg-primary/20 border border-primary items-center justify-center mt-16 mb-4">
+        {onCancel && (
+          <View className="w-full flex-row items-center pt-2">
+            <Pressable onPress={onCancel} hitSlop={10} className="flex-row items-center gap-1 py-2 pr-3 active:opacity-70">
+              <Feather name="chevron-left" size={20} color="#a0a0a0" />
+              <Text className="text-muted-foreground text-sm font-medium">Not now</Text>
+            </Pressable>
+          </View>
+        )}
+        <View className={`w-14 h-14 rounded-2xl bg-primary/20 border border-primary items-center justify-center mb-4 ${onCancel ? 'mt-6' : 'mt-16'}`}>
           <Feather name="lock" size={24} color="#C5FF00" />
         </View>
-        <Text className="text-foreground text-2xl font-bold">App Locked</Text>
-        <Text className="text-muted-foreground text-sm mt-1">Enter your 6-digit PIN to unlock</Text>
+        <Text className="text-foreground text-2xl font-bold">Unlock Flowe</Text>
+        <Text className="text-muted-foreground text-sm mt-1">Enter your 6-digit PIN to continue</Text>
         <PinDots length={pin.length} error={error} />
         {error && <Text className="text-destructive text-xs mt-2">Incorrect PIN. Try again.</Text>}
         {biometricAvailable && (

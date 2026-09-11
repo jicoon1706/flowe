@@ -10,10 +10,14 @@ import { AccountCards } from '../../components/home/AccountCards';
 import { Shortcuts } from '../../components/home/Shortcuts';
 import { RecentTransactions } from '../../components/home/RecentTransactions';
 import { PendingRecurringModal } from '../../components/home/PendingRecurringModal';
+import { PendingEntriesCard } from '../../components/home/PendingEntriesCard';
 import { usePendingRecurring } from '../../src/hooks/usePendingRecurring';
+import { useDailyBudget } from '../../src/hooks/useDailyBudget';
 import { scheduleRecurringReminders } from '../../src/services/recurring';
+import { syncDailyBudget } from '../../src/services/dailyBudget';
 import { notificationsRepository } from '../../src/repositories/notifications.repository';
 import { useLock } from '../../context/LockContext';
+import { useDetected } from '../../context/DetectedTransactionsContext';
 import { flags } from '../../src/lib/secureStore';
 import { edgeFunctionsService } from '../../src/services/edgeFunctions';
 import { refreshGate } from '../_layout';
@@ -29,7 +33,20 @@ export default function HomeScreen() {
   const router = useRouter();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [affirmationIndex, setAffirmationIndex] = useState(0);
-  const { lock } = useLock();
+  const { locked, lock, requireUnlock } = useLock();
+  const detected = useDetected();
+
+  // Until the user has unlocked, every figure on this screen is masked no
+  // matter what the eye toggle says — the toggle itself is what asks for the
+  // PIN. After unlocking it goes back to being the user's own preference.
+  const showFigures = !locked && balanceVisible;
+  const toggleFigures = async () => {
+    if (locked) {
+      if (await requireUnlock()) setBalanceVisible(true);
+      return;
+    }
+    setBalanceVisible((v) => !v);
+  };
 
   async function resetOnboarding() {
     await flags.unsetPin();
@@ -106,6 +123,16 @@ export default function HomeScreen() {
   const { accounts, loading: accountsLoading, error: accountsError, fetchAccounts } = useAccounts();
   const { transactions, loading: txLoading, error: txError, refetch: fetchTransactions } = useTransactions(now.getFullYear(), now.getMonth() + 1);
   const { summary: cashflow, loading: cfLoading, error: cfError } = useCashflow('2026-05');
+  const { budget: dailyBudget, loaded: budgetLoaded, fetchBudget } = useDailyBudget(user?.id);
+
+  // The native side shows today's budget progress when a payment is detected
+  // while Flowe is closed, so it needs to know what "today so far" is. This
+  // screen is where the month's transactions are already loaded, which makes
+  // it the cheapest place to keep that figure honest.
+  useEffect(() => {
+    if (!budgetLoaded) return;
+    syncDailyBudget(dailyBudget, transactions);
+  }, [budgetLoaded, dailyBudget, transactions]);
 
   async function onRefresh() {
     if (!user) return;
@@ -135,7 +162,7 @@ export default function HomeScreen() {
         }));
         setAffirmationItems(items);
       });
-    await Promise.all([fetchAccounts(), fetchTransactions(), fetchPending(), fetchUnread(), profilePromise, affirmPromise]);
+    await Promise.all([fetchAccounts(), fetchTransactions(), fetchPending(), fetchUnread(), fetchBudget(), profilePromise, affirmPromise]);
     setRefreshing(false);
   }
 
@@ -144,7 +171,8 @@ export default function HomeScreen() {
     fetchTransactions();
     fetchPending();
     fetchUnread();
-  }, [fetchAccounts, fetchTransactions, fetchPending, fetchUnread]));
+    fetchBudget();
+  }, [fetchAccounts, fetchTransactions, fetchPending, fetchUnread, fetchBudget]));
 
   // Put a 5am reminder on each active rule's next occurrence. Once per session
   // is enough — the whole set is rebuilt each run, so doing it on every focus
@@ -159,13 +187,18 @@ export default function HomeScreen() {
 
   // On the date arriving, surface the approve/reject popup automatically — but
   // only once per app session, so closing it doesn't re-open on every refocus.
+  // Not while locked: the popup names amounts, so it waits for the unlock.
   const autoShownRef = useRef(false);
   useEffect(() => {
-    if (!autoShownRef.current && pending.length > 0) {
+    if (!autoShownRef.current && !locked && pending.length > 0) {
       autoShownRef.current = true;
       setShowPending(true);
     }
-  }, [pending.length]);
+  }, [pending.length, locked]);
+
+  const openPending = async () => {
+    if (await requireUnlock()) setShowPending(true);
+  };
 
   const handleApprove = async (rule: typeof pending[number]) => {
     const res = await approve(rule);
@@ -218,9 +251,10 @@ export default function HomeScreen() {
       >
         <HomeTopBar
           name={displayName}
+          locked={locked}
           onBellPress={() => router.push('/home/notifications')}
-          onLockPress={lock}
-          onPendingPress={() => setShowPending(true)}
+          onLockPress={locked ? () => { requireUnlock(); } : lock}
+          onPendingPress={openPending}
           pendingCount={pending.length}
           hasNotification={unreadCount > 0 || pending.length > 0}
         />
@@ -232,12 +266,22 @@ export default function HomeScreen() {
           onFavourite={() => {}}
           onShare={() => {}}
         />
+        <PendingEntriesCard
+          pending={detected.pending}
+          accounts={detected.accounts}
+          onSave={async (item, values) => {
+            const result = await detected.save(item, values);
+            if (result.ok) { fetchTransactions(); fetchAccounts(); }
+            return result;
+          }}
+          onDismiss={detected.dismiss}
+        />
         <BalanceBanner
           balance={totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          visible={balanceVisible}
-          onToggle={() => setBalanceVisible(!balanceVisible)}
+          visible={showFigures}
+          onToggle={toggleFigures}
         />
-        <AccountCards accounts={accounts} visible={balanceVisible} onSeeAll={() => router.push('/home/accounts')} onAccountPress={(id, type) => {
+        <AccountCards accounts={accounts} visible={showFigures} onSeeAll={() => router.push('/home/accounts')} onAccountPress={(id, type) => {
           if (type === 'tabung') {
             router.push(`/home/tabung/${id}`);
           } else if (type === 'wallet') {
@@ -256,6 +300,8 @@ export default function HomeScreen() {
         }} />
         <RecentTransactions
           transactions={transactions.filter((tx) => tx.type === 'expense' || tx.type === 'income' || tx.type === 'transfer')}
+          masked={!showFigures}
+          onRequestUnlock={requireUnlock}
           onSeeAll={() => router.push('/calendar')}
           onTransactionPress={(id) => console.log('Transaction pressed:', id)}
           onTransactionDeleted={() => { fetchTransactions(); fetchAccounts(); }}

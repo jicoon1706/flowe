@@ -1,8 +1,13 @@
 package expo.modules.flowenotifications
 
-import android.app.Notification
+import android.content.ComponentName
+import android.content.Context
+import android.content.pm.PackageManager
+import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.util.Log
+import java.security.MessageDigest
 import java.util.UUID
 
 /**
@@ -14,23 +19,87 @@ import java.util.UUID
  * transaction is recorded without them opening the app. Whatever they answer is
  * written to `CaptureStore` and flushed to Supabase the next time Flowe runs
  * (only the app has the signed-in Supabase session).
+ *
+ * Staying bound is the hard part. Android drops a listener's binding after an
+ * app update, a crash, or a force-stop, and does not always bind it again even
+ * though "Notification access" is still granted — from the user's side, alerts
+ * simply stop being read. So the service asks to be re-bound the moment it is
+ * disconnected, [ensureBound] re-binds it whenever the app starts, and on every
+ * (re)connect the shade is re-read so nothing posted during the gap is lost.
  */
 class TransactionNotificationListenerService : NotificationListenerService() {
 
+  override fun onListenerConnected() {
+    connected = true
+    Log.i(TAG, "Listener connected")
+    // Whatever the watched apps posted while the listener was unbound is still
+    // sitting in the shade. Read it now rather than losing it.
+    sweepShade()
+  }
+
+  override fun onListenerDisconnected() {
+    connected = false
+    Log.i(TAG, "Listener disconnected — requesting rebind")
+    // The system dropped us (update, low memory, crash). Access is still
+    // granted, so asking for the binding back is allowed and usually works.
+    NotificationListenerService.requestRebind(ComponentName(this, TransactionNotificationListenerService::class.java))
+  }
+
   override fun onNotificationPosted(sbn: StatusBarNotification) {
+    handle(sbn)
+  }
+
+  /**
+   * Re-reads every notification currently in the shade from a watched app.
+   * [CaptureStore.claim] makes this safe to run on every connect: an alert
+   * already handled is recognised by its content and post time and skipped.
+   */
+  private fun sweepShade() {
     val context = applicationContext
     if (!CaptureStore.isEnabled(context)) return
-
     val watched = CaptureStore.watchedPackages(context)
-    if (sbn.packageName !in watched) return
+    if (watched.isEmpty()) return
 
-    val extras = sbn.notification?.extras ?: return
-    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-    val text = (
-      extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
-        ?: extras.getCharSequence(Notification.EXTRA_TEXT)
-      )?.toString().orEmpty()
+    // Throws if the binding was lost between onListenerConnected and here.
+    val active = try {
+      activeNotifications
+    } catch (e: Exception) {
+      Log.w(TAG, "Could not read the shade on connect", e)
+      return
+    } ?: return
 
+    active
+      .filter { it.packageName in watched }
+      .sortedBy { it.postTime }
+      .forEach { handle(it) }
+  }
+
+  /**
+   * One notification, with the process shielded from it. An exception thrown
+   * from the listener kills the app process, and a dead listener is exactly the
+   * "it stopped reading" failure — so no single bad notification (unreadable
+   * extras, a malformed bundle) is allowed to take the service down.
+   */
+  private fun handle(sbn: StatusBarNotification) {
+    try {
+      process(sbn)
+    } catch (e: Exception) {
+      Log.w(TAG, "Could not read a notification from ${sbn.packageName}", e)
+    }
+  }
+
+  private fun process(sbn: StatusBarNotification) {
+    val context = applicationContext
+    if (!CaptureStore.isEnabled(context)) return
+    if (sbn.packageName !in CaptureStore.watchedPackages(context)) return
+
+    // Ongoing notifications are progress, not outcomes — a ride in transit, a
+    // download, a foreground service. The alert for the payment itself is a
+    // separate, dismissible notification.
+    if (sbn.isOngoing) return
+
+    val notification = sbn.notification ?: return
+    val (title, text) = NotificationText.extract(notification)
     if (title.isBlank() && text.isBlank()) return
 
     // A cheap amount check, only to decide whether this is worth interrupting
@@ -40,12 +109,10 @@ class TransactionNotificationListenerService : NotificationListenerService() {
     val combined = "$title $text"
     if (!looksLikeTransaction(combined)) return
 
-    // Android calls onNotificationPosted again every time the source app
-    // *updates* a notification, and replays the whole shade on
-    // onListenerConnected. Without this the same payment is queued and
-    // announced two or three times over — the duplicate the user sees.
-    // Identity is the content, not the id: banks reuse notification ids freely.
-    if (isDuplicate(sbn.packageName, title, text, sbn.postTime)) return
+    // Android delivers the same alert more than once: when the source app
+    // updates it, and again for everything in the shade when the listener
+    // reconnects. Identity is the content, not the id — banks reuse ids freely.
+    if (!CaptureStore.claim(context, fingerprint(sbn.packageName, title, text), sbn.postTime, DEDUPE_WINDOW_MS)) return
 
     val capture = Capture(
       id = UUID.randomUUID().toString(),
@@ -61,57 +128,44 @@ class TransactionNotificationListenerService : NotificationListenerService() {
     // Tell the app if it's running, so the in-app island can appear immediately.
     FloweNotificationsModule.emitCapture(capture)
 
-    QuickCaptureNotifier.post(context, capture, extractAmount(combined))
+    QuickCaptureNotifier.post(context, capture, AmountText.first(combined))
+
+    // An alert that names the account (last 4 digits) and a merchant we know
+    // needs nobody: file it right now, app closed or not. The JS task decides;
+    // anything it can't settle stays queued behind the notification above.
+    AutoFileTask.start(context, capture.id)
   }
 
   /**
-   * True when this exact alert has already been queued moments ago.
+   * Whether this alert is worth waking the user for: it names a ringgit amount
+   * and isn't a security code or a piece of marketing.
    *
-   * Two guards, because the duplicates arrive by two different routes: an
-   * in-memory window catches an app editing its own notification while Flowe
-   * is running, and a scan of the queue catches the shade replay that happens
-   * when the listener reconnects (a fresh process has an empty window).
-   */
-  private fun isDuplicate(packageName: String, title: String, text: String, postedAt: Long): Boolean {
-    val signature = "$packageName|$title|$text"
-    val now = System.currentTimeMillis()
-
-    synchronized(recentSignatures) {
-      recentSignatures.entries.removeAll { now - it.value > DEDUPE_WINDOW_MS }
-      if (recentSignatures.containsKey(signature)) return true
-      recentSignatures[signature] = now
-    }
-
-    return CaptureStore.all(applicationContext).any {
-      it.packageName == packageName &&
-        it.title == title &&
-        it.text == text &&
-        kotlin.math.abs(it.postedAt - postedAt) < DEDUPE_WINDOW_MS
-    }
-  }
-
-  /**
-   * Whether this alert is worth waking the user for.
-   *
-   * An amount alone isn't enough — a promo, a fee schedule and a balance
-   * reminder all name a ringgit figure — so the text must also say that money
-   * moved, and must not read as marketing. This mirrors the rules in
-   * src/utils/parseTransactionNotification.ts, deliberately kept a little
-   * looser: TypeScript has the final say, and it can be corrected without a
-   * native rebuild. Anything rejected here never becomes a notification at all,
-   * which is the difference the user feels.
+   * Deliberately no requirement that the text *say* money moved. Banks word a
+   * successful payment a dozen ways — "Transaction Alert: RM 20.00 at ZUS",
+   * "DuitNow QR successful", just an amount and a merchant — and every word
+   * this screen insists on is an alert some bank never sends. The TypeScript
+   * parser decides what the alert means and prunes what it can't read; the
+   * shade notification carries an Ignore action for anything that slips
+   * through. A missed alert costs the user a transaction they never see; an
+   * extra one costs them a tap.
    */
   private fun looksLikeTransaction(text: String): Boolean {
-    if (!AMOUNT.containsMatchIn(text)) return false
+    if (!AmountText.mentionsAmount(text)) return false
+    if (SECURITY.containsMatchIn(text)) return false
     if (IGNORE.any { text.contains(it, ignoreCase = true) }) return false
     if (PROMO.any { it.containsMatchIn(text) }) return false
-    return MOVEMENT.containsMatchIn(text)
+    return true
   }
 
-  private fun extractAmount(text: String): String? =
-    AMOUNT.find(text)?.groupValues?.getOrNull(1)
+  private fun fingerprint(packageName: String, title: String, text: String): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+      .digest("$packageName\n$title\n$text".toByteArray())
+    return digest.take(12).joinToString("") { "%02x".format(it) }
+  }
 
   companion object {
+    private const val TAG = "FloweNotifications"
+
     /**
      * How long two identical alerts are treated as the same event. Generous
      * enough to swallow an app rewriting its notification a few seconds later,
@@ -119,21 +173,91 @@ class TransactionNotificationListenerService : NotificationListenerService() {
      * the same merchant, minutes apart) are both recorded.
      */
     private const val DEDUPE_WINDOW_MS = 60_000L
-    private val recentSignatures = LinkedHashMap<String, Long>()
 
-    private val AMOUNT = Regex("""(?:RM|MYR)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+    /**
+     * Whether the system currently holds a binding to this service. The service
+     * lives in the app's process, so this is accurate whenever the app is
+     * running — and false after an update or force-stop, which is exactly when
+     * [ensureBound] needs to act.
+     */
+    @Volatile
+    var connected: Boolean = false
+      private set
 
-    /** Alerts that are never a transaction: security codes, marketing, reminders. */
+    private fun component(context: Context) =
+      ComponentName(context, TransactionNotificationListenerService::class.java)
+
+    /**
+     * Whether the user has granted Flowe notification access. This can only be
+     * turned on by the user in system settings — there is no permission dialog
+     * for it.
+     */
+    fun isAccessGranted(context: Context): Boolean {
+      val enabled = Settings.Secure.getString(
+        context.contentResolver,
+        "enabled_notification_listeners"
+      ) ?: return false
+      val self = component(context)
+      return enabled.split(":").any {
+        ComponentName.unflattenFromString(it)?.equals(self) == true
+      }
+    }
+
+    /**
+     * Gets the listener bound again if access is granted but the system has let
+     * the binding lapse. Called on every app start and foreground.
+     *
+     * Toggling the component off and on is the long-standing workaround for a
+     * listener the system silently dropped: it makes the system re-evaluate
+     * the enabled listeners and bind this one afresh. `requestRebind` alone is
+     * ignored when the system still believes it is bound. Both are no-ops when
+     * the listener is already connected, so this is cheap to call often.
+     */
+    fun ensureBound(context: Context) {
+      if (connected) return
+      if (!isAccessGranted(context)) return
+
+      val self = component(context)
+      try {
+        val manager = context.packageManager
+        manager.setComponentEnabledSetting(
+          self,
+          PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+          PackageManager.DONT_KILL_APP
+        )
+        manager.setComponentEnabledSetting(
+          self,
+          PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+          PackageManager.DONT_KILL_APP
+        )
+        NotificationListenerService.requestRebind(self)
+        Log.i(TAG, "Listener was not connected — rebind requested")
+      } catch (e: Exception) {
+        Log.w(TAG, "Could not request a listener rebind", e)
+      }
+    }
+
+    /**
+     * Security codes. Word-bounded: "OTP" as a bare substring also matches a
+     * payment at a hotpot restaurant.
+     */
+    private val SECURITY = Regex(
+      """\b(?:OTP|TAC|one[\s-]?time\s+pass(?:word|code)|verification\s+code|kod\s+pengesahan|do\s+not\s+share)\b""",
+      RegexOption.IGNORE_CASE
+    )
+
+    /**
+     * Marketing and reminders about money that hasn't moved. Only phrases that
+     * never appear in a real payment alert belong here — "available balance"
+     * and "reward points" used to, and they are the trailer on half the debit
+     * alerts Malaysian banks send.
+     */
     private val IGNORE = listOf(
-      "OTP", "one-time password", "verification code", "do not share", "password",
-      "log in", "sign in", "security alert",
-      "promo", "promosi", "discount", "diskaun", "voucher", "baucar", "rebate",
+      "promo", "promosi", "discount", "diskaun", "voucher", "baucar",
       "coupon", "giveaway", "contest", "peraduan", "limited time", "shop now",
       "buy now", "apply now", "claim now", "terms apply", "t&c", "valid till",
-      "valid until", "while stocks last", "reward point", "when you spend",
-      "minimum spend", "interest rate",
-      "payment due", "due on", "due date", "minimum payment", "outstanding balance",
-      "available balance", "low balance", "e-statement", "statement is ready"
+      "valid until", "while stocks last", "when you spend", "minimum spend",
+      "payment due", "due on", "due date", "minimum payment"
     )
 
     /** Marketing caught by shape: a hedged amount, or one that is an incentive. */
@@ -142,14 +266,6 @@ class TransactionNotificationListenerService : NotificationListenerService() {
       Regex("""(?:RM|MYR)\s*[0-9][0-9,.]*\s*(?:off|cashback|rebate|voucher|discount|bonus|free)\b""", RegexOption.IGNORE_CASE),
       Regex("""\b(?:get|enjoy|earn|win|grab|claim|redeem)\s+(?:up\s*to\s*)?(?:RM|MYR)\s*[0-9]""", RegexOption.IGNORE_CASE),
       Regex("""[0-9]{1,3}\s*%\s*(?:off|discount|cashback|rebate)""", RegexOption.IGNORE_CASE)
-    )
-
-    /** A word saying money actually left or entered the user's account. */
-    private val MOVEMENT = Regex(
-      """\b(?:debited|debit|spent|paid|payment|purchase|withdrawn|withdrawal|deducted|charged|""" +
-        """transfer(?:red)?|sent|credited|credit|received|refund(?:ed)?|deposited|reload(?:ed)?|""" +
-        """topped\s*up|top[\s-]?up|transaksi|pembayaran|ditolak|diterima|masuk)\b""",
-      RegexOption.IGNORE_CASE
     )
   }
 }

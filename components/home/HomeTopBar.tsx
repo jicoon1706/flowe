@@ -1,8 +1,14 @@
 import { View, Text, Pressable } from 'react-native';
-import { Bell, Lock, CalendarClock } from 'lucide-react-native';
+import { Bell, Lock, LockOpen, CalendarClock } from 'lucide-react-native';
 
 interface HomeTopBarProps {
   name: string;
+  /**
+   * The app hasn't been unlocked yet this session. The padlock reads as
+   * "unlock" instead of "lock", and the greeting stays — nothing here is
+   * sensitive.
+   */
+  locked?: boolean;
   onBellPress: () => void;
   onLockPress: () => void;
   onPendingPress: () => void;
@@ -17,7 +23,7 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-export function HomeTopBar({ name, onBellPress, onLockPress, onPendingPress, pendingCount, hasNotification }: HomeTopBarProps) {
+export function HomeTopBar({ name, locked = false, onBellPress, onLockPress, onPendingPress, pendingCount, hasNotification }: HomeTopBarProps) {
   return (
     <View className="flex-row items-center justify-between px-4 pt-2 pb-4">
       <View>
@@ -39,8 +45,12 @@ export function HomeTopBar({ name, onBellPress, onLockPress, onPendingPress, pen
             <View className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500" />
           )}
         </Pressable>
-        <Pressable onPress={onLockPress} className="p-2">
-          <Lock size={22} color="#ffffff" />
+        <Pressable
+          onPress={onLockPress}
+          accessibilityLabel={locked ? 'Unlock Flowe' : 'Lock Flowe'}
+          className="p-2"
+        >
+          {locked ? <LockOpen size={22} color="#C5FF00" /> : <Lock size={22} color="#ffffff" />}
         </Pressable>
       </View>
     </View>

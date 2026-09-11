@@ -37,10 +37,26 @@ class QuickCaptureReceiver : BroadcastReceiver() {
 
     CaptureStore.resolve(context, captureId, type, name)
 
-    CaptureStore.all(context).firstOrNull { it.id == captureId }?.let {
-      FloweNotificationsModule.emitCapture(it)
+    CaptureStore.all(context).firstOrNull { it.id == captureId }?.let { capture ->
+      // Answering "Expense" is the moment the payment becomes real to the
+      // user, so it's the moment the daily budget moves — shown right here,
+      // while Flowe may well be closed. Only today's alerts count: one
+      // answered the next morning belongs to yesterday's total. The app
+      // writes the row (and the true total) the next time it runs.
+      if (type == "expense" && BudgetLiveUpdate.isToday(capture.postedAt)) {
+        AmountText.firstValue("${capture.title} ${capture.text}")?.let { amount ->
+          BudgetLiveUpdate.recordExpense(context, amount)
+        }
+      }
+      FloweNotificationsModule.emitCapture(capture)
     }
 
     NotificationManagerCompat.from(context).cancel(captureId.hashCode())
+
+    // The user has answered; if the account can be worked out, the row goes
+    // to Supabase now — not when they next happen to open Flowe. A tap on a
+    // notification action is exactly the window Android lets a background
+    // app start a service in.
+    AutoFileTask.start(context, captureId)
   }
 }

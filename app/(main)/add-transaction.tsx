@@ -119,7 +119,11 @@ export default function AddTransactionScreen() {
   const [receiptImage, setReceiptImage] = useState<{ uri: string; base64: string } | null>(null);
 
   const { user } = useAuth();
-  const { suspend: suspendLock } = useLock();
+  const { suspend: suspendLock, locked } = useLock();
+  // This form is reachable before the PIN, so the pickers name the accounts
+  // but keep their balances behind the mask until the user unlocks.
+  const maskedBalance = (n: number) =>
+    locked ? '••••••' : n.toLocaleString('en-US', { minimumFractionDigits: 2 });
   const now = new Date();
   const { accounts, loading: acctsLoading, error: acctsError, fetchAccounts } = useAccounts();
   const { loading: txLoading, error: txError, create, update } = useTransactions(now.getFullYear(), now.getMonth() + 1);
@@ -141,7 +145,7 @@ export default function AddTransactionScreen() {
   const assetOptions = assets.map((a) => ({
     id: a.id,
     name: a.name,
-    balance: Number(a.current_value).toLocaleString('en-US', { minimumFractionDigits: 2 }),
+    balance: maskedBalance(Number(a.current_value)),
     color: '#6366F1',
     hint: 'Asset',
   }));
@@ -161,7 +165,7 @@ export default function AddTransactionScreen() {
     return {
       id: a.id,
       name: a.name,
-      balance: bal.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+      balance: maskedBalance(bal),
       color: accountColor(a),
     };
   });
@@ -415,7 +419,10 @@ export default function AddTransactionScreen() {
       if (parseFloat(amount) > available) {
         Alert.alert(
           'Not enough balance',
-          `${src?.name ?? 'This account'} has only RM ${available.toLocaleString('en-US', { minimumFractionDigits: 2 })} available.`
+          locked
+            // Still locked: say it's short without printing the figure.
+            ? `${src?.name ?? 'This account'} doesn't have enough for this amount.`
+            : `${src?.name ?? 'This account'} has only RM ${available.toLocaleString('en-US', { minimumFractionDigits: 2 })} available.`
         );
         return;
       }

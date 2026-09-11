@@ -60,6 +60,11 @@ Supabase session (anonymous sign-in is the default), then redirects:
 
 `refreshGate()` exported from `app/_layout.tsx` re-runs the gate after PIN/onboarding changes.
 
+Inside `(main)`, the PIN lock is **deferred**: `LockProvider` (`context/LockContext.tsx`)
+starts `locked` but Home (figures masked) and `add-transaction` stay usable; any other
+route triggers the overlay via `LockedRouteGuard` (allowlist in `src/utils/lockRoutes.ts`).
+Gate an action with `await requireUnlock()`; read `locked` to decide what to mask.
+
 ### Directories
 
 - `app/` — screens (expo-router)
@@ -108,7 +113,11 @@ Bank / e-wallet notifications are captured by the native listener service in
 matched to an account (`resolveDetectedAccount.ts`) and confirmed in
 `components/home/DetectedTransactionIsland.tsx` before becoming a transaction row.
 iOS cannot read other apps' notifications, so `FloweNotifications.isAvailable` is `false`
-there and the flow is inert. Full walkthrough: `docs/Flowe_AutoDetect_Flow.md`.
+there and the flow is inert. Detections that can't file themselves are listed on Home
+(`PendingEntriesCard`) from the shared `DetectedTransactionsProvider`. A daily budget
+(`settings.daily_budget`, Settings → Daily Budget) drives a native Live Update
+(`BudgetLiveUpdate.kt`) whenever a detected expense is filed. Full walkthrough:
+`docs/Flowe_AutoDetect_Flow.md`.
 
 ## Design System
 

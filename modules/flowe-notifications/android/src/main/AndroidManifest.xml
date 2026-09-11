@@ -1,5 +1,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!--
+    Android 16 Live Updates: lets the daily-budget notification be promoted
+    (pinned above the shade, chip in the status bar). A normal permission —
+    granted at install, and the user can switch it off per app in Settings.
+    Older versions ignore it.
+  -->
+  <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+  <!--
+    The headless task that files a detected payment with the app closed: a
+    wake lock so the phone stays up for the second it takes, and a foreground
+    service as the fallback when Android refuses a plain background start.
+  -->
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SHORT_SERVICE" />
 
   <!--
     Android 11+ hides other installed apps unless they're declared here. Flowe
@@ -41,6 +57,12 @@
         <action android:name="android.service.notification.NotificationListenerService" />
       </intent-filter>
     </service>
+
+    <!-- Runs the FloweAutoFile JS task headlessly; see AutoFileTaskService.kt. -->
+    <service
+      android:name="expo.modules.flowenotifications.AutoFileTaskService"
+      android:exported="false"
+      android:foregroundServiceType="shortService" />
 
     <receiver
       android:name="expo.modules.flowenotifications.QuickCaptureReceiver"

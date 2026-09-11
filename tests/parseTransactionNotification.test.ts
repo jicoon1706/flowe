@@ -136,6 +136,78 @@ describe('parseTransactionNotification', () => {
     expect(result?.typeConfident).toBe(true);
   });
 
+  it('reads an alert that names no verb, only an amount and a merchant', () => {
+    // The wording some banks actually use — nothing says "debited" or "paid".
+    const result = parseTransactionNotification(
+      raw('com.hlb.connect', 'Transaction Alert', 'RM 20.00 at ZUS COFFEE on 30/08/2026')
+    );
+    expect(result).toMatchObject({ amount: 20, type: 'expense', typeConfident: false });
+    expect(result?.merchant).toBe('ZUS COFFEE');
+  });
+
+  it('reads a DuitNow / "successful" alert without a direction word', () => {
+    const result = parseTransactionNotification(
+      raw('com.maybank2u.life', 'DuitNow QR', 'DuitNow QR RM 15.00 to KEDAI RUNCIT ALI successful')
+    );
+    expect(result).toMatchObject({ amount: 15, type: 'expense', typeConfident: false });
+  });
+
+  it('is not fooled by the balance printed after the movement', () => {
+    // Balance last — the common trailer.
+    expect(
+      parseTransactionNotification(
+        raw('com.maybank2u.life', 'Transaction Alert', 'RM 45.90 debited from a/c ending 1234 at ZUS COFFEE. Available balance: RM 1,234.56')
+      )
+    ).toMatchObject({ amount: 45.9, type: 'expense', typeConfident: true });
+    // Balance first — the amount read must still be the movement.
+    expect(
+      parseTransactionNotification(
+        raw('com.cimb.octo', 'Alert', 'Avail Bal RM 950.00 after RM 50.00 debited at 99 SPEEDMART')
+      )
+    ).toMatchObject({ amount: 50, type: 'expense' });
+    expect(
+      parseTransactionNotification(
+        raw('my.com.tngdigital.ewallet', 'Payment', 'You paid RM 12.00 at SHELL. RM 88.00 left in your eWallet')
+      )
+    ).toMatchObject({ amount: 12, type: 'expense' });
+  });
+
+  it('still ignores an alert that names nothing but a balance', () => {
+    expect(
+      parseTransactionNotification(raw('com.maybank2u.life', 'Balance', 'Your available balance is RM 42.10'))
+    ).toBeNull();
+    expect(
+      parseTransactionNotification(raw('com.cimb.octo', 'Card', 'Outstanding balance: RM 1,500.00'))
+    ).toBeNull();
+  });
+
+  it('does not mistake a merchant name for a security code', () => {
+    const result = parseTransactionNotification(
+      raw('com.grabtaxi.passenger', 'Payment successful', 'You paid RM88.00 at HOTPOT HOUSE')
+    );
+    expect(result).toMatchObject({ amount: 88, type: 'expense' });
+    expect(
+      parseTransactionNotification(raw('com.maybank2u.life', 'OTP', 'Your OTP for RM 100.00 transfer is 483920'))
+    ).toBeNull();
+  });
+
+  it('keeps a debit alert that mentions reward points', () => {
+    expect(
+      parseTransactionNotification(
+        raw('com.cimb.octo', 'Card Alert', 'RM 120.00 charged to card ****4321 at LOTUS. You earned 12 reward points')
+      )
+    ).toMatchObject({ amount: 120, type: 'expense', accountLast4: '4321' });
+  });
+
+  it('takes the user at their word when they answered from the shade', () => {
+    const odd = { ...raw('com.maybank2u.life', 'Hi there', 'Your RM 250.00 is waiting'), confirmed: true };
+    expect(parseTransactionNotification(odd)).toMatchObject({ amount: 250, type: 'expense' });
+    // Even then, there has to be an amount to file.
+    expect(
+      parseTransactionNotification({ ...raw('com.setel.mobile', 'Welcome', 'Your account is ready'), confirmed: true })
+    ).toBeNull();
+  });
+
   it('is not confident when the alert reads as both a debit and a credit', () => {
     // Real wording, and the direction is then a fallback rather than a reading
     // — auto-save refuses these and shows the toggle instead.

@@ -87,3 +87,6 @@ logos/*
 
 # Supabase CLI scratch
 supabase/.temp/
+
+# local scratch / staging for files pending removal
+_to_delete/

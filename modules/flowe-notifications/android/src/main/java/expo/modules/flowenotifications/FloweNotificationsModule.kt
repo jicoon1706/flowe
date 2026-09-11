@@ -1,6 +1,5 @@
 package expo.modules.flowenotifications
 
-import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
@@ -15,7 +14,13 @@ class FloweNotificationsModule : Module() {
 
     Events(EVENT_CAPTURE)
 
-    OnCreate { instance = this@FloweNotificationsModule }
+    OnCreate {
+      instance = this@FloweNotificationsModule
+      // App start is the one moment we know a dropped listener can be
+      // reclaimed: after an update or a force-stop the system doesn't rebind
+      // it on its own, and the user's first sign is alerts going unread.
+      appContext.reactContext?.let { TransactionNotificationListenerService.ensureBound(it) }
+    }
     OnDestroy { if (instance === this@FloweNotificationsModule) instance = null }
 
     /**
@@ -25,14 +30,22 @@ class FloweNotificationsModule : Module() {
      */
     Function("isPermissionGranted") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      val enabled = Settings.Secure.getString(
-        context.contentResolver,
-        "enabled_notification_listeners"
-      ) ?: return@Function false
-      val component = ComponentName(context, TransactionNotificationListenerService::class.java)
-      enabled.split(":").any {
-        ComponentName.unflattenFromString(it)?.equals(component) == true
-      }
+      TransactionNotificationListenerService.isAccessGranted(context)
+    }
+
+    /**
+     * Whether the system is actually delivering notifications to the listener
+     * right now. Access can be granted and this still be false — that gap is
+     * the whole "it stopped reading" bug — so the UI reads both.
+     */
+    Function("isListenerConnected") {
+      TransactionNotificationListenerService.connected
+    }
+
+    /** Reclaims the listener binding if access is granted but it has lapsed. */
+    Function("ensureListenerBound") {
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      TransactionNotificationListenerService.ensureBound(context)
     }
 
     Function("openSettings") {
@@ -101,6 +114,57 @@ class FloweNotificationsModule : Module() {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       CaptureStore.all(context).forEach { QuickCaptureNotifier.cancel(context, it.id) }
       CaptureStore.clear(context)
+    }
+
+    // ── Daily budget live update ──────────────────────────────────────────
+    // The app owns the real figures (Supabase); these keep the native copy
+    // that the shade receiver adds to when Flowe isn't running.
+
+    /** Null clears the budget and takes down any update that is showing. */
+    Function("setDailyBudget") { budget: Double? ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetLiveUpdate.setBudget(context, budget)
+    }
+
+    Function("setSpentToday") { spent: Double, date: String ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetLiveUpdate.setSpent(context, spent, date)
+    }
+
+    Function("getBudgetSnapshot") {
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetLiveUpdate.snapshot(context)
+    }
+
+    /** Adds an expense to today's total and shows the update. */
+    Function("recordBudgetExpense") { amount: Double ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetLiveUpdate.recordExpense(context, amount)
+    }
+
+    Function("showBudgetLiveUpdate") {
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetLiveUpdate.show(context)
+    }
+
+    Function("dismissBudgetLiveUpdate") {
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetLiveUpdate.dismiss(context)
+    }
+
+    /** Whether Android 16 will promote the update; always true below 16. */
+    Function("canPostLiveUpdates") {
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetLiveUpdate.canPromote(context)
+    }
+
+    /** Flowe's page in system notification settings, where Live Updates are toggled. */
+    Function("openAppNotificationSettings") {
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
     }
   }
 

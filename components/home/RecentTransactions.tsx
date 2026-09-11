@@ -12,6 +12,17 @@ import { useAuth } from '../../context/AuthContext';
 
 interface RecentTransactionsProps {
   transactions?: Transaction[];
+  /**
+   * Hide every amount. Set while the app is still locked (or the eye toggle
+   * is off): the names and dates stay, since they're what the user scans for
+   * "did I already log that?", but nothing in ringgit is shown.
+   */
+  masked?: boolean;
+  /**
+   * Asked before opening a row while masked. Resolves true once the user has
+   * unlocked, at which point the tap goes ahead as normal.
+   */
+  onRequestUnlock?: () => Promise<boolean>;
   onSeeAll: () => void;
   onTransactionPress?: (id: string) => void;
   onTransactionDeleted?: (id: string) => void;
@@ -30,7 +41,7 @@ function formatTxDate(dateStr: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function RecentTransactions({ transactions, onSeeAll, onTransactionPress, onTransactionDeleted }: RecentTransactionsProps) {
+export function RecentTransactions({ transactions, masked = false, onRequestUnlock, onSeeAll, onTransactionPress, onTransactionDeleted }: RecentTransactionsProps) {
   const router = useRouter();
   const { user } = useAuth();
   const { categories: customCategories, fetchCategories: fetchCustomCategories } = useCustomCategories();
@@ -71,7 +82,12 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress,
     });
   };
 
-  const handleTransactionPress = (tx: Transaction) => {
+  const handleTransactionPress = async (tx: Transaction) => {
+    // The detail sheet shows the amount, so a masked row asks first. Nothing
+    // to ask with means the row simply stays closed.
+    if (masked) {
+      if (!onRequestUnlock || !(await onRequestUnlock())) return;
+    }
     const cat = resolveCategory(tx, customByName);
     const data: TransactionData = {
       id: tx.id,
@@ -134,7 +150,9 @@ export function RecentTransactions({ transactions, onSeeAll, onTransactionPress,
                     tx.type === 'income' ? 'text-income' : tx.type === 'expense' || tx.type === 'tabung_topup' ? 'text-expense' : tx.type === 'transfer' ? 'text-[#00d4ff]' : 'text-primary'
                   }`}
                 >
-                  {((tx.type === 'expense' || tx.type === 'tabung_topup') ? '-' : '+') + tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {masked
+                    ? '••••'
+                    : ((tx.type === 'expense' || tx.type === 'tabung_topup') ? '-' : '+') + tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </Text>
                 <ChevronRight size={16} color="#a0a0a0" />
               </View>

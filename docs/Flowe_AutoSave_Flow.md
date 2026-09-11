@@ -127,7 +127,7 @@ Constraints that shaped it:
 | 3 | Pinned / learned default account per source | `resolveDetectedAccount.ts`, `src/lib/detectPreferences.ts`, Settings → Auto-detect | ✅ done |
 | 4 | Auto-save wired into the detection flow | `src/hooks/useDetectedTransactions.ts` | ✅ done |
 | 5 | Account / category snapshot pushed to native | module API + `CaptureStore` | 2h |
-| 6 | Headless JS task: parse → resolve → auto-save or enrich | new Kotlin service + RN entry | 1d |
+| 6 | Headless JS task: parse → resolve → auto-save | `AutoFileTaskService.kt`, `autoFileTask.ts`, `index.js` | ✅ done |
 | 7 | Saved / Undo notification | `QuickCaptureNotifier.kt` | 2h |
 | 8 | Rich RemoteViews card for the ask path | `QuickCaptureNotifier.kt` + layout XML | 1–2d |
 

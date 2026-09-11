@@ -256,6 +256,11 @@ export interface Settings {
   notif_asset: boolean;
   notif_cashflow: boolean;
   notif_affirmation: boolean;
+  /**
+   * How much the user means to spend in a day, in ringgit. Null when they
+   * haven't set one — the daily-budget live update is off until they do.
+   */
+  daily_budget: number | null;
   created_at: string;
   updated_at: string;
 }

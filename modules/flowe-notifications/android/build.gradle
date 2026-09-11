@@ -16,4 +16,6 @@ android {
 
 dependencies {
   api "androidx.annotation:annotation:1.0.0"
+  // HeadlessJsTaskService for AutoFileTaskService; version pinned by the RN gradle plugin.
+  implementation "com.facebook.react:react-android"
 }
