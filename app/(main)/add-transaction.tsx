@@ -25,6 +25,7 @@ import { useLock } from '../../context/LockContext';
 import { accountColor } from '../../src/utils/accountColor';
 import { merchantCategory } from '../../src/utils/merchantLogo';
 import { localYMD } from '../../src/utils/date';
+import { monthStart } from '../../src/utils/monthStart';
 import { KeyboardAvoider } from '../../components/ui/KeyboardAvoider';
 import { storageService } from '../../src/services/storage';
 import { transactionsRepository } from '../../src/repositories/transactions.repository';
@@ -470,10 +471,14 @@ export default function AddTransactionScreen() {
       // Take the old contribution back out whenever it no longer belongs there
       // — the user switched assets, or turned the investment into an ordinary
       // transfer/expense — so the asset isn't left permanently inflated.
+      // The new balance is recorded against the current month in the value
+      // history: the delta is applied to the asset's present value, so that's
+      // the month it describes, whatever date the transaction itself carries.
+      const thisMonth = monthStart(new Date());
       if (origAsset && origAsset.id !== investAsset?.id) {
         await assetsRepository.update(origAsset.id, {
           current_value: Math.max(0, Number(origAsset.current_value) - origAmount),
-        });
+        }, thisMonth);
       }
       if (investAsset) {
         const alreadyIn = origAsset && origAsset.id === investAsset.id ? origAmount : 0;
@@ -482,7 +487,7 @@ export default function AddTransactionScreen() {
             0,
             Number(investAsset.current_value) - alreadyIn + parseFloat(amount)
           ),
-        });
+        }, thisMonth);
       }
 
       if (receiptImage) {

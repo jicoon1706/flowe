@@ -4,8 +4,8 @@ import { spentOn } from '../utils/dailyBudget';
 import type { Transaction } from '../types/database.types';
 
 /**
- * Hands the native side what it needs to show the daily-budget live update on
- * its own: the budget, and how much of today is already spent.
+ * Hands the native side what it needs to draw the daily-budget home-screen
+ * widget on its own: the budget, and how much of today is already spent.
  *
  * The listener service can't reach Supabase, so when a payment is answered
  * from the notification shade with Flowe closed, the figure it adds to is

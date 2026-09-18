@@ -36,6 +36,12 @@ export interface NewAsset {
   quantity?: number;
   /** Unit for `quantity`, e.g. 'g'. */
   unit?: string;
+  /**
+   * Month this value is recorded against, 'YYYY-MM-01'. The trend chart shows
+   * the asset at this value from this month on, until a later month is
+   * recorded — so August stays put when September is entered.
+   */
+  asOfMonth: string;
 }
 
 interface AddAssetModalProps {
@@ -60,6 +66,11 @@ interface AddAssetModalProps {
   } | null;
   /** Accounts the asset can be funded from. Empty hides the funding option. */
   accounts?: { id: string; name: string; balance: string; color: string }[];
+  /**
+   * Month the entry defaults to — the one the user is looking at on the Cash
+   * Flow screen, so adding while viewing August records August.
+   */
+  defaultAsOf?: Date;
 }
 
 const ASSET_TYPES = [
@@ -93,7 +104,7 @@ const num = (v: string) => parseFloat(v) || 0;
 /** Trims trailing zeros so 1.5000 g reads as 1.5 g. */
 const fmtQty = (n: number) => Number(n.toFixed(4)).toString();
 
-export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = [] }: AddAssetModalProps) {
+export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = [], defaultAsOf }: AddAssetModalProps) {
   const isEditing = !!initial;
   const keyboardHeight = useKeyboardHeight();
   const [name, setName] = useState('');
@@ -102,6 +113,10 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = 
   const [monthlyIncome, setMonthlyIncome] = useState('');
   const [dateAcquired, setDateAcquired] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  // Which month this value belongs to in the history. Only the month matters;
+  // the day is whatever the picker hands back.
+  const [asOf, setAsOf] = useState<Date>(() => defaultAsOf ?? new Date());
+  const [showAsOfPicker, setShowAsOfPicker] = useState(false);
   const [note, setNote] = useState('');
   // Physical amount held — only ever shown for a type with a unit (gold).
   const [quantity, setQuantity] = useState('');
@@ -135,6 +150,9 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = 
   const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const formatDisplayDate = (d: Date) =>
     `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  const formatMonth = (d: Date) => `${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  const toMonthStart = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 
   const toIsoDate = (d: Date) => {
     const y = d.getFullYear();
@@ -166,8 +184,10 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = 
       setTopUpQuantity('');
       setFundFromAccount(false);
       setFundAccountId('');
+      setAsOf(defaultAsOf ?? new Date());
+      setShowAsOfPicker(false);
     }
-  }, [visible, initial]);
+  }, [visible, initial, defaultAsOf]);
 
   const reset = () => {
     setName('');
@@ -181,6 +201,8 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = 
     setTopUpQuantity('');
     setFundFromAccount(false);
     setFundAccountId('');
+    setAsOf(defaultAsOf ?? new Date());
+    setShowAsOfPicker(false);
   };
 
   const handleClose = () => {
@@ -200,6 +222,7 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = 
       unit,
       monthlyIncome: num(monthlyIncome),
       dateAcquired: dateAcquired ? toIsoDate(dateAcquired) : undefined,
+      asOfMonth: toMonthStart(asOf),
       note: note.trim() || undefined,
       contribution,
       fundFromAccountId: canFund && fundFromAccount ? fundAccountId : undefined,
@@ -296,6 +319,49 @@ export function AddAssetModal({ visible, onClose, onSubmit, initial, accounts = 
               keyboardType="decimal-pad"
               className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4"
             />
+
+            {/* Value as of — which month on the trend this value belongs to. */}
+            <Text className="text-sm font-semibold text-foreground mb-2">Value as of</Text>
+            <Pressable
+              onPress={() => setShowAsOfPicker((v) => !v)}
+              className="flex-row items-center gap-3 bg-background border border-border rounded-xl px-4 py-3 mb-1"
+            >
+              <Calendar size={18} color="#a0a0a0" />
+              <Text className="flex-1 text-foreground">{formatMonth(asOf)}</Text>
+              <ChevronDown size={18} color="#a0a0a0" />
+            </Pressable>
+            <Text className="text-xs text-muted-foreground mb-4">
+              The trend chart uses this value from {formatMonth(asOf)} onward. Earlier months keep what
+              you recorded before.
+            </Text>
+            {showAsOfPicker && (
+              <View className="mb-4">
+                <DateTimePicker
+                  value={asOf}
+                  mode="date"
+                  maximumDate={new Date()}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, date) => {
+                    if (Platform.OS === 'android') {
+                      setShowAsOfPicker(false);
+                      if (event.type === 'set' && date) setAsOf(date);
+                    } else if (date) {
+                      setAsOf(date);
+                    }
+                  }}
+                  style={{ height: 216 }}
+                />
+                {Platform.OS === 'ios' && (
+                  <Button
+                    title="Done"
+                    onPress={() => setShowAsOfPicker(false)}
+                    variant="primary"
+                    size="md"
+                    className="mt-2"
+                  />
+                )}
+              </View>
+            )}
 
             {/* Weight, for an asset held as a physical amount. */}
             {unit && (

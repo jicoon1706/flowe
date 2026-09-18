@@ -1,7 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+
+// CORS headers inlined (rather than imported from ../_shared) so this function
+// can be pasted straight into the Supabase dashboard editor, which bundles a
+// single file and can't resolve sibling imports.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 interface Asset {
+  id: string;
   current_value: number;
   monthly_income: number;
   date_acquired: string | null;
@@ -9,8 +18,15 @@ interface Asset {
 }
 
 interface Liability {
+  id: string;
   amount_owed: number;
   created_at: string;
+}
+
+/** One "worth X as of month M" record; `month` is the 1st of the month (YYYY-MM-DD). */
+interface ValuePoint {
+  month: string;
+  amount: number;
 }
 
 interface Transaction {
@@ -32,6 +48,39 @@ const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 // First day (UTC) of the month after the given year/month — i.e. the exclusive end bound.
 function monthExclusiveEnd(year: number, monthIdx0: number): Date {
   return new Date(Date.UTC(year, monthIdx0 + 1, 1));
+}
+
+/**
+ * Value of one asset/liability as of a month: the latest history row at or
+ * before that month. Nothing recorded yet → not owned yet → 0.
+ * `history` must be sorted by month ascending.
+ */
+function valueAsOf(history: ValuePoint[], monthStart: string): number {
+  let value = 0;
+  for (const p of history) {
+    if (p.month > monthStart) break;
+    value = p.amount;
+  }
+  return value;
+}
+
+/**
+ * Sums every entity's carried-forward value for the month. An entity with no
+ * history at all (created before the history tables existed and somehow not
+ * backfilled) falls back to the old rule: its present value, once it existed.
+ */
+function totalAsOf(
+  byId: Map<string, ValuePoint[]>,
+  monthStart: string,
+  entities: { id: string; amount: number; since: string }[],
+): number {
+  let total = 0;
+  for (const e of entities) {
+    const history = byId.get(e.id);
+    if (history?.length) total += valueAsOf(history, monthStart);
+    else if (e.since <= monthStart) total += e.amount;
+  }
+  return total;
 }
 
 function sumLines(txns: Transaction[]): { name: string; amount: number }[] {
@@ -81,14 +130,14 @@ Deno.serve(async (req) => {
     const startStr = periodStart.toISOString().slice(0, 10);
     const endStr = periodEnd.toISOString().slice(0, 10);
 
-    const [assetsRes, liabilitiesRes, txnsRes] = await Promise.all([
+    const [assetsRes, liabilitiesRes, txnsRes, assetValuesRes, liabilityValuesRes] = await Promise.all([
       supabase
         .from('assets')
-        .select('current_value, monthly_income, date_acquired, created_at')
+        .select('id, current_value, monthly_income, date_acquired, created_at')
         .eq('is_active', true),
       supabase
         .from('liabilities')
-        .select('amount_owed, created_at')
+        .select('id, amount_owed, created_at')
         .eq('is_active', true),
       supabase
         .from('transactions')
@@ -96,11 +145,21 @@ Deno.serve(async (req) => {
         .in('type', ['income', 'expense'])
         .gte('date', startStr)
         .lt('date', endStr),
+      supabase
+        .from('asset_values')
+        .select('asset_id, month, value')
+        .order('month', { ascending: true }),
+      supabase
+        .from('liability_values')
+        .select('liability_id, month, amount_owed')
+        .order('month', { ascending: true }),
     ]);
 
     if (assetsRes.error) throw assetsRes.error;
     if (liabilitiesRes.error) throw liabilitiesRes.error;
     if (txnsRes.error) throw txnsRes.error;
+    if (assetValuesRes.error) throw assetValuesRes.error;
+    if (liabilityValuesRes.error) throw liabilityValuesRes.error;
 
     const assets = (assetsRes.data ?? []) as Asset[];
     const liabilities = (liabilitiesRes.data ?? []) as Liability[];
@@ -120,27 +179,42 @@ Deno.serve(async (req) => {
     const financial_class =
       passive_income > total_expenses ? 'rich' : total_liabilities > 0 ? 'middle' : 'poor';
 
-    // Reconstruct a net-worth trend for the last 6 months (including current).
-    // No historical balance table exists, so each month-end is computed from the
-    // assets held by then (date_acquired) and liabilities taken on by then (created_at).
+    // Net-worth trend for the last 6 months (including current), built from
+    // the recorded value history. Each month shows what the user last recorded
+    // for each asset/liability at or before that month, so editing September
+    // never touches August — the chart only moves where a value was entered.
+    const assetHistory = new Map<string, ValuePoint[]>();
+    for (const r of assetValuesRes.data ?? []) {
+      const list = assetHistory.get(r.asset_id) ?? [];
+      list.push({ month: r.month, amount: Number(r.value) });
+      assetHistory.set(r.asset_id, list);
+    }
+    const liabilityHistory = new Map<string, ValuePoint[]>();
+    for (const r of liabilityValuesRes.data ?? []) {
+      const list = liabilityHistory.get(r.liability_id) ?? [];
+      list.push({ month: r.month, amount: Number(r.amount_owed) });
+      liabilityHistory.set(r.liability_id, list);
+    }
+    const assetEntities = assets.map((a) => ({
+      id: a.id,
+      amount: Number(a.current_value),
+      since: (a.date_acquired ?? a.created_at).slice(0, 7) + '-01',
+    }));
+    const liabilityEntities = liabilities.map((l) => ({
+      id: l.id,
+      amount: Number(l.amount_owed),
+      since: l.created_at.slice(0, 7) + '-01',
+    }));
+
     const monthly_trend: TrendPoint[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(Date.UTC(year, monthIdx0 - i, 1));
-      const y = d.getUTCFullYear();
-      const m0 = d.getUTCMonth();
-      const cutoff = monthExclusiveEnd(y, m0);
-
-      const monthAssets = assets
-        .filter((a) => new Date(a.date_acquired ?? a.created_at) < cutoff)
-        .reduce((s, a) => s + Number(a.current_value), 0);
-      const monthLiabilities = liabilities
-        .filter((l) => new Date(l.created_at) < cutoff)
-        .reduce((s, l) => s + Number(l.amount_owed), 0);
+      const monthStart = d.toISOString().slice(0, 10);
 
       monthly_trend.push({
-        month: MONTHS_SHORT[m0],
-        assets: monthAssets,
-        liabilities: monthLiabilities,
+        month: MONTHS_SHORT[d.getUTCMonth()],
+        assets: totalAsOf(assetHistory, monthStart, assetEntities),
+        liabilities: totalAsOf(liabilityHistory, monthStart, liabilityEntities),
       });
     }
 

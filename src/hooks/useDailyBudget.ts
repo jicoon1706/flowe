@@ -7,8 +7,9 @@ import type { SupabaseError } from '../utils/result';
  * The user's daily spending budget, from `settings.daily_budget`.
  *
  * Supabase is the source of truth (it follows the user across devices); the
- * native side keeps a copy so the budget live update can be shown for a
- * payment answered from the shade while Flowe is closed. Saving writes both.
+ * native side keeps a copy so the home-screen widget still draws — and still
+ * moves for a payment answered from the shade — while Flowe is closed. Saving
+ * writes both.
  */
 export function useDailyBudget(userId: string | undefined) {
   const [budget, setBudget] = useState<number | null>(null);

@@ -116,55 +116,58 @@ class FloweNotificationsModule : Module() {
       CaptureStore.clear(context)
     }
 
-    // ── Daily budget live update ──────────────────────────────────────────
-    // The app owns the real figures (Supabase); these keep the native copy
-    // that the shade receiver adds to when Flowe isn't running.
+    // ── Daily budget widget ───────────────────────────────────────────────
+    // The app owns the real figures (Supabase); these keep the native copy the
+    // widget draws from and the shade receiver adds to when Flowe isn't
+    // running. Every setter redraws the widget on its way out.
 
-    /** Null clears the budget and takes down any update that is showing. */
+    /** Null clears the budget; the widget falls back to its "set one" face. */
     Function("setDailyBudget") { budget: Double? ->
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      BudgetLiveUpdate.setBudget(context, budget)
+      BudgetStore.setBudget(context, budget)
     }
 
     Function("setSpentToday") { spent: Double, date: String ->
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      BudgetLiveUpdate.setSpent(context, spent, date)
+      BudgetStore.setSpent(context, spent, date)
     }
 
     Function("getBudgetSnapshot") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      BudgetLiveUpdate.snapshot(context)
+      BudgetStore.snapshot(context)
     }
 
-    /** Adds an expense to today's total and shows the update. */
+    /** Adds an expense to today's total and redraws the widget. */
     Function("recordBudgetExpense") { amount: Double ->
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      BudgetLiveUpdate.recordExpense(context, amount)
+      BudgetStore.recordExpense(context, amount)
     }
 
-    Function("showBudgetLiveUpdate") {
+    /** Redraws from whatever is stored — for a foreground, or after a manual edit. */
+    Function("refreshBudgetWidget") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      BudgetLiveUpdate.show(context)
+      BudgetWidgetProvider.refresh(context)
     }
 
-    Function("dismissBudgetLiveUpdate") {
+    /** Whether the user has actually placed the widget on their home screen. */
+    Function("isBudgetWidgetPinned") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      BudgetLiveUpdate.dismiss(context)
+      BudgetWidgetProvider.isPinned(context)
     }
 
-    /** Whether Android 16 will promote the update; always true below 16. */
-    Function("canPostLiveUpdates") {
+    /** Whether this launcher accepts an in-app "add this widget" request. */
+    Function("canRequestBudgetWidget") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      BudgetLiveUpdate.canPromote(context)
+      BudgetWidgetProvider.canRequestPin(context)
     }
 
-    /** Flowe's page in system notification settings, where Live Updates are toggled. */
-    Function("openAppNotificationSettings") {
+    /**
+     * Asks the launcher to offer the widget for placement. The user still
+     * decides; false means the launcher wouldn't even ask.
+     */
+    Function("requestBudgetWidget") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
-      val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      context.startActivity(intent)
+      BudgetWidgetProvider.requestPin(context)
     }
   }
 

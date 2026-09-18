@@ -258,7 +258,7 @@ export interface Settings {
   notif_affirmation: boolean;
   /**
    * How much the user means to spend in a day, in ringgit. Null when they
-   * haven't set one — the daily-budget live update is off until they do.
+   * haven't set one — the daily-budget widget shows no figure until they do.
    */
   daily_budget: number | null;
   created_at: string;
@@ -274,4 +274,33 @@ export interface CustomCategory {
   color?: string;
   is_active: boolean;
   created_at: string;
+}
+
+/**
+ * What an asset was worth as of a month. One row per (asset, month); months
+ * with no row inherit the latest earlier one, so the trend only moves where
+ * the user actually recorded a value.
+ */
+export interface AssetValue {
+  id: string;
+  asset_id: string;
+  user_id: string;
+  /** First day of the month, 'YYYY-MM-01'. */
+  month: string;
+  value: number;
+  quantity?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Amount owed on a liability as of a month. Same carry-forward rule as `AssetValue`. */
+export interface LiabilityValue {
+  id: string;
+  liability_id: string;
+  user_id: string;
+  /** First day of the month, 'YYYY-MM-01'. */
+  month: string;
+  amount_owed: number;
+  created_at: string;
+  updated_at: string;
 }

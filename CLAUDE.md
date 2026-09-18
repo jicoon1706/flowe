@@ -115,8 +115,9 @@ matched to an account (`resolveDetectedAccount.ts`) and confirmed in
 iOS cannot read other apps' notifications, so `FloweNotifications.isAvailable` is `false`
 there and the flow is inert. Detections that can't file themselves are listed on Home
 (`PendingEntriesCard`) from the shared `DetectedTransactionsProvider`. A daily budget
-(`settings.daily_budget`, Settings → Daily Budget) drives a native Live Update
-(`BudgetLiveUpdate.kt`) whenever a detected expense is filed. Full walkthrough:
+(`settings.daily_budget`, Settings → Daily Budget) drives a 2×2 home-screen widget
+(`BudgetWidgetProvider.kt` + `BudgetStore.kt` + `BudgetRing.kt`), redrawn whenever a
+detected expense is filed. Full walkthrough:
 `docs/Flowe_AutoDetect_Flow.md`.
 
 ## Design System

@@ -39,13 +39,13 @@ class QuickCaptureReceiver : BroadcastReceiver() {
 
     CaptureStore.all(context).firstOrNull { it.id == captureId }?.let { capture ->
       // Answering "Expense" is the moment the payment becomes real to the
-      // user, so it's the moment the daily budget moves — shown right here,
-      // while Flowe may well be closed. Only today's alerts count: one
-      // answered the next morning belongs to yesterday's total. The app
-      // writes the row (and the true total) the next time it runs.
-      if (type == "expense" && BudgetLiveUpdate.isToday(capture.postedAt)) {
+      // user, so it's the moment the daily budget moves — and the widget is
+      // redrawn right here, while Flowe may well be closed. Only today's
+      // alerts count: one answered the next morning belongs to yesterday's
+      // total. The app writes the row (and the true total) when it next runs.
+      if (type == "expense" && BudgetStore.isToday(capture.postedAt)) {
         AmountText.firstValue("${capture.title} ${capture.text}")?.let { amount ->
-          BudgetLiveUpdate.recordExpense(context, amount)
+          BudgetStore.recordExpense(context, amount)
         }
       }
       FloweNotificationsModule.emitCapture(capture)

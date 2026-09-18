@@ -30,10 +30,10 @@ export function useLiabilities() {
     return result;
   }, [fetchLiabilities]);
 
-  const updateLiability = useCallback(async (id: string, patch: Partial<Liability>) => {
+  const updateLiability = useCallback(async (id: string, patch: Partial<Liability>, asOfMonth?: string) => {
     setLoading(true);
     setError(null);
-    const result = await liabilitiesRepository.update(id, patch);
+    const result = await liabilitiesRepository.update(id, patch, asOfMonth);
     if (result.ok) {
       const name = patch.name ?? liabilities.find((l) => l.id === id)?.name ?? 'Liability';
       const owed = patch.amount_owed ?? liabilities.find((l) => l.id === id)?.amount_owed ?? 0;

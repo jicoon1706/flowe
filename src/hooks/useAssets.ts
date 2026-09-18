@@ -30,10 +30,10 @@ export function useAssets() {
     return result;
   }, [fetchAssets]);
 
-  const updateAsset = useCallback(async (id: string, patch: Partial<Asset>) => {
+  const updateAsset = useCallback(async (id: string, patch: Partial<Asset>, asOfMonth?: string) => {
     setLoading(true);
     setError(null);
-    const result = await assetsRepository.update(id, patch);
+    const result = await assetsRepository.update(id, patch, asOfMonth);
     if (result.ok) {
       const name = patch.name ?? assets.find((a) => a.id === id)?.name ?? 'Asset';
       const value = patch.current_value ?? assets.find((a) => a.id === id)?.current_value ?? 0;

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  2x2 daily-budget widget. Only views RemoteViews supports: no custom view can
+  be inflated here, which is why the ring arrives as a bitmap in an ImageView
+  with the figures laid over it in a FrameLayout.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/flowe_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/flowe_widget_background"
+    android:padding="10dp">
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+
+    <ImageView
+        android:layout_width="13dp"
+        android:layout_height="13dp"
+        android:src="@drawable/ic_flowe_budget"
+        android:tint="#C5FF00"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="6dp"
+        android:text="@string/flowe_widget_daily_budget_header"
+        android:textSize="11sp"
+        android:textColor="#A0A0A0"
+        android:maxLines="1"
+        android:ellipsize="end" />
+  </LinearLayout>
+
+  <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:layout_marginTop="2dp">
+
+    <ImageView
+        android:id="@+id/flowe_widget_ring"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:scaleType="fitCenter"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center">
+
+      <TextView
+          android:id="@+id/flowe_widget_amount"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:textSize="19sp"
+          android:textStyle="bold"
+          android:textColor="#FFFFFF"
+          android:includeFontPadding="false"
+          android:maxLines="1"
+          android:ellipsize="end"
+          android:text="@string/flowe_widget_daily_budget_header" />
+
+      <TextView
+          android:id="@+id/flowe_widget_caption"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="1dp"
+          android:textSize="9sp"
+          android:textColor="#A0A0A0"
+          android:includeFontPadding="false"
+          android:maxLines="1"
+          android:text="@string/flowe_widget_daily_budget_header" />
+    </LinearLayout>
+  </FrameLayout>
+
+  <TextView
+      android:id="@+id/flowe_widget_footer"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="2dp"
+      android:gravity="center"
+      android:textSize="10sp"
+      android:textColor="#A0A0A0"
+      android:maxLines="1"
+      android:ellipsize="end"
+      android:text="@string/flowe_widget_daily_budget_header" />
+</LinearLayout>

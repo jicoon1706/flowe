@@ -244,28 +244,50 @@ padlock both call `requireUnlock()`, recent-transaction rows ask before opening,
 add-transaction pickers show account names with `••••••` for balances. The pending-entries
 card stays fully usable: those are half-recorded payments.
 
-## 6. Daily budget live update
+## 6. Daily budget home-screen widget
 
 Settings → Daily Budget writes `settings.daily_budget` (Supabase, migration
 `20260911_daily_budget.sql`) and mirrors it to the native side
 (`FloweNotifications.setDailyBudget`). Home pushes "today so far" whenever the month's
 transactions load (`src/services/dailyBudget.ts` → `setSpentToday`).
 
-`BudgetLiveUpdate.kt` posts "RM 45.00 left today" with a progress bar, ongoing, and
-`setTimeoutAfter(60s)` so it clears itself. On Android 16 it is a Live Update
-(`ProgressStyle` + `setColorized` + the `android.requestPromotedOngoing` extra, with
-`setShortCriticalText` as the status-bar chip; needs `POST_PROMOTED_NOTIFICATIONS` in the
-manifest); older versions get a plain progress notification. It fires when a detected
-expense is filed:
+That pair lives in `BudgetStore.kt` (private `SharedPreferences`, the spend stamped with
+its local `yyyy-MM-dd` so it resets itself at midnight), and every write to it redraws
+the widget. This is the one piece the user sees without opening anything: a 2×2 ring on
+the home screen, drained by what's been spent, the remainder in the middle and
+`spent of budget` underneath. It replaced the short-lived daily-budget Live Update —
+a notification only appeared when Flowe happened to catch a payment and was gone a minute
+later, while the widget is there on every unlock, budget spent or not.
+
+| Piece | Role |
+|---|---|
+| `BudgetWidgetProvider.kt` | `AppWidgetProvider`: renders, and owns `refresh` / `isPinned` / `requestPin` |
+| `BudgetRing.kt` | Paints the arc to a bitmap — RemoteViews can't host a custom view, and its `ProgressBar` can't be a round-capped circle |
+| `BudgetStore.kt` | The budget + today's spend, and the only thing that triggers a redraw |
+| `res/layout/flowe_widget_daily_budget.xml` | Card surface, "Today" row, ring + figures, footer |
+| `res/xml/flowe_widget_daily_budget_info.xml` | 2×2 default, resizable, 30-minute `updatePeriodMillis` (day rollover only) |
+
+States: no budget set → `—` / "no budget" / "Set one in Flowe"; within budget → lime ring
+draining clockwise from twelve; overspent → a full ring in `#ff4444` with "RM x over",
+because a blown budget is a state, not an absence. Tapping anywhere opens Flowe.
+
+The figures move when a detected expense is filed:
 
 - **From the shade, app closed** — `QuickCaptureReceiver` on "Expense" adds the alert's
-  amount (`AmountText.firstValue`) to the native running total and shows it immediately.
+  amount (`AmountText.firstValue`) to the native running total, which redraws the widget
+  on the spot.
 - **From the app** — `save()` in `useDetectedTransactions` calls `recordBudgetExpense`
   for the silent auto-save and island/list paths (not for shade-answered ones, which
-  already showed it), and only for payments dated today.
+  already counted), and only for payments dated today.
+
+Settings → Daily Budget offers "Add to home screen" when the launcher supports
+`requestPinAppWidget` (Android 8+, most launchers), shows a confirmation line once one is
+placed, and otherwise explains the long-press → Widgets route. There's no callback when
+the user backs out of the launcher's sheet, so the screen re-reads `isBudgetWidgetPinned`
+on every foreground.
 
 The native total is a cache; the next Home load overwrites it with the truth from
-Supabase, so a misread amount costs a minute of a slightly-off bar, not a row.
+Supabase, so a misread amount costs a slightly-off ring until the next app open, not a row.
 
 ## 7. Filing with the app closed (headless task)
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -66,7 +66,15 @@ export default function CashFlowScreen() {
   const { assets: rawAssets, loading: astLoading, error: astError, fetchAssets, createAsset, updateAsset, deleteAsset } = useAssets();
   const { liabilities: rawLiabilities, loading: liabLoading, error: liabError, fetchLiabilities, createLiability, updateLiability, deleteLiability } = useLiabilities();
   const { accounts, fetchAccounts } = useAccounts();
-  const { summary } = useCashflow(currentMonth);
+  const { summary, refetch: refetchSummary } = useCashflow(currentMonth);
+
+  // Where a new asset/liability entry lands on the trend by default: the month
+  // being viewed, capped at today (a future month has nothing to record yet).
+  // Memoised so the modals' reset effect doesn't fire on every render.
+  const defaultAsOf = useMemo(
+    () => (isFutureMonth ? new Date() : selectedDate),
+    [isFutureMonth, selectedDate],
+  );
 
   // Accounts an asset can be funded from, in the shape AccountSelector wants.
   const accountOptions = accounts.map((a: any) => {
@@ -95,7 +103,8 @@ export default function CashFlowScreen() {
     fetchLiabilities();
     fetchAccounts();
     refetchTxns();
-  }, [fetchAssets, fetchLiabilities, fetchAccounts, refetchTxns]));
+    refetchSummary();
+  }, [fetchAssets, fetchLiabilities, fetchAccounts, refetchTxns, refetchSummary]));
 
   // ─── Loading / error guards ────────────────────────────────────────────────
   if (loading) return <LoadingView />;
@@ -175,7 +184,7 @@ export default function CashFlowScreen() {
           monthly_income: a.monthlyIncome,
           date_acquired: a.dateAcquired,
           note: a.note,
-        })
+        }, a.asOfMonth)
       : await createAsset({
           user_id: user.id,
           name: a.name,
@@ -187,6 +196,7 @@ export default function CashFlowScreen() {
           monthly_income: a.monthlyIncome,
           date_acquired: a.dateAcquired,
           note: a.note,
+          as_of_month: a.asOfMonth,
         });
     if (result.ok) {
       // Funded from an account: record the money leaving it, exactly as a
@@ -213,6 +223,9 @@ export default function CashFlowScreen() {
       }
       setEditingAsset(null);
       setShowAddAsset(false);
+      // The trend is computed server-side from the value history, so it has
+      // to be pulled again for the new entry to show.
+      refetchSummary();
     }
   };
 
@@ -227,7 +240,7 @@ export default function CashFlowScreen() {
           monthly_payment: l.monthlyPayment,
           interest_rate: l.interestRate,
           note: l.note,
-        })
+        }, l.asOfMonth)
       : await createLiability({
           user_id: user.id,
           name: l.name,
@@ -237,10 +250,12 @@ export default function CashFlowScreen() {
           monthly_payment: l.monthlyPayment,
           interest_rate: l.interestRate,
           note: l.note,
+          as_of_month: l.asOfMonth,
         });
     if (result.ok) {
       setEditingLiability(null);
       setShowAddLiability(false);
+      refetchSummary();
     }
   };
 
@@ -260,6 +275,7 @@ export default function CashFlowScreen() {
     } else {
       await deleteLiability(id);
     }
+    refetchSummary();
   };
 
   return (
@@ -361,12 +377,14 @@ export default function CashFlowScreen() {
         onSubmit={handleAddAsset}
         initial={editingAsset}
         accounts={accountOptions}
+        defaultAsOf={defaultAsOf}
       />
       <AddLiabilityModal
         visible={showAddLiability}
         onClose={() => { setShowAddLiability(false); setEditingLiability(null); }}
         onSubmit={handleAddLiability}
         initial={editingLiability}
+        defaultAsOf={defaultAsOf}
       />
     </SafeAreaView>
   );

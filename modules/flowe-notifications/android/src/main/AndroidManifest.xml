@@ -1,14 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <!--
-    Android 16 Live Updates: lets the daily-budget notification be promoted
-    (pinned above the shade, chip in the status bar). A normal permission —
-    granted at install, and the user can switch it off per app in Settings.
-    Older versions ignore it.
-  -->
-  <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
-
-  <!--
     The headless task that files a detected payment with the app closed: a
     wake lock so the phone stays up for the second it takes, and a foreground
     service as the fallback when Android refuses a plain background start.
@@ -67,5 +59,23 @@
     <receiver
       android:name="expo.modules.flowenotifications.QuickCaptureReceiver"
       android:exported="false" />
+
+    <!--
+      The daily-budget home-screen widget. `exported="true"` is required: the
+      launcher is a different app and has to be able to deliver the widget
+      broadcasts. It carries no data of its own — everything it draws comes
+      from BudgetStore's private SharedPreferences.
+    -->
+    <receiver
+      android:name="expo.modules.flowenotifications.BudgetWidgetProvider"
+      android:label="@string/flowe_widget_daily_budget_label"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/flowe_widget_daily_budget_info" />
+    </receiver>
   </application>
 </manifest>

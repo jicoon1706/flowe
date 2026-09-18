@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  2x2 by default and resizable from there. `updatePeriodMillis` is the 30-minute
+  floor Android allows: everything real is pushed by BudgetStore, and this is
+  only what rolls the ring over to a fresh day if nothing else happens to.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/flowe_widget_daily_budget"
+    android:previewLayout="@layout/flowe_widget_daily_budget"
+    android:previewImage="@drawable/ic_flowe_budget"
+    android:description="@string/flowe_widget_daily_budget_description"
+    android:widgetCategory="home_screen" />

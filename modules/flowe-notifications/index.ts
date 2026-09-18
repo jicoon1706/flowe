@@ -32,10 +32,10 @@ interface FloweNotificationsNativeModule {
   setSpentToday(spent: number, date: string): void;
   getBudgetSnapshot(): BudgetSnapshot;
   recordBudgetExpense(amount: number): void;
-  showBudgetLiveUpdate(): void;
-  dismissBudgetLiveUpdate(): void;
-  canPostLiveUpdates(): boolean;
-  openAppNotificationSettings(): void;
+  refreshBudgetWidget(): void;
+  isBudgetWidgetPinned(): boolean;
+  canRequestBudgetWidget(): boolean;
+  requestBudgetWidget(): boolean;
   addListener(event: 'onCapture', listener: (capture: CapturedNotification) => void): EventSubscription;
 }
 
@@ -127,14 +127,17 @@ export function clearCaptures(): void {
   native?.clearCaptures();
 }
 
-// ─── Daily budget live update ───────────────────────────────────────────────
-// Android 16 "Live Updates" (a promoted, progress-styled notification; a plain
-// progress notification on older versions) showing how much of today's budget
-// is left, raised whenever a detected expense is filed and gone again a minute
-// later. The native side holds a copy of the budget and of today's spend so it
-// can show the update for a payment answered from the shade with Flowe closed.
+// ─── Daily budget widget ────────────────────────────────────────────────────
+// A 2x2 home-screen widget showing how much of today's budget is left: a ring
+// that drains as the day goes on, the figure in the middle, "spent of budget"
+// underneath. Unlike the live update it replaced, it doesn't wait for Flowe to
+// catch a payment and it doesn't go away — it's on screen every unlock.
+//
+// The native side holds its own copy of the budget and of today's spend, so it
+// still draws correctly with the app closed, and a payment answered from the
+// notification shade moves the ring immediately.
 
-/** Stores the budget natively; null turns the live update off. */
+/** Stores the budget natively and redraws; null puts the widget in its "set a budget" state. */
 export function setDailyBudget(budget: number | null): void {
   native?.setDailyBudget(budget);
 }
@@ -149,34 +152,39 @@ export function getBudgetSnapshot(): BudgetSnapshot {
 }
 
 /**
- * Adds an expense to today's running total and shows the live update. A
- * no-op when no budget is set. Only ever called for payments dated today.
+ * Adds an expense to today's running total and redraws the widget. Only ever
+ * called for payments dated today.
  */
 export function recordBudgetExpense(amount: number): void {
   native?.recordBudgetExpense(amount);
 }
 
-/** Shows the live update with the current figures — Settings uses it as a preview. */
-export function showBudgetLiveUpdate(): void {
-  native?.showBudgetLiveUpdate();
+/** Redraws from what's already stored — cheap, and a no-op with no widget placed. */
+export function refreshBudgetWidget(): void {
+  native?.refreshBudgetWidget();
 }
 
-export function dismissBudgetLiveUpdate(): void {
-  native?.dismissBudgetLiveUpdate();
+/** Whether the user has actually put the widget on their home screen. */
+export function isBudgetWidgetPinned(): boolean {
+  return native?.isBudgetWidgetPinned() ?? false;
 }
 
 /**
- * Whether Android will promote Flowe's notification to a Live Update. Only
- * Android 16+ has the concept and the user can switch it off per app; below
- * that a normal progress notification is shown and this is reported true.
+ * Whether the launcher will accept an in-app request to add the widget. Most
+ * have since Android 8; the ones that haven't leave the long-press → Widgets
+ * route, which is what Settings falls back to explaining.
  */
-export function canPostLiveUpdates(): boolean {
-  return native?.canPostLiveUpdates() ?? false;
+export function canRequestBudgetWidget(): boolean {
+  return native?.canRequestBudgetWidget() ?? false;
 }
 
-/** Opens the system notification settings for Flowe, where Live Updates can be re-enabled. */
-export function openAppNotificationSettings(): void {
-  native?.openAppNotificationSettings();
+/**
+ * Asks the launcher to offer the widget for placement. The user still decides
+ * where it goes — or whether it goes at all. False means the launcher refused
+ * to even ask.
+ */
+export function requestBudgetWidget(): boolean {
+  return native?.requestBudgetWidget() ?? false;
 }
 
 /** Fires while the app is running; anything captured while it wasn't is in `getCaptures()`. */

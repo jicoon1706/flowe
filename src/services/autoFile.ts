@@ -49,8 +49,8 @@ export interface DetectedTransaction {
   suggestedName?: string;
   /**
    * The user already said Expense/Income from the shade. The daily-budget
-   * live update was shown natively at that moment, so filing it must not
-   * show it a second time.
+   * widget was moved natively at that moment, so filing it must not count
+   * the same payment a second time.
    */
   answeredFromShade: boolean;
 }
@@ -218,9 +218,9 @@ export async function fileDetected(
       await sourceAccounts.learn(detected.parsed.packageId, values.accountId);
     }
 
-    // An outside-app expense moves today's budget: show the live update.
-    // A shade answer already did this natively the moment it was tapped,
-    // and the payment is dated by the alert, so only today's count.
+    // An outside-app expense moves today's budget, so the widget's ring moves
+    // with it. A shade answer already did this natively the moment it was
+    // tapped, and the payment is dated by the alert, so only today's count.
     if (
       !isIncome &&
       !detected.answeredFromShade &&

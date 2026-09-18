@@ -379,6 +379,42 @@ create table public.liabilities (
 
 ---
 
+### Tables: `asset_values` · `liability_values`
+
+Month-by-month history behind the Cash Flow trend chart. One row per (asset, month)
+holding what the asset was worth *as of* that month; months with no row inherit the
+latest earlier one, so a value only changes where the user recorded one. Editing
+September never rewrites August. Assets are seeded at the month acquired (or created);
+liabilities at the month created. `cashflow-summary` reads these to build
+`monthly_trend`.
+
+```sql
+create table public.asset_values (
+  id          uuid          primary key default gen_random_uuid(),
+  asset_id    uuid          not null references public.assets(id) on delete cascade,
+  user_id     uuid          not null references public.profiles(id) on delete cascade,
+  month       date          not null check (month = date_trunc('month', month)::date),
+  value       numeric(12,2) not null check (value >= 0),
+  quantity    numeric(16,4),
+  created_at  timestamptz   default now(),
+  updated_at  timestamptz   default now(),
+  unique (asset_id, month)
+);
+
+create table public.liability_values (
+  id            uuid          primary key default gen_random_uuid(),
+  liability_id  uuid          not null references public.liabilities(id) on delete cascade,
+  user_id       uuid          not null references public.profiles(id) on delete cascade,
+  month         date          not null check (month = date_trunc('month', month)::date),
+  amount_owed   numeric(12,2) not null check (amount_owed >= 0),
+  created_at    timestamptz   default now(),
+  updated_at    timestamptz   default now(),
+  unique (liability_id, month)
+);
+```
+
+---
+
 ### Tables: `learn_projects` · `learn_entries` · `learn_entry_images`
 
 ```sql

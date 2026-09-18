@@ -1,6 +1,8 @@
-import { View, Text, Pressable, Modal, TextInput, ScrollView } from 'react-native';
+import { View, Text, Pressable, Modal, TextInput, ScrollView, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
-import { X, Check, Plus, Minus } from 'lucide-react-native';
+import { X, Check, Plus, Minus, Calendar, ChevronDown } from 'lucide-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Button } from '../ui/Button';
 import { useKeyboardHeight } from '../../src/hooks/useKeyboardHeight';
 
 export interface NewLiability {
@@ -11,13 +13,24 @@ export interface NewLiability {
   monthlyPayment: number;
   interestRate?: number;
   note?: string;
+  /**
+   * Month this balance is recorded against, 'YYYY-MM-01'. The trend chart
+   * shows the liability at this amount from this month on, until a later
+   * month is recorded.
+   */
+  asOfMonth: string;
 }
 
 interface AddLiabilityModalProps {
   visible: boolean;
   onClose: () => void;
   onSubmit: (liability: NewLiability) => void;
-  initial?: NewLiability | null;
+  initial?: Omit<NewLiability, 'asOfMonth'> | null;
+  /**
+   * Month the entry defaults to — the one the user is looking at on the Cash
+   * Flow screen, so adding while viewing August records August.
+   */
+  defaultAsOf?: Date;
 }
 
 const LIABILITY_TYPES = [
@@ -32,10 +45,15 @@ const LIABILITY_TYPES = [
 
 const ACCENT = '#ff6b6b';
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const formatMonth = (d: Date) => `${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+const toMonthStart = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+
 /** Reads a possibly-empty numeric field, treating blank as zero. */
 const num = (v: string) => parseFloat(v) || 0;
 
-export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLiabilityModalProps) {
+export function AddLiabilityModal({ visible, onClose, onSubmit, initial, defaultAsOf }: AddLiabilityModalProps) {
   const isEditing = !!initial;
   const keyboardHeight = useKeyboardHeight();
   const [name, setName] = useState('');
@@ -50,6 +68,10 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
   // of the entry rather than something to work out with a minus sign.
   const [adjust, setAdjust] = useState('');
   const [adjustDirection, setAdjustDirection] = useState<'add' | 'pay'>('pay');
+  // Which month this balance belongs to in the history. Only the month
+  // matters; the day is whatever the picker hands back.
+  const [asOf, setAsOf] = useState<Date>(() => defaultAsOf ?? new Date());
+  const [showAsOfPicker, setShowAsOfPicker] = useState(false);
 
   // What will be owed once this form is saved. Clamped at zero: overpaying a
   // loan settles it, it doesn't turn the balance negative.
@@ -77,8 +99,10 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
       }
       setAdjust('');
       setAdjustDirection('pay');
+      setAsOf(defaultAsOf ?? new Date());
+      setShowAsOfPicker(false);
     }
-  }, [visible, initial]);
+  }, [visible, initial, defaultAsOf]);
 
   const reset = () => {
     setName('');
@@ -89,6 +113,8 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
     setNote('');
     setAdjust('');
     setAdjustDirection('pay');
+    setAsOf(defaultAsOf ?? new Date());
+    setShowAsOfPicker(false);
   };
 
   const handleClose = () => {
@@ -107,6 +133,7 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
       monthlyPayment: num(monthlyPayment),
       interestRate: interestRate ? parseFloat(interestRate) : undefined,
       note: note.trim() || undefined,
+      asOfMonth: toMonthStart(asOf),
     });
     reset();
   };
@@ -249,6 +276,49 @@ export function AddLiabilityModal({ visible, onClose, onSubmit, initial }: AddLi
                       RM {newOwed.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </Text>
                   </View>
+                )}
+              </View>
+            )}
+
+            {/* Balance as of — which month on the trend this amount belongs to. */}
+            <Text className="text-sm font-semibold text-foreground mb-2">Balance as of</Text>
+            <Pressable
+              onPress={() => setShowAsOfPicker((v) => !v)}
+              className="flex-row items-center gap-3 bg-background border border-border rounded-xl px-4 py-3 mb-1"
+            >
+              <Calendar size={18} color="#a0a0a0" />
+              <Text className="flex-1 text-foreground">{formatMonth(asOf)}</Text>
+              <ChevronDown size={18} color="#a0a0a0" />
+            </Pressable>
+            <Text className="text-xs text-muted-foreground mb-4">
+              The trend chart uses this balance from {formatMonth(asOf)} onward. Earlier months keep
+              what you recorded before.
+            </Text>
+            {showAsOfPicker && (
+              <View className="mb-4">
+                <DateTimePicker
+                  value={asOf}
+                  mode="date"
+                  maximumDate={new Date()}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, date) => {
+                    if (Platform.OS === 'android') {
+                      setShowAsOfPicker(false);
+                      if (event.type === 'set' && date) setAsOf(date);
+                    } else if (date) {
+                      setAsOf(date);
+                    }
+                  }}
+                  style={{ height: 216 }}
+                />
+                {Platform.OS === 'ios' && (
+                  <Button
+                    title="Done"
+                    onPress={() => setShowAsOfPicker(false)}
+                    variant="primary"
+                    size="md"
+                    className="mt-2"
+                  />
                 )}
               </View>
             )}
