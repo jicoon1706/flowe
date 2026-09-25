@@ -125,14 +125,17 @@ export default function HomeScreen() {
   const { summary: cashflow, loading: cfLoading, error: cfError } = useCashflow('2026-05');
   const { budget: dailyBudget, loaded: budgetLoaded, fetchBudget } = useDailyBudget(user?.id);
 
-  // The native side shows today's budget progress when a payment is detected
-  // while Flowe is closed, so it needs to know what "today so far" is. This
-  // screen is where the month's transactions are already loaded, which makes
-  // it the cheapest place to keep that figure honest.
+  // The native side draws the budget widget on its own, with Flowe closed, so
+  // it keeps its own copy of the budget and of today's spend. Pushing it here
+  // covers the app being opened after a day (or a payment) it knew nothing
+  // about; every write while the app is open is covered by the subscription in
+  // the layout. Today's total is read straight from Supabase rather than summed
+  // out of `transactions`, which is this month's — and therefore the wrong month
+  // on the 1st.
   useEffect(() => {
     if (!budgetLoaded) return;
-    syncDailyBudget(dailyBudget, transactions);
-  }, [budgetLoaded, dailyBudget, transactions]);
+    syncDailyBudget(dailyBudget);
+  }, [budgetLoaded, dailyBudget]);
 
   async function onRefresh() {
     if (!user) return;

@@ -832,6 +832,70 @@ App Launch
 
 ---
 
+## 💰 Account balances
+
+`bank_accounts.current_balance`, `wallet_accounts.current_balance` and
+`tabung_accounts.saved_amount` are **stored**, not derived: every transaction moves them by
+its own amount. Migration: `20260925_atomic_balance.sql`.
+
+### `adjust_account_balance(p_account_id uuid, p_delta numeric)`
+
+The only way a balance is allowed to move. It resolves the account's type and adds `p_delta`
+to the right column **in a single `UPDATE`**, so Postgres' row lock serialises concurrent
+writers. `security invoker`, so RLS still scopes it to `auth.uid()`.
+
+```sql
+select public.adjust_account_balance('…account uuid…', -42.50);
+```
+
+| Account type | Column moved |
+|---|---|
+| `bank` | `bank_accounts.current_balance` |
+| `wallet` | `wallet_accounts.current_balance` |
+| `tabung` | `tabung_accounts.saved_amount` |
+
+This replaced a client-side read-modify-write (`SELECT current_balance` → add in JS →
+`UPDATE`), which was safe only while there was one writer. Auto-detect made several: each
+captured bank alert starts its own headless JS task (`AutoFileTaskService`) and the
+foreground app files from the same queue, so two payments landing seconds apart both read
+the pre-payment balance and the second `UPDATE` discarded the first. Both transaction rows
+existed and the account had only moved by one of them — the account drifting further from
+the bank with every pair of near-simultaneous alerts, while the transaction list stayed
+perfectly correct.
+
+### Which legs a transaction moves
+
+`applyBalanceEffect` in `src/repositories/transactions.repository.ts`, with `sign = 1` on
+create and `sign = -1` to reverse (on delete, and before an edit is re-applied):
+
+| `type` | `from_account_id` | `to_account_id` |
+|---|---|---|
+| `expense` | − amount | — |
+| `income` | — | + amount |
+| `transfer` | − amount | + amount |
+| `transfer` (into an asset — no destination) | − amount | asset moved by the caller |
+| `tabung_topup` | − amount *(the funding account, when the row names one)* | + amount *(the jar)* |
+| `tabung_withdraw` | + amount *(the funding account, when the row names one)* | − amount *(the jar)* |
+
+> **Known gap.** Nothing currently writes a funding account onto a tabung top-up, so a
+> top-up credits the jar without debiting any account: Flowe's bank balance stays higher
+> than the real one by every top-up made. `tabung_accounts.linked_bank_id` exists but no UI
+> ever sets it (and it references `bank_accounts.id`, not `accounts.id`, so it can't be used
+> as `from_account_id` without a lookup). `applyBalanceEffect` already handles the leg; it
+> needs a "from which account?" choice on the top-up sheet to have something to record.
+
+### `recalculate_account_balances()`
+
+Rebuilds every active account as `opening_balance` + the effect of every transaction that
+touches it, and returns how many accounts it rewrote. The repair for an account that already
+drifted; exposed as **Settings → Data → Recalculate Balances**.
+
+It discards a balance the user typed in by hand on an account screen — that writes
+`current_balance` without moving `opening_balance`, so there is no record of the correction
+to keep. The UI says so before running it.
+
+---
+
 ## 📊 Computed / Derived Values
 
 | Value | Formula |

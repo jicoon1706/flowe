@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, Pressable, TextInput, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Download, AlertTriangle, Database, FileText, Check, Trash2 } from 'lucide-react-native';
+import { Download, AlertTriangle, Database, FileText, Check, Trash2, Scale } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useAssets } from '../../../src/hooks/useAssets';
 import { useLiabilities } from '../../../src/hooks/useLiabilities';
@@ -10,7 +10,7 @@ import { useTransactions } from '../../../src/hooks/useTransactions';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import { flags } from '../../../src/lib/secureStore';
-import { accountsRepository, assetsRepository, liabilitiesRepository, authRepository } from '../../../src/repositories';
+import { accountsRepository, assetsRepository, liabilitiesRepository, authRepository, transactionsRepository } from '../../../src/repositories';
 import { refreshGate } from '../../_layout';
 
 type ExportFormat = 'csv' | 'pdf';
@@ -35,6 +35,25 @@ export default function DataScreen() {
     fetchLiabilities();
     refetch();
   }, []));
+
+  // Rebuilding balances from the transactions behind them. The arithmetic used
+  // to run on the client as read-modify-write, so two auto-detected payments
+  // landing together could lose one of the two adjustments — leaving the
+  // transactions right and the balance short. It is atomic now; this is how an
+  // account that already drifted is put back.
+  const [recalcState, setRecalcState] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
+  const [recalcCount, setRecalcCount] = useState(0);
+
+  async function handleRecalculate() {
+    setRecalcState('running');
+    const result = await transactionsRepository.recalculateBalances();
+    if (result.ok) {
+      setRecalcCount(result.data);
+      setRecalcState('done');
+    } else {
+      setRecalcState('failed');
+    }
+  }
 
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
   const [dateRange, setDateRange] = useState<DateRange>('1m');
@@ -117,6 +136,45 @@ export default function DataScreen() {
               <Text className="text-xs text-muted-foreground mt-1">Liabilities</Text>
             </View>
           </View>
+        </View>
+
+        {/* Recalculate Balances */}
+        <View className="bg-card border border-border rounded-2xl p-5 mb-6">
+          <View className="flex-row items-center gap-3 mb-3">
+            <View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
+              <Scale size={20} color="#C5FF00" />
+            </View>
+            <Text className="text-lg font-semibold text-foreground">Recalculate Balances</Text>
+          </View>
+          <Text className="text-xs text-muted-foreground leading-5 mb-4">
+            Rebuilds every account from its opening balance plus every transaction
+            recorded against it. Use this if an account’s balance no longer matches
+            your bank while the transactions themselves are correct. A balance you
+            typed in by hand on an account screen will be replaced.
+          </Text>
+          <Pressable
+            onPress={handleRecalculate}
+            disabled={recalcState === 'running'}
+            className="bg-primary rounded-2xl py-4 active:opacity-80"
+          >
+            {recalcState === 'done' ? (
+              <View className="flex-row items-center justify-center gap-2">
+                <Check size={18} color="#000000" />
+                <Text className="text-black font-bold">
+                  {recalcCount} account{recalcCount === 1 ? '' : 's'} recalculated
+                </Text>
+              </View>
+            ) : (
+              <Text className="text-black font-bold text-center">
+                {recalcState === 'running' ? 'Recalculating…' : 'Recalculate Balances'}
+              </Text>
+            )}
+          </Pressable>
+          {recalcState === 'failed' && (
+            <Text className="text-xs text-destructive text-center mt-3">
+              Could not recalculate. Check your connection and try again.
+            </Text>
+          )}
         </View>
 
         {/* Export Data Card */}

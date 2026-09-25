@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import { DetectedTransactionIsland } from '@/components/home/DetectedTransactionIsland';
 import { isOpenWhileLocked } from '@/src/utils/lockRoutes';
+import { startDailyBudgetSync } from '@/src/services/dailyBudget';
 
 function AddButton(props: { onPress?: (e?: any) => void }) {
   const router = useRouter();
@@ -255,6 +256,13 @@ function TabBarVisibilityWrapper({ children }: { children: React.ReactNode }) {
 }
 
 export default function MainLayout() {
+  // Every transaction write redraws the daily-budget widget. Subscribed here,
+  // for as long as the user is inside the app, rather than on Home: a payment
+  // saved back to an account screen or deleted from its detail sheet moves
+  // today's spend just as much as one added from Home, and the widget used to
+  // sit on yesterday's figure until Home happened to reload.
+  useEffect(() => startDailyBudgetSync(), []);
+
   // Recurring rules whose date has arrived are no longer auto-materialized; they
   // wait for the user to approve/reject them via the home-screen popup (see
   // usePendingRecurring + PendingRecurringModal).

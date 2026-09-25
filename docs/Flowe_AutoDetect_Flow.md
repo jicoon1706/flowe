@@ -248,8 +248,8 @@ card stays fully usable: those are half-recorded payments.
 
 Settings → Daily Budget writes `settings.daily_budget` (Supabase, migration
 `20260911_daily_budget.sql`) and mirrors it to the native side
-(`FloweNotifications.setDailyBudget`). Home pushes "today so far" whenever the month's
-transactions load (`src/services/dailyBudget.ts` → `setSpentToday`).
+(`FloweNotifications.setDailyBudget`). "Today so far" is pushed by
+`src/services/dailyBudget.ts` → `setSpentToday`.
 
 That pair lives in `BudgetStore.kt` (private `SharedPreferences`, the spend stamped with
 its local `yyyy-MM-dd` so it resets itself at midnight), and every write to it redraws
@@ -271,14 +271,48 @@ States: no budget set → `—` / "no budget" / "Set one in Flowe"; within budge
 draining clockwise from twelve; overspent → a full ring in `#ff4444` with "RM x over",
 because a blown budget is a state, not an absence. Tapping anywhere opens Flowe.
 
-The figures move when a detected expense is filed:
+### What moves the figures
+
+Two mechanisms, and the split matters: one is an instant optimistic bump, the other is the
+truth.
+
+**Optimistic, so the ring moves the moment the user acts:**
 
 - **From the shade, app closed** — `QuickCaptureReceiver` on "Expense" adds the alert's
   amount (`AmountText.firstValue`) to the native running total, which redraws the widget
   on the spot.
-- **From the app** — `save()` in `useDetectedTransactions` calls `recordBudgetExpense`
-  for the silent auto-save and island/list paths (not for shade-answered ones, which
-  already counted), and only for payments dated today.
+- **Filed by `autoFile`** — `recordBudgetExpense`, for payments dated today that weren't
+  already counted by a shade answer.
+
+**Authoritative, and this is what keeps the widget from going stale:** every transaction
+write — from anywhere — re-reads today's expense total from Supabase and pushes it.
+
+```mermaid
+graph LR
+    A1["add-transaction<br/>create / edit"] --> R
+    A2["TransactionDetail<br/>delete"] --> R
+    A3["tabung top-up<br/>/ withdrawal"] --> R
+    A4["recurring rule<br/>approved"] --> R
+    A5["autoFile<br/>(app or headless task)"] --> R
+    A6["cashflow<br/>asset transfer"] --> R
+    R["transactionsRepository<br/><code>emitTransactionsChanged()</code>"] --> S
+    S["dailyBudget.startDailyBudgetSync<br/><i>coalesced 400ms</i>"] --> Q
+    Q["<code>sumExpensesOn(today)</code>"] --> W
+    W["<code>setSpentToday</code> → BudgetStore → redraw"]
+    classDef js fill:#2a2a2a,stroke:#C5FF00,color:#fff
+    classDef done fill:#2a2a2a,stroke:#6bcf7f,color:#fff
+    class A1,A2,A3,A4,A5,A6,R,S,Q js
+    class W done
+```
+
+This replaced a single push from the Home screen, fired when its month query reloaded.
+That missed every write that didn't end back on Home — an expense saved to an account
+screen, a deletion from a detail sheet, a tabung top-up, a recurring rule — so the widget
+sat on a figure from the last time Home happened to load. It also summed *Home's month*,
+which is the wrong month on the 1st: on the first of a new month the widget read zero spent
+however much had been. The subscription lives in `app/(main)/_layout.tsx` for as long as
+the user is inside the app; the headless task calls `refreshSpentToday()` itself, since
+nothing is subscribed in that runtime.
 
 Settings → Daily Budget offers "Add to home screen" when the launcher supports
 `requestPinAppWidget` (Android 8+, most launchers), shows a confirmation line once one is
@@ -286,8 +320,8 @@ placed, and otherwise explains the long-press → Widgets route. There's no call
 the user backs out of the launcher's sheet, so the screen re-reads `isBudgetWidgetPinned`
 on every foreground.
 
-The native total is a cache; the next Home load overwrites it with the truth from
-Supabase, so a misread amount costs a slightly-off ring until the next app open, not a row.
+The native total is a cache; the next authoritative read overwrites it, so a misread
+amount costs a slightly-off ring until the next write or app open, not a row.
 
 ## 7. Filing with the app closed (headless task)
 
@@ -339,3 +373,91 @@ sequenceDiagram
   start with a silent "Saving payment…" notification. If Android refuses both, nothing is
   lost — the app files the capture on its next open, as before.
 - No session (signed out) → the task exits and leaves the queue alone.
+
+## 8. Why an alert from a bank you *do* have isn't detected
+
+Everything above is the happy path. This is the same pipeline drawn as gates, because the
+question that actually comes up is "my Maybank payment is in the bank but not in Flowe —
+where did it go?". Each ✗ below is a place a real alert disappears without a trace.
+
+```mermaid
+graph TD
+    START(["🏦 Bank app posts an alert"]) --> G1
+
+    subgraph NATIVE["Android — TransactionNotificationListenerService"]
+      G1{"Notification access granted?<br/><code>isAccessGranted</code>"}
+      G1 -- no --> D1["✗ the service never runs<br/>Settings → Auto-detect shows this"]
+      G1 -- yes --> G2{"Listener actually <b>bound</b>?<br/><code>connected</code>"}
+      G2 -- no --> D2["✗ silently unread<br/>dropped by an app update / force-stop.<br/><code>ensureListenerBound()</code> on every app start<br/>and foreground; the shade is re-swept on connect"]
+      G2 -- yes --> G3{"Auto-detect toggled on?<br/><code>CaptureStore.isEnabled</code>"}
+      G3 -- no --> D3["✗ ignored"]
+      G3 -- yes --> G4{"Package in the <b>watch list</b>?<br/><code>CaptureStore.watchedPackages</code>"}
+      G4 -- no --> D4["✗ ignored — the big one, see below"]
+      G4 -- yes --> G5{"<code>sbn.isOngoing</code>?"}
+      G5 -- yes --> D5["✗ progress, not an outcome"]
+      G5 -- no --> G6{"Any words at all?<br/><code>NotificationText.extract</code><br/>title · bigText · text · textLines ·<br/>MessagingStyle · subText · ticker"}
+      G6 -- no --> D6["✗ nothing to read"]
+      G6 -- yes --> G7{"<code>looksLikeTransaction</code><br/>names RM · not OTP/TAC ·<br/>not promo · not a due reminder"}
+      G7 -- no --> D7["✗ dropped as noise"]
+      G7 -- yes --> G8{"<code>CaptureStore.claim</code><br/>same content within 60s?"}
+      G8 -- yes --> D8["✗ treated as a replay —<br/>two identical payments a minute<br/>apart collapse into one"]
+      G8 -- no --> CAP["CaptureStore.add + shade notification<br/>+ AutoFileTask.start"]
+    end
+
+    CAP --> G9
+
+    subgraph JSSIDE["TypeScript — autoFile.ts"]
+      G9{"<code>sourceForPackage</code> knows it?<br/><code>NOTIFICATION_SOURCES</code>"}
+      G9 -- no --> D9["✗ parse returns null → capture pruned"]
+      G9 -- yes --> G10{"<code>parseTransactionNotification</code><br/>amount found after balances stripped,<br/>and a movement word present?"}
+      G10 -- no --> D10["✗ capture pruned from the queue"]
+      G10 -- yes --> G11["<code>resolveDetectedAccount</code><br/>last-4 → pinned default → single bank match"]
+      G11 --> G12{"<code>decide()</code><br/>answered in shade + account known,<br/>or <code>shouldAutoSave</code>?"}
+      G12 -- no --> PEND["⏸ shown on Home as a pending entry<br/><i>detected, but not filed</i>"]
+      G12 -- yes --> OK["✅ transactions.create<br/>dated by the alert's postTime"]
+    end
+
+    classDef drop fill:#2a2a2a,stroke:#ff6b6b,color:#fff
+    classDef gate fill:#1A1A1A,stroke:#a0a0a0,color:#fff
+    classDef done fill:#2a2a2a,stroke:#6bcf7f,color:#fff
+    classDef warn fill:#2a2a2a,stroke:#ffd93d,color:#fff
+    class D1,D2,D3,D4,D5,D6,D7,D8,D9,D10 drop
+    class G1,G2,G3,G4,G5,G6,G7,G8,G9,G10,G11,G12 gate
+    class OK,CAP done
+    class PEND warn
+```
+
+### The watch list is the gate that bites
+
+`watchedPackages` starts empty and is **not** a free-for-all: Settings → Auto-detect seeds it
+from, and prunes it back to, the apps whose alerts could actually be filed into one of the
+user's accounts (`accountsForSource` → `bankAccountsFor`). The intent is sound — watching an
+app you hold no account with can only produce detections you can't file — but it means an
+account that fails to match its bank id takes the bank's whole app out of the watch list, and
+the listener then never sees a single alert from it. Nothing surfaces: no capture, no shade
+notification, no pending entry.
+
+That is exactly what was happening, because `bank_accounts.bank_name` is written three
+different ways and `bankAccountsFor` compared them as exact strings:
+
+| Where the account was created | `bank_name` stored | `MALAYSIAN_BANKS` name | Matched? |
+|---|---|---|---|
+| Onboarding | the bank **id** — `cimb`, `hong-leong` | — | ✅ (id compared directly) |
+| Accounts screen | a **`bank_presets`** name — `CIMB`, `RHB`, `Hong Leong`, `Affin`, `Alliance` | `CIMB Bank`, `RHB Bank`, `Hong Leong Bank`, `Affin Bank`, `Alliance Bank` | ❌ |
+| Accounts screen | `Maybank`, `Public Bank`, `AmBank`, `Bank Islam`, `BSN` | identical | ✅ |
+
+So Maybank worked and CIMB / RHB / Hong Leong / Affin / Alliance did not — which reads, from
+the outside, as "Flowe detects some of my banks and not others". `bankAccountsFor` now
+compares a normalised key (lowercased, punctuation folded, the generic words `bank`,
+`banking`, `berhad`, `bhd`, `malaysia` dropped as whole words) so all three spellings meet.
+`tests/accountMatching.test.ts` pins every spelling.
+
+### The other ways a real alert goes missing
+
+| Symptom | Gate | What to check |
+|---|---|---|
+| Nothing from any app, and it used to work | `G2` | The binding lapsed after an app update. Open Flowe (`ensureListenerBound` runs on start and on the Auto-detect screen); the shade is re-swept on reconnect. |
+| One bank's alerts never arrive | `G4` | Its account's `bank_name`, per the table above — and that the app's package is in `NOTIFICATION_SOURCES`. |
+| Two identical payments, only one recorded | `G8` | `DEDUPE_WINDOW_MS` is 60s on identical content. Same merchant, same amount, inside a minute → one capture. |
+| Alert arrives but Flowe keeps asking | `G12` | `shouldAutoSave` refuses anything guessed: no last-4 in the alert *and* no pinned default, an unknown merchant, or wording that is both debit and credit (`typeConfident: false`). Pin a default account per app in Settings → Auto-detect. |
+| A card payment made inside Grab/Setel counted once | `isCrossAppDuplicate` | The merchant app and the bank both announce it; the second is refused within 3 minutes. |

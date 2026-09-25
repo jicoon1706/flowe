@@ -29,17 +29,55 @@ export function walletAccounts(accounts: any[]): any[] {
 }
 
 /**
+ * Words that say nothing about *which* bank this is. Dropping them is what
+ * lets the three spellings of the same bank Flowe stores meet in the middle:
+ * onboarding writes the bank id ('hong-leong'), the accounts screen writes the
+ * name from the `bank_presets` table ('Hong Leong'), and `MALAYSIAN_BANKS`
+ * calls it 'Hong Leong Bank'.
+ *
+ * Only ever removed as whole words, so 'Maybank' and 'AmBank' survive intact.
+ */
+const GENERIC_BANK_WORDS = new Set(['bank', 'banking', 'berhad', 'bhd', 'malaysia']);
+
+/**
+ * One bank, spelled one way.
+ *
+ * An exact string compare used to decide this, and it quietly cost the user
+ * every detection from half the banks Flowe supports: `bank_presets` seeds
+ * 'CIMB', 'RHB', 'Hong Leong', 'Affin' and 'Alliance', while `MALAYSIAN_BANKS`
+ * calls the same banks 'CIMB Bank', 'RHB Bank', 'Hong Leong Bank', 'Affin Bank'
+ * and 'Alliance Bank'. An account added from the accounts screen therefore
+ * matched nothing — so Settings → Auto-detect judged the bank's app unusable,
+ * pruned it out of the watch list, and the listener never even captured its
+ * alerts. 'Maybank' happened to be spelled identically in both, which is why
+ * only some banks were ever detected.
+ */
+function bankKey(value: string): string {
+  return value
+    .toLowerCase()
+    // Hyphens in an id, punctuation in a display name: both are just spacing.
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .filter((word) => word && !GENERIC_BANK_WORDS.has(word))
+    .join('');
+}
+
+/**
  * The user's accounts at one bank. `bank_name` is stored as the bank id by
- * onboarding but as the display name by the accounts screen, so both are
- * accepted rather than migrating rows the user can't see.
+ * onboarding, as a `bank_presets` name by the accounts screen, and shown from
+ * `MALAYSIAN_BANKS` — so all three spellings are accepted rather than migrating
+ * rows the user can't see.
  */
 export function bankAccountsFor(accounts: any[], bankId: string | undefined): any[] {
   const bankAccounts = accounts.filter((a) => a.type === 'bank');
   if (!bankId) return bankAccounts;
-  const bankName = MALAYSIAN_BANKS.find((b) => b.id === bankId)?.name.toLowerCase();
+  const wanted = new Set([bankKey(bankId)]);
+  const displayName = MALAYSIAN_BANKS.find((b) => b.id === bankId)?.name;
+  if (displayName) wanted.add(bankKey(displayName));
   return bankAccounts.filter((a) => {
-    const stored = String(embed(a.bank_accounts).bank_name ?? '').toLowerCase();
-    return stored === bankId || (!!bankName && stored === bankName);
+    const stored = String(embed(a.bank_accounts).bank_name ?? '');
+    const key = bankKey(stored);
+    return !!key && wanted.has(key);
   });
 }
 

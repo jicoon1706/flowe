@@ -116,8 +116,9 @@ iOS cannot read other apps' notifications, so `FloweNotifications.isAvailable` i
 there and the flow is inert. Detections that can't file themselves are listed on Home
 (`PendingEntriesCard`) from the shared `DetectedTransactionsProvider`. A daily budget
 (`settings.daily_budget`, Settings → Daily Budget) drives a 2×2 home-screen widget
-(`BudgetWidgetProvider.kt` + `BudgetStore.kt` + `BudgetRing.kt`), redrawn whenever a
-detected expense is filed. Full walkthrough:
+(`BudgetWidgetProvider.kt` + `BudgetStore.kt` + `BudgetRing.kt`), redrawn on every
+transaction write — `transactionsRepository` emits `onTransactionsChanged`, and
+`services/dailyBudget.ts` re-reads today's total and pushes it. Full walkthrough:
 `docs/Flowe_AutoDetect_Flow.md`.
 
 ## Design System
@@ -150,6 +151,10 @@ Component patterns:
 ## Conventions
 
 - New data access = repository method returning `Result<T>` + a hook that unwraps it; never fetch in a component.
+- Account balances are only ever moved by the `adjust_account_balance` Postgres function
+  (`applyBalanceEffect` in `transactions.repository.ts`). Never read a balance, add to it in
+  JS and write it back: auto-detect files from several runtimes at once, and that pattern
+  loses adjustments. `recalculate_account_balances` (Settings → Data) is the repair.
 - Reuse `components/ui/` primitives (`Button`, `Card`, `Input`, `ScreenHeader`, `EmptyState`, `LoadingView`, `ErrorView`) rather than restyling from scratch.
 - Row/enum types come from `src/types/database.types.ts` — extend there when the schema changes, and add a matching SQL file under `supabase/migrations/`.
 - Tests cover pure logic (parsing, matching, crypto, recurring); add specs alongside the existing ones in `tests/`.

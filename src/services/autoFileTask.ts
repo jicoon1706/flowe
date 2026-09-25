@@ -3,6 +3,7 @@ import { authRepository } from '../repositories/auth.repository';
 import { accountsRepository } from '../repositories/accounts.repository';
 import { sourceAccounts } from '../lib/detectPreferences';
 import { processQueue } from './autoFile';
+import { refreshSpentToday } from './dailyBudget';
 
 /** The key Android starts this under — must match `AutoFileTaskService.kt`. */
 export const AUTO_FILE_TASK = 'FloweAutoFile';
@@ -48,6 +49,13 @@ export async function autoFileTask(data: { captureId?: string } = {}): Promise<v
     console.log(
       `[autoFile] ${data.captureId ? `for ${data.captureId}: ` : ''}filed ${filed.length}, ${pending.length} still need input`
     );
+
+    // Filing moved today's spend, and nothing in this runtime is watching the
+    // repository's change event — the layout that subscribes only exists while
+    // the app is open. So the widget's figure is re-read from Supabase here,
+    // which also corrects the optimistic bump `fileDetected` made and anything
+    // a shade answer counted natively.
+    if (filed.length > 0) await refreshSpentToday();
   } catch (e) {
     console.warn('[autoFile] failed; queue kept:', e);
   }
