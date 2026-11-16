@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { AlertCircle, Check, ChevronLeft, Minus, Pencil, Plus, X } from 'lucide-react-native';
@@ -123,11 +123,19 @@ export default function TabungDetailScreen() {
         setTopUpAmount('');
         setTopUpNote('');
       }, 1500);
+    } else {
+      Alert.alert('Top up failed', result.error.message);
     }
   };
 
   const handleConfirmWithdraw = async () => {
     const withdrawNum = parseFloat(withdrawAmount.replace(/,/g, ''));
+    // An empty or zero field used to slip past the check below (NaN > x is
+    // false) and try to save a NaN withdrawal.
+    if (!Number.isFinite(withdrawNum) || withdrawNum <= 0) {
+      setWithdrawError('Enter an amount greater than 0');
+      return;
+    }
     if (withdrawNum > currentNum) {
       setWithdrawError('Cannot exceed current saved amount');
       return;
@@ -155,6 +163,8 @@ export default function TabungDetailScreen() {
         setWithdrawAmount('');
         setWithdrawNote('');
       }, 1500);
+    } else {
+      setWithdrawError(result.error.message || 'Withdrawal failed');
     }
   };
 
