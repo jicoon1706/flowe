@@ -152,7 +152,7 @@ export default function EntryDetailScreen() {
               }}
               className="flex-row items-center p-3 rounded-xl"
             >
-              <Pencil size={18} color="#fff" className="mr-3" />
+              <Pencil size={18} color="#fff" />
               <Text className="text-foreground">Edit</Text>
             </Pressable>
             <Pressable
@@ -162,7 +162,7 @@ export default function EntryDetailScreen() {
               }}
               className="flex-row items-center p-3 rounded-xl"
             >
-              <Trash2 size={18} color="#ff4444" className="mr-3" />
+              <Trash2 size={18} color="#ff4444" />
               <Text className="text-expense">Delete</Text>
             </Pressable>
           </View>
