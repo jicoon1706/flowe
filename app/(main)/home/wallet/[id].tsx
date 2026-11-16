@@ -4,7 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, RefreshCw, Receipt, X, AlertCircle } from '../../../../components/ui/icons';
 import { useAccounts } from '../../../../src/hooks/useAccounts';
-import { useTransactions } from '../../../../src/hooks/useTransactions';
+import { useAccountTransactions } from '../../../../src/hooks/useAccountTransactions';
+import { monthTotals } from '../../../../src/utils/accountHistory';
+import { localYMD } from '../../../../src/utils/date';
 import { accountsRepository } from '../../../../src/repositories/accounts.repository';
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
@@ -29,8 +31,8 @@ export default function WalletDetailScreen() {
   const [query, setQuery] = useState('');
 
   const { accounts, loading, error, fetchAccounts } = useAccounts();
-  const now = new Date();
-  const { transactions, loading: txLoading, error: txError, refetch: refetchTransactions } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  // The account's whole history, not just this month (AUDIT #8).
+  const { transactions, loading: txLoading, error: txError, refetch: refetchTransactions } = useAccountTransactions(typeof id === 'string' ? id : '');
   const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(useCallback(() => {
@@ -122,7 +124,7 @@ export default function WalletDetailScreen() {
 
   const accountTransactions = transactions.filter((t) => t.from_account_id === accountId || t.to_account_id === accountId);
   const trimmedQuery = query.trim().toLowerCase();
-  // Totals stay whole-account; only the history list narrows when searching.
+  // The tiles below are this month's; only the history list narrows when searching.
   const visibleTransactions = trimmedQuery
     ? accountTransactions.filter((t) =>
         [t.name, t.category, (t as any).note, String(t.amount)].some((field) =>
@@ -130,8 +132,8 @@ export default function WalletDetailScreen() {
         )
       )
     : accountTransactions;
-  const income = accountTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const expense = accountTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  // The tiles stay this month's figures, as before; only the list is full history.
+  const { income, expense } = monthTotals(accountTransactions, localYMD(new Date()).slice(0, 7));
 
   const handleTxPress = (tx: (typeof accountTransactions)[number]) => {
     const data: TransactionData = {
