@@ -2,7 +2,8 @@ import { useState , useEffect } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+// Feather has no fingerprint glyph; lucide does.
+import { Fingerprint as FingerprintIcon } from 'lucide-react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import { ProgressDots } from '../../components/ui/ProgressDots';
@@ -56,7 +57,7 @@ export default function Fingerprint() {
         <Animated.View style={pulse} className="w-24 h-24 rounded-full bg-primary/20 items-center justify-center mb-8">
           {scanning
             ? <ActivityIndicator color="#C5FF00" />
-            : <Feather name="fingerprint" size={48} color="#C5FF00" />}
+            : <FingerprintIcon size={48} color="#C5FF00" />}
         </Animated.View>
         <Text className="text-foreground text-2xl font-bold text-center">Enable Fingerprint Login</Text>
         <Text className="text-muted-foreground text-sm text-center mt-2 px-4">
