@@ -1,3 +1,5 @@
+import { logoDevUrl } from './logoDev';
+
 // Matches a transaction's name against merchants Flowe knows, so a row can show
 // the real brand mark instead of a generic icon, and a new expense can guess its
 // own category. Deliberately a plain local table: no lookup service is contacted
@@ -216,5 +218,5 @@ export function merchantLogoUrl(name: string | undefined, size = 128): string | 
   // Listed for its category only — no domain to derive a logo from, and no
   // request to make. The caller draws the category icon instead.
   if (!source.domain) return undefined;
-  return `https://www.google.com/s2/favicons?domain=${source.domain}&sz=${size}`;
+  return logoDevUrl(source.domain, size);
 }

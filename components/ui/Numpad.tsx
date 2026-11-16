@@ -1,50 +1,89 @@
-import { View, Text, Pressable } from 'react-native';
-import { Delete } from './icons';
+import { Pressable, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Delete, FingerprintPattern } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { Text } from './Text';
 
-interface NumpadProps {
-  value: string;
-  onChange: (value: string) => void;
-  maxLength?: number;
+export type NumpadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' | 'del' | 'bio';
+
+export interface NumpadProps {
+  onKey: (key: NumpadKey) => void;
+  /** 'glass' on the gradient (PIN, tabung amount); 'white' on a sheet (amount). */
+  variant?: 'glass' | 'white';
+  /** Bottom-left key: decimal point (amounts), fingerprint (lock) or nothing (PIN). */
+  extra?: 'decimal' | 'biometric' | 'none';
+  keyHeight?: number;
+  gap?: number;
+  disabled?: boolean;
 }
 
-export function Numpad({ value, onChange, maxLength = 12 }: NumpadProps) {
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'];
+const ROWS: NumpadKey[][] = [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9']];
 
-  const handlePress = (key: string) => {
-    if (key === 'del') {
-      onChange(value.slice(0, -1));
-    } else if (key === '.') {
-      if (!value.includes('.') && value.length < maxLength) {
-        onChange(value + '.');
-      }
-    } else {
-      const newValue = value + key;
-      const parts = newValue.split('.');
-      if (parts[0].length <= maxLength - (parts[1] ? parts[1].length + 1 : 0)) {
-        if (parts.length > 1 && parts[1].length > 2) return;
-        onChange(newValue);
-      }
-    }
+/** 3×4 grid of pill keys. Glass keys on the gradient, #F5F5F5 keys on white. */
+export function Numpad({ onKey, variant = 'white', extra = 'decimal', keyHeight, gap, disabled }: NumpadProps) {
+  const glass = variant === 'glass';
+  const h = keyHeight ?? (glass ? 64 : 56);
+  const g = gap ?? (glass ? 14 : 8);
+  const fill = glass ? colors.glass : colors['surface-container'];
+  const ink = glass ? colors['on-primary'] : colors['on-surface'];
+
+  const press = (k: NumpadKey) => {
+    if (disabled) return;
+    Haptics.selectionAsync().catch(() => {});
+    onKey(k);
   };
 
+  const key = (k: NumpadKey | null, i: number) => {
+    if (!k) return <View key={`blank-${i}`} style={{ flex: 1, height: h }} />;
+    const isIcon = k === 'del' || k === 'bio';
+    const label = k === 'del' ? 'Delete' : k === 'bio' ? 'Use fingerprint' : k === '.' ? 'Decimal point' : k;
+    return (
+      <Pressable
+        key={k}
+        onPress={() => press(k)}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        style={({ pressed }) => ({
+          flex: 1,
+          height: h,
+          borderRadius: 9999,
+          backgroundColor: isIcon ? 'transparent' : fill,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: pressed ? 0.6 : disabled ? 0.5 : 1,
+        })}
+      >
+        {k === 'del' ? (
+          <Delete size={24} color={ink} strokeWidth={1.75} />
+        ) : k === 'bio' ? (
+          <FingerprintPattern size={26} color={ink} strokeWidth={1.75} />
+        ) : (
+          <Text variant="body-lg" weight={500} size={24} tone="inherit" style={{ color: ink }} tabular>{k}</Text>
+        )}
+      </Pressable>
+    );
+  };
+
+  const last: (NumpadKey | null)[] = [extra === 'decimal' ? '.' : extra === 'biometric' ? 'bio' : null, '0', 'del'];
   return (
-    <View className="flex-row flex-wrap justify-between p-4">
-      {keys.map((key) => (
-        <Pressable
-          key={key}
-          onPress={() => handlePress(key)}
-          accessible
-          accessibilityLabel={key === 'del' ? 'Delete' : `Number ${key}`}
-          accessibilityRole="button"
-          className="w-[30%] h-14 rounded-2xl bg-card border border-border items-center justify-center active:scale-95 transition-transform mb-3"
-        >
-          {key === 'del' ? (
-            <Delete size={20} color="#a0a0a0" />
-          ) : (
-            <Text className="text-2xl font-medium text-foreground">{key}</Text>
-          )}
-        </Pressable>
+    <View style={{ gap: g }}>
+      {[...ROWS, last].map((row, r) => (
+        <View key={r} style={{ flexDirection: 'row', gap: g }}>
+          {row.map((k, i) => key(k, r * 3 + i))}
+        </View>
       ))}
     </View>
   );
+}
+
+/** Applies a numpad key to an amount string: max 2 decimals, max `maxIntDigits` before the point. */
+export function applyAmountKey(current: string, k: NumpadKey, maxIntDigits = 6): string {
+  if (k === 'del') return current.slice(0, -1);
+  if (k === 'bio') return current;
+  if (k === '.') return current.includes('.') ? current : (current || '0') + '.';
+  const next = current === '0' ? k : current + k;
+  const [int, dec] = next.split('.');
+  if (dec !== undefined && dec.length > 2) return current;
+  if (int.length > maxIntDigits) return current;
+  return next;
 }

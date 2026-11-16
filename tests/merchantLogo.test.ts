@@ -53,11 +53,17 @@ describe('merchantDomain()', () => {
 });
 
 describe('merchantLogoUrl()', () => {
-  it('builds a logo URL from the matched domain only', () => {
+  it('builds a logo.dev URL from the matched domain only', () => {
+    process.env.EXPO_PUBLIC_LOGO_DEV_TOKEN = 'pk_test';
     const url = merchantLogoUrl('Grab ride to office');
-    expect(url).toContain('domain=grab.com');
+    expect(url).toContain('img.logo.dev/grab.com');
     // The transaction's own text must never leave the device.
     expect(url).not.toContain('office');
+  });
+
+  it('returns undefined without a logo.dev key, so the well draws its icon', () => {
+    delete process.env.EXPO_PUBLIC_LOGO_DEV_TOKEN;
+    expect(merchantLogoUrl('Grab ride to office')).toBeUndefined();
   });
 
   it('returns undefined when nothing matches, so the caller falls back', () => {

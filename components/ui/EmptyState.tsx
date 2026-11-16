@@ -1,25 +1,39 @@
-import { View, Text, Pressable } from 'react-native';
+import type { ReactNode } from 'react';
+import { View } from 'react-native';
+import type { LucideIcon } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { Button } from './Button';
+import { Text } from './Text';
 
-interface EmptyStateProps {
-  icon?: string;
+export interface EmptyStateProps {
+  icon?: LucideIcon;
   title: string;
-  description?: string;
-  action?: { label: string; onPress: () => void };
+  body?: string;
+  ctaLabel?: string;
+  ctaIcon?: LucideIcon;
+  onCta?: () => void;
+  ctaLoading?: boolean;
+  /** Replaces the icon well (photo or ghost illustration). */
+  art?: ReactNode;
+  /** 'gradient' when drawn on the hero field (white CTA, white text). */
+  on?: 'surface' | 'gradient';
 }
 
-export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
+/** Illustration + title + one sentence + one CTA. Also used for error states ("Try again"). */
+export function EmptyState({ icon: Icon, title, body, ctaLabel, ctaIcon, onCta, ctaLoading, art, on = 'surface' }: EmptyStateProps) {
+  const g = on === 'gradient';
   return (
-    <View className="flex-1 items-center justify-center py-16 px-6">
-      {icon && <Text className="text-4xl mb-3">{icon}</Text>}
-      <Text className="text-foreground font-medium text-base text-center">{title}</Text>
-      {description && (
-        <Text className="text-muted-foreground text-sm text-center mt-1">{description}</Text>
-      )}
-      {action && (
-        <Pressable onPress={action.onPress} className="mt-4 bg-primary rounded-2xl py-3 px-6">
-          <Text className="text-primary-foreground font-semibold">{action.label}</Text>
-        </Pressable>
-      )}
+    <View style={{ alignItems: 'center', gap: 16, paddingHorizontal: 16, paddingVertical: 8 }}>
+      {art ?? (Icon ? (
+        <View style={{ width: 120, height: 120, borderRadius: 9999, backgroundColor: g ? colors.glass : colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={48} color={g ? colors['on-primary'] : colors['on-surface']} strokeWidth={1.5} />
+        </View>
+      ) : null)}
+      <Text variant="headline-md" tone={g ? 'inverse' : 'default'} align="center">{title}</Text>
+      {body ? <Text variant="body-md" tone={g ? 'soft' : 'muted'} align="center">{body}</Text> : null}
+      {ctaLabel && onCta ? (
+        <Button label={ctaLabel} icon={ctaIcon} onPress={onCta} loading={ctaLoading} variant={g ? 'white' : 'primary'} style={{ minWidth: 200 }} />
+      ) : null}
     </View>
   );
 }

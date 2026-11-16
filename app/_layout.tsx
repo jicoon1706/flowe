@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, LogBox } from 'react-native';
+import { LogBox } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 LogBox.ignoreLogs([
   '[Reanimated] Reading from `value` during component render',
@@ -20,6 +20,9 @@ import { OnboardingProvider } from '../context/OnboardingContext';
 import { AuthProvider } from '../context/AuthContext';
 import { setupNotifications } from '../src/services/notifications';
 import { loadMerchantLogos } from '../src/services/merchantLogos';
+import { fontFamily } from '../theme/tokens';
+import { ToastProvider } from '../components/ui/ToastProvider';
+import { LaunchScreen } from '../components/ui/LaunchScreen';
 
 // No 'error' state: a failed session or anonymous sign-in continues offline.
 type GateState = 'loading' | 'auth' | 'onboarding' | 'main';
@@ -29,7 +32,11 @@ export function refreshGate() { _refreshGate?.(); }
 
 export default function RootLayout() {
   const [state, setState] = useState<GateState>('loading');
-  const [fontsLoaded] = useFonts(MaterialIcons.font);
+  const [fontsLoaded] = useFonts({
+    [fontFamily.regular]: require('../assets/fonts/Inter-Regular.ttf'),
+    [fontFamily.medium]: require('../assets/fonts/Inter-Medium.ttf'),
+    [fontFamily.semibold]: require('../assets/fonts/Inter-SemiBold.ttf'),
+  });
   const router = useRouter();
   const segments = useSegments();
 
@@ -73,23 +80,20 @@ export default function RootLayout() {
   }, [state, segments, router]);
 
   return (
-    <AuthProvider>
-      <OnboardingProvider>
-        <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(onboarding)" />
-          <Stack.Screen name="(main)" />
-        </Stack>
-        {(state === 'loading' || !fontsLoaded) && (
-          <View
-            className="bg-background items-center justify-center"
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-          >
-            <ActivityIndicator color="#C5FF00" />
-          </View>
-        )}
-      </OnboardingProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <OnboardingProvider>
+          <ToastProvider>
+            <StatusBar style="light" />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(onboarding)" />
+              <Stack.Screen name="(main)" />
+            </Stack>
+            {(state === 'loading' || !fontsLoaded) && <LaunchScreen />}
+          </ToastProvider>
+        </OnboardingProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

@@ -1,56 +1,46 @@
-import { View, Text, Pressable } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import type { ReactNode } from 'react';
+import { Pressable, View } from 'react-native';
+import { ChevronRight, type LucideIcon } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { LogoWell } from './LogoWell';
+import { Text } from './Text';
 
-interface SettingsRowProps {
+export interface SettingsRowProps {
   label: string;
+  /** Meta line under the label. */
   value?: string;
   onPress?: () => void;
-  icon?: React.ReactNode;
-  danger?: boolean;
-  badge?: string;
-  badgeDanger?: boolean;
-  hasChevron?: boolean;
-  rightElement?: React.ReactNode;
+  icon?: LucideIcon;
+  /** Logo instead of an icon (auto-detect sources). */
+  domain?: string;
+  /** Trailing control (Toggle) instead of a chevron. */
+  right?: ReactNode;
+  disabled?: boolean;
+  accessibilityLabel?: string;
 }
 
-export function SettingsRow({
-  label,
-  value,
-  onPress,
-  icon,
-  danger = false,
-  badge,
-  badgeDanger = false,
-  hasChevron = true,
-  rightElement,
-}: SettingsRowProps) {
+/** 40 px icon well · label (body-lg) over meta (label-sm) · chevron or control. */
+export function SettingsRow({ label, value, onPress, icon: Icon, domain, right, disabled, accessibilityLabel }: SettingsRowProps) {
+  const body = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, opacity: disabled ? 0.5 : 1 }}>
+      {domain ? (
+        <LogoWell domain={domain} fallback={Icon} />
+      ) : Icon ? (
+        <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
+        </View>
+      ) : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text variant="body-lg" numberOfLines={1}>{label}</Text>
+        {value ? <Text variant="label-sm" tone="muted" numberOfLines={2}>{value}</Text> : null}
+      </View>
+      {right ?? (onPress ? <ChevronRight size={18} color={colors['on-surface-variant']} strokeWidth={1.75} /> : null)}
+    </View>
+  );
+  if (!onPress || right) return body;
   return (
-    <Pressable
-      accessible
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      onPress={onPress}
-      disabled={!onPress}
-      className="flex-row items-center justify-between py-3 px-1"
-    >
-      <View className="flex-row items-center gap-3">
-        {icon && <View className="w-5 h-5">{icon}</View>}
-        <Text className={`text-sm ${danger ? 'text-destructive' : 'text-foreground'}`}>
-          {label}
-        </Text>
-      </View>
-      <View className="flex-row items-center gap-2">
-        {value && (
-          <Text className="text-sm text-muted-foreground">{value}</Text>
-        )}
-        {badge && (
-          <View className={`px-2 py-0.5 rounded-full ${badgeDanger ? 'bg-destructive/20' : 'bg-income/20'}`}>
-            <Text className={`text-xs font-medium ${badgeDanger ? 'text-destructive' : 'text-income'}`}>{badge}</Text>
-          </View>
-        )}
-        {rightElement}
-        {hasChevron && onPress && <ChevronRight size={16} color="#a0a0a0" />}
-      </View>
+    <Pressable onPress={disabled ? undefined : onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+      {body}
     </Pressable>
   );
 }

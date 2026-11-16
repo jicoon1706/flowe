@@ -1,37 +1,43 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
-import { useEffect } from 'react';
+import { colors } from '@/theme/tokens';
 
-export function PinDots({ length, error }: { length: number; error?: boolean }) {
+export interface PinDotsProps {
+  /** Digits entered so far. */
+  length: number;
+  total?: number;
+  /** Increment to shake (mismatch / wrong PIN). Motion + message only, never red. */
+  errorKey?: number;
+}
+
+/** 14 px dots, 16 gap: white when filled, glass when empty. */
+export function PinDots({ length, total = 6, errorKey = 0 }: PinDotsProps) {
   const tx = useSharedValue(0);
   useEffect(() => {
-    if (error) {
-      tx.value = withSequence(
-        withTiming(-8, { duration: 60 }),
-        withTiming(8, { duration: 60 }),
-        withTiming(-6, { duration: 60 }),
-        withTiming(6, { duration: 60 }),
-        withTiming(0, { duration: 60 }),
-      );
-    }
-  }, [error]);
+    if (!errorKey) return;
+    tx.value = withSequence(
+      withTiming(-10, { duration: 50 }),
+      withTiming(10, { duration: 50 }),
+      withTiming(-8, { duration: 50 }),
+      withTiming(8, { duration: 50 }),
+      withTiming(0, { duration: 50 }),
+    );
+  }, [errorKey, tx]);
   const style = useAnimatedStyle(() => ({ transform: [{ translateX: tx.value }] }));
 
   return (
-    <Animated.View style={style} className="flex-row gap-3 justify-center my-6">
-      {Array.from({ length: 6 }).map((_, i) => {
-        const filled = i < length;
-        return (
-          <View
-            key={i}
-            style={{ transform: [{ scale: filled && !error ? 1.1 : 1 }] }}
-            className={`w-4 h-4 rounded-full border-2 ${
-              error ? 'border-destructive bg-destructive' :
-              filled ? 'border-primary bg-primary' : 'border-muted-foreground/50'
-            }`}
-          />
-        );
-      })}
+    <Animated.View
+      style={[{ flexDirection: 'row', gap: 16, justifyContent: 'center' }, style]}
+      accessible
+      accessibilityLabel={`${length} of ${total} digits entered`}
+    >
+      {Array.from({ length: total }).map((_, i) => (
+        <View
+          key={i}
+          style={{ width: 14, height: 14, borderRadius: 9999, backgroundColor: i < length ? colors['on-primary'] : colors.glass }}
+        />
+      ))}
     </Animated.View>
   );
 }

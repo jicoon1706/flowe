@@ -1,19 +1,13 @@
-import { View, Text } from 'react-native';
+import type { ReactNode } from 'react';
+import { View } from 'react-native';
+import { Text } from './Text';
 
-interface SettingsGroupProps {
-  title: string;
-  children: React.ReactNode;
-}
-
-export function SettingsGroup({ title, children }: SettingsGroupProps) {
+/** Group label (label-sm muted) over a column of rows. No card, no borders. */
+export function SettingsGroup({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <View className="mb-6">
-      <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold px-4 mb-2">
-        {title}
-      </Text>
-      <View className="bg-card border border-border rounded-2xl mx-4 px-4">
-        {children}
-      </View>
+    <View>
+      {title ? <Text variant="label-sm" tone="muted" style={{ paddingHorizontal: 4, paddingBottom: 8 }} accessibilityRole="header">{title}</Text> : null}
+      <View style={{ gap: 4 }}>{children}</View>
     </View>
   );
 }
