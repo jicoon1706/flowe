@@ -117,6 +117,11 @@ export default function AddTransactionScreen() {
   const [reminder, setReminder] = useState('none');
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const [note, setNote] = useState((searchParams.note as string) ?? '');
+  // One save at a time. Submitting awaits the insert, a refetch and a
+  // notification before it navigates away, and a second tap in that window
+  // used to file the same transaction (and move the balance) twice.
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
   const [receiptImage, setReceiptImage] = useState<{ uri: string; base64: string } | null>(null);
 
   const { user } = useAuth();
@@ -368,6 +373,18 @@ export default function AddTransactionScreen() {
   }
 
   async function handleSubmit() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      await submitTransaction();
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function submitTransaction() {
     if (!amount || !name) {
       Alert.alert('Missing fields', 'Please enter an amount and name.');
       return;
@@ -1024,6 +1041,7 @@ export default function AddTransactionScreen() {
           <Button
             title={isEdit ? 'Save Changes' : type === 'transfer' ? 'Transfer' : 'Submit'}
             onPress={handleSubmit}
+            loading={submitting}
             variant="primary"
             size="lg"
             className="mb-6"
