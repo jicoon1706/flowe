@@ -174,7 +174,8 @@ function findLast4(text: string): string | undefined {
  */
 function findMerchant(text: string): string | undefined {
   const patterns = [
-    /(?:at|to|from)\s+([A-Z0-9][A-Za-z0-9&'’.\- ]{2,40}?)(?=\s+(?:on|for|via|using|with)\b|[.,!]|$)/,
+    // Stops before a trailing status word too: "to TNB successful" names TNB.
+    /(?:at|to|from)\s+([A-Z0-9][A-Za-z0-9&'’.\- ]{2,40}?)(?=\s+(?:on|for|via|using|with|successful(?:ly)?|berjaya|completed|approved|is|was|has)\b|[.,!]|$)/,
     /merchant[:\s]+([A-Za-z0-9&'’.\- ]{2,40})/i,
   ];
   for (const pattern of patterns) {

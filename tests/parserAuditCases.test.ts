@@ -25,3 +25,14 @@ describe('card names do not count as direction words', () => {
   });
 });
 
+// AUDIT #15: a trailing status word is not part of the merchant's name.
+describe('merchant names stop before status words', () => {
+  it.each([
+    ['Payment of RM 1,234.50 to TNB successful.', 'TNB'],
+    ['Debit card purchase of RM 12.00 at KFC successful.', 'KFC'],
+    ['DuitNow QR RM 15.00 to KEDAI RUNCIT ALI berjaya', 'KEDAI RUNCIT ALI'],
+    ['You paid RM 8.00 to ALI was completed', 'ALI'],
+  ])('%s → %s', (text, merchant) => {
+    expect(parseTransactionNotification(raw(text))?.merchant).toBe(merchant);
+  });
+});
