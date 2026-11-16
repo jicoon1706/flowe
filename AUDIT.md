@@ -18,7 +18,7 @@ This is the bar: nothing that passes now may fail, and the error/warning counts 
 |---|---|---|
 | `npx tsc --noEmit` | 159 errors (41 in app code) | **118 errors, 0 in app code.** All 118 are in `prototype/` (107) and the Deno Edge Functions (11), which the app's tsconfig isn't set up for. Still exit 2 because of those. |
 | `npm run lint` | 0 errors, 48 warnings | 0 errors, 46 warnings |
-| `npm test` | 19 suites / 176 tests passing | **25 suites / 209 tests passing** (new: `updateWithBalance`, `shiftMonth`, `parserAuditCases`, `pinVerify`, `ruleFromTransaction`, `accountHistory`) |
+| `npm test` | 19 suites / 176 tests passing | **25 suites / 212 tests passing** (new: `updateWithBalance`, `shiftMonth`, `parserAuditCases`, `pinVerify`, `ruleFromTransaction`, `accountHistory`) |
 
 No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest before it was committed.
 
@@ -29,7 +29,7 @@ No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest 
 **Account history (#8), approved 2026-11-16.**
 - **List:** bank and wallet pages now list every transaction for the account, through a new `useAccountTransactions` hook over the existing `fetchByAccount`. This is the same source tabung pages already used.
 - **Tiles:** the Income / Expense tiles still show this month's totals, so the figures users already see don't change.
-- **Known gap:** list rows show the date without a year ("16 Nov"), which is now ambiguous for older entries. I left that UI as it is.
+- **Dates on rows:** rows from this year show "16 Nov"; rows from any other year show "16 Nov 2025" (`6277b94`, approved 2026-11-16). The date is read as a local day rather than parsed as UTC.
 
 **Recurring from Add Transaction (#4), approved 2026-11-16.**
 - **What happens:** switching Recurring on now saves a rule alongside the transaction.
