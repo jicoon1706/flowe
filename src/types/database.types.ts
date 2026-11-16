@@ -78,6 +78,13 @@ export interface WalletAccount {
   current_balance: number;
 }
 
+/** An `accounts` row as `accountsRepository.fetchAllActive` returns it, with its typed detail row joined. */
+export interface AccountWithDetails extends Account {
+  bank_accounts?: BankAccount | null;
+  wallet_accounts?: WalletAccount | null;
+  tabung_accounts?: TabungAccount | null;
+}
+
 export interface BankAccountFull extends Account {
   bank_accounts: BankAccount;
 }

@@ -19,7 +19,7 @@ import { useTransactions } from '../../src/hooks/useTransactions';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
 import { useReceiptScan } from '../../src/hooks/useReceiptScan';
 import { useAssets } from '../../src/hooks/useAssets';
-import type { ReceiptData } from '../../src/types';
+import type { ReceiptData, AccountWithDetails } from '../../src/types';
 import { useAuth } from '../../context/AuthContext';
 import { useLock } from '../../context/LockContext';
 import { accountColor } from '../../src/utils/accountColor';
@@ -417,7 +417,7 @@ export default function AddTransactionScreen() {
 
     // Balance check for every type where money leaves the source account.
     if (type === 'expense' || type === 'transfer') {
-      const src = accounts.find((a: any) => a.id === account);
+      const src = accounts.find((a) => a.id === account) as AccountWithDetails | undefined;
       const srcBalance = Number(
         src?.type === 'bank'
           ? src?.bank_accounts?.current_balance ?? 0
