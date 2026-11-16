@@ -1,5 +1,6 @@
 import * as FloweNotifications from '../../modules/flowe-notifications';
 import { localYMD } from '../utils/date';
+import { effectiveLiveMode, type LiveBudgetMode } from '../lib/budget';
 import {
   transactionsRepository,
   onTransactionsChanged,
@@ -39,13 +40,35 @@ export function syncDailyBudget(budget: number | null): void {
  */
 export async function refreshSpentToday(): Promise<void> {
   if (!FloweNotifications.isAvailable) return;
-  const today = localYMD(new Date());
-  const result = await transactionsRepository.sumExpensesOn(today);
+  const now = new Date();
+  const today = localYMD(now);
+  const monthStartYmd = localYMD(new Date(now.getFullYear(), now.getMonth(), 1));
+  // The live notification greys its figures while this runs (q-live-update-syncing).
+  FloweNotifications.setSyncing(true);
+  const [day, month] = await Promise.all([
+    transactionsRepository.sumExpensesOn(today),
+    transactionsRepository.sumExpensesBetween(monthStartYmd, today),
+  ]);
+  FloweNotifications.setSyncing(false);
   // Offline, or signed out: leave the stored figure alone rather than drawing a
   // zero the user would read as "nothing spent today". What the native side has
   // is whatever the last successful read plus any shade answers since left it.
-  if (!result.ok) return;
-  FloweNotifications.setSpentToday(result.data, today);
+  if (day.ok) FloweNotifications.setSpentToday(day.data, today);
+  if (month.ok) FloweNotifications.setSpentMonth(month.data, today.slice(0, 7));
+}
+
+/**
+ * Pushes both limits and the live-update mode to the native side (widgets and
+ * the pinned live budget notification), then re-reads the spend figures. The
+ * mode is narrowed to what the limits allow, so "Both" with no monthly limit
+ * shows the daily figure rather than an empty bar.
+ */
+export function syncBudgetLimits(daily: number | null, monthly: number | null, mode: LiveBudgetMode): void {
+  if (!FloweNotifications.isAvailable) return;
+  FloweNotifications.setDailyBudget(daily);
+  FloweNotifications.setMonthlyBudget(monthly);
+  FloweNotifications.setLiveBudgetMode(effectiveLiveMode(mode, daily, monthly));
+  refreshSpentToday();
 }
 
 let unsubscribe: (() => void) | null = null;

@@ -1,318 +1,218 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { MessageCircle } from 'lucide-react-native';
-import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { Card } from '../../../components/ui/Card';
-import { CashFlowPatternDiagram } from '../../../components/cashflow/CashFlowPatternDiagram';
+import { useCallback, useMemo, useState } from 'react';
+import { RefreshControl, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Plus, RefreshCw, Shield, Workflow } from 'lucide-react-native';
+import { colors, radius } from '@/theme/tokens';
+import { assetTypeOption, liabilityTypeOption } from '@/constants/balanceSheetTypes';
+import { AssetSheet, type AssetInput } from '@/components/cashflow/AssetSheet';
+import { CashFlowDiagram } from '@/components/cashflow/CashFlowDiagram';
+import { CashFlowPatternDiagram } from '@/components/cashflow/CashFlowPatternDiagram';
+import { StatementLine } from '@/components/cashflow/StatementLine';
+import { LiabilitySheet, type LiabilityInput } from '@/components/cashflow/LiabilitySheet';
+import { Button } from '@/components/ui/Button';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { FullScreenModal } from '@/components/ui/FullScreenModal';
+import { GlassChip } from '@/components/ui/GlassChip';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { Money } from '@/components/ui/Money';
+import { SettingsRow } from '@/components/ui/SettingsRow';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Text } from '@/components/ui/Text';
+import { TopBar } from '@/components/ui/TopBar';
+import { TransactionRow } from '@/components/ui/TransactionRow';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useAuth } from '@/context/AuthContext';
+import { useLock } from '@/context/LockContext';
+import { useAccounts } from '@/src/hooks/useAccounts';
+import { useAssets } from '@/src/hooks/useAssets';
+import { useLiabilities } from '@/src/hooks/useLiabilities';
+import { useRecurring } from '@/src/hooks/useRecurring';
+import { useTransactions } from '@/src/hooks/useTransactions';
+import { transactionsRepository } from '@/src/repositories/transactions.repository';
+import { CLASS_LABEL, coverRatio, financialClass } from '@/src/lib/cashflow';
+import { formatRM } from '@/src/lib/money';
+import { sumBalances, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
+import { localYMD } from '@/src/utils/date';
+import type { Asset, Liability } from '@/src/types';
 
-type PatternKey = 'poor' | 'middle' | 'rich';
-
-const patterns: Record<PatternKey, {
-  emoji: string;
-  label: string;
-  shortLabel: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  title: string;
-  flowPath: string;
-  description: string;
-  image: any;
-  keyFacts: string[];
-  richDadQuote: string;
-  actionLabel: string;
-  action: string;
-  comparisonFlow: string;
-}> = {
-  poor: {
-    emoji: '😟',
-    label: 'Poor',
-    shortLabel: 'Poor',
-    color: '#ff6b6b',
-    bgColor: 'bg-expense/10',
-    borderColor: 'border-expense/30',
-    title: 'The Poor Cash Flow Pattern',
-    flowPath: 'Income → Expenses',
-    description:
-      "A poor person's entire income flows directly into expenses — rent, food, transport, clothes. There are no assets being built and no liabilities. Every ringgit earned is spent. The balance sheet stays empty.",
-    image: require('../../../assets/images/cashflow/poor.png'),
-    keyFacts: [
-      'All income comes from a job (active income)',
-      'Every ringgit goes straight to daily expenses',
-      'No assets accumulating in the balance sheet',
-      'No investment or savings habit',
-      'Financial stress increases when job is lost',
-    ],
-    richDadQuote:
-      '"The poor and the middle class work for money. The rich have money work for them."',
-    actionLabel: 'First Step',
-    action:
-      'Start by saving 10% of every paycheck before spending. Open an ASB or fixed deposit account. Even RM 50/month builds the asset habit.',
-    comparisonFlow: 'Job → Income → Expenses',
-  },
-  middle: {
-    emoji: '😐',
-    label: 'Middle',
-    shortLabel: 'Middle',
-    color: '#ffd93d',
-    bgColor: 'bg-yellow-500/10',
-    borderColor: 'border-yellow-500/30',
-    title: 'The Middle Class Cash Flow Pattern',
-    flowPath: 'Income → Liabilities → Expenses',
-    description:
-      'The middle class earns more but also borrows more. Their income goes to expenses AND to monthly liability payments (mortgage, car loan, credit cards). Liabilities drain income back out — creating a treadmill that keeps them trapped.',
-    image: require('../../../assets/images/cashflow/middle.png'),
-    keyFacts: [
-      'Income mainly from salary (still active income)',
-      'Liabilities (loans) create monthly payment obligations',
-      'Payments on liabilities drain income like expenses',
-      'The more they earn, the more liabilities they take on',
-      'Assets column exists but mostly lifestyle assets (car, house)',
-    ],
-    richDadQuote:
-      '"The middle class buys liabilities that they think are assets — a house, a new car, appliances."',
-    actionLabel: 'Key Rule',
-    action:
-      'Before taking any new loan, ask: "Does this asset generate income or drain it?" Focus on building income-generating assets, not lifestyle upgrades.',
-    comparisonFlow: 'Job → Income → Liabilities → Expenses',
-  },
-  rich: {
-    emoji: '💎',
-    label: 'Rich',
-    shortLabel: 'Rich',
-    color: '#C5FF00',
-    bgColor: 'bg-primary/10',
-    borderColor: 'border-primary/30',
-    title: 'The Rich Cash Flow Pattern',
-    flowPath: 'Assets → Income → Assets',
-    description:
-      'The rich build an asset column first — real estate, stocks, business interests. These assets generate passive income (rental, dividends, royalties). That income covers expenses and the surplus is reinvested into more assets. The cycle self-compounds.',
-    image: require('../../../assets/images/cashflow/rich.png'),
-    keyFacts: [
-      'Income comes FROM assets, not from a job',
-      'Rental income, dividends, royalties flow into income',
-      'Expenses are paid by passive income — not active work',
-      'Surplus income is reinvested into more assets',
-      'The asset column grows continuously and automatically',
-    ],
-    richDadQuote:
-      '"Rich people acquire assets. The poor and middle class acquire liabilities they think are assets."',
-    actionLabel: 'Start Here',
-    action:
-      'Start by acquiring ONE income-generating asset: a unit trust, ASB, or rental property. When it generates RM 1 passively, you\'ve started the rich pattern.',
-    comparisonFlow: 'Assets → Income → Expenses + More Assets',
-  },
-};
-
-const comparisonData = [
-  { label: 'Primary Income', poor: 'Salary only', middle: 'Salary + some passive', rich: 'Mostly passive' },
-  { label: 'Assets vs Liabilities', poor: 'Neither', middle: 'More liabilities', rich: 'More assets' },
-  { label: 'Financial Freedom', poor: 'None', middle: 'Limited', rich: 'Full freedom' },
-  { label: 'Money Mindset', poor: 'Earn to spend', middle: 'Earn to buy assets', rich: 'Assets earn for me' },
-];
-
-export default function CashFlowGuideScreen() {
+/**
+ * cashflow/info — income statement + balance sheet, class badge on the hero
+ * (tap → patterns), diagram card, Add asset / Add liability sheets.
+ */
+export default function CashflowInfoScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<PatternKey>('poor');
+  const toast = useToast();
+  const { user } = useAuth();
+  const { locked } = useLock();
+  const now = new Date();
+  const { income, expenses, loading: txLoading, refetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { assets, loading: aLoading, error: aError, fetchAssets, createAsset, updateAsset, deleteAsset } = useAssets();
+  const { liabilities, loading: lLoading, error: lError, fetchLiabilities, createLiability, updateLiability, deleteLiability } = useLiabilities();
+  const { accounts, fetchAccounts } = useAccounts();
+  const { createRecurring } = useRecurring();
+  const [assetSheet, setAssetSheet] = useState<{ initial: Asset | null } | null>(null);
+  const [liabSheet, setLiabSheet] = useState<{ initial: Liability | null } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ kind: 'asset' | 'liability'; id: string; name: string } | null>(null);
+  const [diagram, setDiagram] = useState(false);
+  const [patterns, setPatterns] = useState(false);
+  const [fetched, setFetched] = useState(false);
 
-  const activePattern = patterns[activeTab];
+  const load = useCallback(async () => {
+    await Promise.all([fetchAssets(), fetchLiabilities(), fetchAccounts(), refetch()]);
+    setFetched(true);
+  }, [fetchAssets, fetchLiabilities, fetchAccounts, refetch]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const all = accounts as AnyAccount[];
+  const cash = sumBalances(all);
+  const assetValue = assets.reduce((s, a) => s + Number(a.current_value), 0);
+  const totalAssets = cash + assetValue;
+  const totalLiab = liabilities.reduce((s, l) => s + Number(l.amount_owed), 0);
+  const passive = assets.reduce((s, a) => s + Number(a.monthly_income || 0), 0);
+  const totalIncome = income.reduce((s, t) => s + Number(t.amount), 0);
+  const totalExpenses = expenses.reduce((s, t) => s + Number(t.amount), 0);
+  const cls = financialClass(totalAssets, passive, totalExpenses);
+  const ratio = coverRatio(totalAssets, totalLiab);
+  const monthShort = now.toLocaleDateString('en-MY', { month: 'short' });
+  const incomeDetail = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const t of income) by.set(t.category || 'Other', (by.get(t.category || 'Other') ?? 0) + Number(t.amount));
+    return [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, v]) => `${k.charAt(0).toUpperCase()}${k.slice(1)} ${Math.round(v).toLocaleString('en-MY')}`).join(' · ') || 'No income yet';
+  }, [income]);
+  const assetsLabel = ['cash', ...assets.slice(0, 2).map((a) => a.name)].join(' + ');
+  const liabLabel = liabilities.slice(0, 2).map((l) => l.name).join(' + ') || 'none';
+  const firstLoad = (aLoading || lLoading || txLoading) && !fetched;
+
+  const saveAsset = async (a: AssetInput) => {
+    if (!user) return false;
+    const editing = assetSheet?.initial;
+    const res = editing
+      ? await updateAsset(editing.id, { name: a.name, type: a.type, icon: a.iconKey, current_value: a.value, quantity: a.quantity, unit: a.unit, monthly_income: a.monthlyIncome, note: a.note }, a.asOfMonth)
+      : await createAsset({ user_id: user.id, name: a.name, type: a.type, icon: a.iconKey, current_value: a.value, quantity: a.quantity, unit: a.unit, monthly_income: a.monthlyIncome, note: a.note, as_of_month: a.asOfMonth });
+    if (!res.ok) { toast.failure(editing ? 'Couldn’t save asset' : 'Couldn’t add asset', { label: 'Retry', onPress: () => saveAsset(a) }); return false; }
+    if (a.fundFromAccountId && a.contribution > 0) {
+      const tx = await transactionsRepository.create({
+        user_id: user.id, type: 'transfer', name: editing ? `Top-up ${a.name}` : `Into ${a.name}`, amount: a.contribution,
+        category: a.name, from_account_id: a.fundFromAccountId, date: localYMD(new Date()), asset_id: editing ? editing.id : res.ok ? (res.data as Asset).id : undefined,
+      });
+      if (!tx.ok) toast.failure('Asset saved, but the account wasn’t charged');
+    }
+    toast.success(editing ? 'Asset updated' : `Asset added · ${a.name}`);
+    load();
+    return true;
+  };
+
+  const saveLiability = async (l: LiabilityInput) => {
+    if (!user) return false;
+    const editing = liabSheet?.initial;
+    const res = editing
+      ? await updateLiability(editing.id, { name: l.name, type: l.type, icon: l.iconKey, amount_owed: l.amountOwed, monthly_payment: l.monthlyPayment, interest_rate: l.interestRate }, l.asOfMonth)
+      : await createLiability({ user_id: user.id, name: l.name, type: l.type, icon: l.iconKey, amount_owed: l.amountOwed, monthly_payment: l.monthlyPayment, interest_rate: l.interestRate, as_of_month: l.asOfMonth });
+    if (!res.ok) { toast.failure(editing ? 'Couldn’t save liability' : 'Couldn’t add liability', { label: 'Retry', onPress: () => saveLiability(l) }); return false; }
+    if (l.addRecurring) {
+      const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const rule = await createRecurring({ user_id: user.id, type: 'expense', name: l.name, amount: l.monthlyPayment, category: 'bills', frequency: 'monthly', start_date: localYMD(next), next_date: localYMD(next) });
+      if (!rule.ok) toast.failure('Saved, but the recurring bill wasn’t added');
+    }
+    toast.success(editing ? 'Liability updated' : `Liability added · ${l.name}`);
+    load();
+    return true;
+  };
+
+  const remove = async () => {
+    if (!confirmDelete) return;
+    const res = confirmDelete.kind === 'asset' ? await deleteAsset(confirmDelete.id) : await deleteLiability(confirmDelete.id);
+    if (!res.ok) { toast.failure('Delete failed', { label: 'Retry', onPress: remove }); return; }
+    setConfirmDelete(null);
+    toast.success(`${confirmDelete.name} removed`);
+    load();
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScreenHeader
-        title="Cash Flow Guide"
-        onBack={() => router.back()}
-      />
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Kiyosaki Wisdom Quote */}
-        <View className="px-4 mb-4">
-          <Card>
-            <Text className="text-sm text-muted-foreground italic mb-2">
-              {'"The cash flow pattern of an asset puts money in your pocket. The cash flow pattern of a liability takes money from your pocket."'}
-            </Text>
-            <Text className="text-xs text-primary font-semibold">
-              — Robert Kiyosaki, Rich Dad Poor Dad
-            </Text>
-          </Card>
-        </View>
-
-        {/* Pattern Tabs */}
-        <View className="px-4 mb-4">
-          <View className="flex-row bg-card rounded-2xl p-1">
-            {(['poor', 'middle', 'rich'] as PatternKey[]).map((key) => {
-              const isActive = activeTab === key;
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => setActiveTab(key)}
-                  className={`flex-1 py-2 rounded-xl ${isActive ? `${patterns[key].bgColor} border ${patterns[key].borderColor}` : ''}`}
-                >
-                  <Text
-                    className="text-sm font-semibold text-center"
-                    style={{ color: isActive ? patterns[key].color : '#9ca3af' }}
-                  >
-                    {patterns[key].emoji} {patterns[key].shortLabel}
-                  </Text>
-                </Pressable>
-              );
-            })}
+    <HeroScreen
+      heroHeight={300}
+      refreshControl={<RefreshControl refreshing={(aLoading || lLoading) && fetched} onRefresh={load} tintColor={colors['on-primary']} />}
+      hero={
+        <View>
+          <TopBar title="Cashflow info" onBack={() => router.back()} />
+          <View style={{ alignItems: 'center', gap: 12, marginTop: 28 }}>
+            {firstLoad ? (
+              <><Skeleton width={90} height={14} tone="glass" /><Skeleton width={240} height={56} tone="glass" /></>
+            ) : (
+              <>
+                <Text variant="body-lg" tone="soft">Net worth</Text>
+                <Money amount={totalAssets - totalLiab} variant="numeric-lg" on="gradient" smallCurrency masked={locked} />
+                <GlassChip icon={Shield} label={`${CLASS_LABEL[cls]}${ratio ? ` · assets cover ${ratio}× debts` : ''}`} onPress={() => setPatterns(true)} accessibilityLabel={`${CLASS_LABEL[cls]}. Show cash flow patterns`} />
+              </>
+            )}
           </View>
         </View>
-
-        {/* Pattern Description */}
-        <View className="px-4 mb-4">
-          <Card className={`${activePattern.bgColor} border ${activePattern.borderColor}`}>
-            <View className="flex-row items-start gap-3 mb-2">
-              <Text className="text-2xl">{activePattern.emoji}</Text>
-              <View className="flex-1">
-                <Text className="text-lg font-bold" style={{ color: activePattern.color }}>
-                  {activePattern.title}
-                </Text>
-                <Text className="text-xs text-muted-foreground mt-0.5">
-                  {activePattern.flowPath}
-                </Text>
-              </View>
-            </View>
-            <Text className="text-sm text-foreground leading-5">
-              {activePattern.description}
-            </Text>
-          </Card>
+      }
+      overlay={
+        <>
+          <AssetSheet visible={!!assetSheet} initial={assetSheet?.initial ?? null} accounts={spendableAccounts(all)} onClose={() => setAssetSheet(null)} onSubmit={saveAsset}
+            onDelete={() => { const a = assetSheet?.initial; if (a) { setAssetSheet(null); setConfirmDelete({ kind: 'asset', id: a.id, name: a.name }); } }} />
+          <LiabilitySheet visible={!!liabSheet} initial={liabSheet?.initial ?? null} onClose={() => setLiabSheet(null)} onSubmit={saveLiability}
+            onDelete={() => { const l = liabSheet?.initial; if (l) { setLiabSheet(null); setConfirmDelete({ kind: 'liability', id: l.id, name: l.name }); } }} />
+          <ConfirmSheet
+            visible={!!confirmDelete}
+            title={`Remove ${confirmDelete?.name ?? ''}?`}
+            message={`It leaves your balance sheet and net worth. Transactions you made into it stay in your history.`}
+            confirmLabel="Remove"
+            loadingLabel="Removing…"
+            onConfirm={remove}
+            onCancel={() => setConfirmDelete(null)}
+          />
+          <FullScreenModal visible={diagram} title="Cash flow diagram" onClose={() => setDiagram(false)}>
+            <CashFlowDiagram
+              income={{ label: 'Income', amount: totalIncome, detail: incomeDetail }}
+              expenses={{ label: 'Expenses', amount: totalExpenses, detail: totalExpenses ? 'Food, bills, transport…' : 'No spending yet' }}
+              assets={{ label: 'Assets', amount: totalAssets, detail: [`Cash ${cash.toLocaleString('en-MY', { minimumFractionDigits: 2 })}`, ...assets.slice(0, 2).map((a) => `${a.name} ${Math.round(Number(a.current_value)).toLocaleString('en-MY')}`)].join(' · ') }}
+              liabilities={{ label: 'Liabilities', amount: totalLiab, detail: liabLabel }}
+              assetFlow={passive > 0 ? `${assets.filter((a) => Number(a.monthly_income) > 0).map((a) => a.name).slice(0, 2).join(', ')} income` : null}
+              liabilityFlow={liabilities.find((l) => Number(l.monthly_payment) > 0) ? `${liabilities.find((l) => Number(l.monthly_payment) > 0)?.name} ${formatRM(Number(liabilities.find((l) => Number(l.monthly_payment) > 0)?.monthly_payment))}/mo` : null}
+              passiveIncome={passive}
+              totalExpenses={totalExpenses}
+            />
+          </FullScreenModal>
+          <FullScreenModal visible={patterns} title="Cash flow patterns" onClose={() => setPatterns(false)}>
+            <CashFlowPatternDiagram current={cls} />
+          </FullScreenModal>
+        </>
+      }
+    >
+      {(aError || lError) && !assets.length && !liabilities.length && fetched ? (
+        <EmptyState icon={RefreshCw} title="Couldn’t load your balance sheet" body="Check your connection and try again." ctaLabel="Try again" onCta={load} />
+      ) : null}
+      <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
+        <Text variant="label-lg">Income statement · {monthShort}</Text>
+        <StatementLine label="Income" amount={totalIncome} direction="income" masked={locked} />
+        <StatementLine label="Expenses" amount={totalExpenses} direction="expense" masked={locked} />
+        <View style={{ height: 1, backgroundColor: colors['surface-container-high'] }} />
+        <StatementLine label="Net cashflow" amount={Math.abs(totalIncome - totalExpenses)} direction={totalIncome - totalExpenses >= 0 ? 'income' : 'expense'} masked={locked} />
+      </View>
+      <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
+        <Text variant="label-lg">Balance sheet</Text>
+        <StatementLine label={`Assets · ${assetsLabel}`} amount={totalAssets} masked={locked} />
+        <StatementLine label={`Liabilities · ${liabLabel}`} amount={totalLiab} masked={locked} />
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+          <Button label="Add asset" icon={Plus} variant="white" height={44} onPress={() => setAssetSheet({ initial: null })} style={{ flex: 1 }} />
+          <Button label="Add liability" icon={Plus} variant="white" height={44} onPress={() => setLiabSheet({ initial: null })} style={{ flex: 1 }} />
         </View>
-
-        {/* Cash Flow Pattern Image */}
-        <View className="px-4 mb-4">
-          <Card className="items-center py-6">
-            <Text className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: activePattern.color }}>
-              — Cash Flow Pattern —
-            </Text>
-            <CashFlowPatternDiagram pattern={activeTab} />
-            <Text className="text-xs text-muted-foreground mt-4">
-              Watch the money flow ↑
-            </Text>
-          </Card>
+      </View>
+      {assets.length || liabilities.length ? (
+        <View>
+          {assets.map((a) => (
+            <TransactionRow key={a.id} title={a.name} meta={`${assetTypeOption(a.type).label}${Number(a.monthly_income) ? ` · ${formatRM(Number(a.monthly_income))}/mo` : ''}`} amount={Number(a.current_value)} direction="none" icon={assetTypeOption(a.type).icon} masked={locked} onPress={() => setAssetSheet({ initial: a })} />
+          ))}
+          {liabilities.map((l) => (
+            <TransactionRow key={l.id} title={l.name} meta={`${liabilityTypeOption(l.type).label}${Number(l.monthly_payment) ? ` · ${formatRM(Number(l.monthly_payment))}/mo` : ''}`} amount={Number(l.amount_owed)} direction="expense" icon={liabilityTypeOption(l.type).icon} masked={locked} onPress={() => setLiabSheet({ initial: l })} />
+          ))}
         </View>
-
-        {/* Key Characteristics */}
-        <View className="px-4 mb-4">
-          <Card>
-            <Text className="text-sm font-bold text-foreground mb-3">
-              Key Characteristics
-            </Text>
-            {activePattern.keyFacts.map((fact, index) => (
-              <View key={index} className="flex-row items-start gap-3 py-1.5">
-                <View
-                  className="w-1.5 h-1.5 rounded-full mt-2"
-                  style={{ backgroundColor: activePattern.color }}
-                />
-                <Text className="text-sm text-foreground flex-1 leading-5">{fact}</Text>
-              </View>
-            ))}
-          </Card>
-        </View>
-
-        {/* Rich Dad Says */}
-        <View className="px-4 mb-4">
-          <Card className={`border ${activePattern.borderColor}`}>
-            <View className="flex-row items-center gap-2 mb-2">
-              <MessageCircle size={14} color={activePattern.color} />
-              <Text className="text-xs font-semibold" style={{ color: activePattern.color }}>
-                Rich Dad Says
-              </Text>
-            </View>
-            <Text className="text-sm text-muted-foreground italic">
-              {activePattern.richDadQuote}
-            </Text>
-          </Card>
-        </View>
-
-        {/* Action for you */}
-        <View className="px-4 mb-4">
-          <View className={`bg-card border ${activePattern.borderColor} rounded-2xl p-4`}>
-            <View className="flex-row items-center gap-2 mb-2">
-              <View
-                className="px-2 py-1 rounded-full"
-                style={{ backgroundColor: `${activePattern.color}26` }}
-              >
-                <Text className="text-xs font-semibold" style={{ color: activePattern.color }}>
-                  {activePattern.actionLabel}
-                </Text>
-              </View>
-              <Text className="text-xs text-muted-foreground">Action for you</Text>
-            </View>
-            <Text className="text-sm text-foreground leading-5">{activePattern.action}</Text>
-          </View>
-        </View>
-
-        {/* Pattern Comparison (flow paths) */}
-        <View className="px-4 mb-4">
-          <Card>
-            <Text className="text-sm font-bold text-foreground mb-3">Pattern Comparison</Text>
-            {(['poor', 'middle', 'rich'] as PatternKey[]).map((key, index) => {
-              const p = patterns[key];
-              return (
-                <View
-                  key={key}
-                  className={`flex-row items-center gap-3 py-3 ${index !== 2 ? 'border-b border-border' : ''}`}
-                >
-                  <Text className="text-xl">{p.emoji}</Text>
-                  <View className="flex-1">
-                    <Text className="text-sm font-semibold" style={{ color: p.color }}>
-                      {p.label}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground mt-0.5">
-                      {p.comparisonFlow}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </Card>
-        </View>
-
-        {/* Detailed Comparison Table */}
-        <View className="px-4 mb-8">
-          <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3 px-4">
-            Detailed Comparison
-          </Text>
-          <Card className="p-0">
-            <View className="flex-row bg-card border-b border-border">
-              <View className="flex-1 p-3">
-                <Text className="text-xs font-semibold text-muted-foreground">Attribute</Text>
-              </View>
-              <View className="flex-1 p-3 border-l border-border">
-                <Text className="text-xs font-semibold text-muted-foreground">Poor</Text>
-              </View>
-              <View className="flex-1 p-3 border-l border-border">
-                <Text className="text-xs font-semibold text-muted-foreground">Middle</Text>
-              </View>
-              <View className="flex-1 p-3 border-l border-border">
-                <Text className="text-xs font-semibold text-primary">Rich</Text>
-              </View>
-            </View>
-            {comparisonData.map((row, index) => (
-              <View
-                key={index}
-                className={`flex-row border-b ${index !== comparisonData.length - 1 ? 'border-border' : ''}`}
-              >
-                <View className="flex-1 p-3">
-                  <Text className="text-xs text-foreground">{row.label}</Text>
-                </View>
-                <View className="flex-1 p-3 border-l border-border">
-                  <Text className="text-xs text-expense">{row.poor}</Text>
-                </View>
-                <View className="flex-1 p-3 border-l border-border">
-                  <Text className="text-xs text-yellow-500">{row.middle}</Text>
-                </View>
-                <View className="flex-1 p-3 border-l border-border">
-                  <Text className="text-xs text-primary font-medium">{row.rich}</Text>
-                </View>
-              </View>
-            ))}
-          </Card>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      ) : null}
+      <SettingsRow label="Cash flow diagram" value="How money moves between the four boxes" icon={Workflow} onPress={() => setDiagram(true)} />
+    </HeroScreen>
   );
 }
+

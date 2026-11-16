@@ -1,341 +1,189 @@
-import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Image, Alert, Linking } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Image } from 'expo-image';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
-import { ChevronLeft, X, FilePlus } from '../../../../../components/ui/icons';
-import { useAuth } from '../../../../../context/AuthContext';
-import { useLock } from '../../../../../context/LockContext';
-import { useLearn } from '../../../../../src/hooks/useLearn';
-import { LoadingView } from '../../../../../components/ui/LoadingView';
-import { learnRepository } from '../../../../../src/repositories/learn.repository';
-import { storageService } from '../../../../../src/services/storage';
-import { isPdfPath, pdfLabel } from '../../../../../src/utils/attachments';
+import { CalendarDays, FileText, Folder, ImagePlus, Paperclip, X } from 'lucide-react-native';
+import { colors, radius } from '@/theme/tokens';
+import { AccountPill } from '@/components/ui/AccountPill';
+import { Button } from '@/components/ui/Button';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { Text } from '@/components/ui/Text';
+import { TextInput } from '@/components/ui/TextInput';
+import { TopBar } from '@/components/ui/TopBar';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useAuth } from '@/context/AuthContext';
+import { useLock } from '@/context/LockContext';
+import { learnRepository } from '@/src/repositories/learn.repository';
+import { storageService } from '@/src/services/storage';
+import { isPdfPath, pdfLabel } from '@/src/utils/attachments';
+import { joinEntry, splitEntry } from '@/src/utils/learnEntry';
+import type { LearnEntryWithImages } from '@/src/types';
 
-// Attachments in the form are either already-saved (loaded when editing) or
-// freshly picked (need uploading on save), and each is a photo or a PDF.
-// Keeping them in one list keeps the grid order and the MAX_FILES count correct.
-type ExistingFile = { kind: 'existing'; id: string; storagePath: string; uri: string; isPdf: boolean; label?: string };
+type ExistingFile = { kind: 'existing'; id: string; storagePath: string; uri: string; isPdf: boolean };
 type NewFile = { kind: 'new'; uri: string; base64: string; isPdf: boolean; label?: string };
 type FormFile = ExistingFile | NewFile;
 
 const MAX_FILES = 10;
-// Supabase Storage rejects very large uploads and base64 balloons memory on
-// device, so cap PDFs at something a receipt/statement comfortably fits in.
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
+/** learn/[projectId]/add-entry — Title, date, project, Notes, attachments. Primary: Save entry. */
 export default function AddEntryScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { user } = useAuth();
+  const { suspend } = useLock();
   const { projectId, entryId } = useLocalSearchParams<{ projectId: string; entryId?: string }>();
-  const { loading, createEntry } = useLearn();
-  const { suspend: suspendLock } = useLock();
-  const [text, setText] = useState('');
+  const editing = !!entryId && entryId.length > 0;
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [files, setFiles] = useState<FormFile[]>([]);
   const [removed, setRemoved] = useState<{ id: string; storagePath: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
-  // This screen lives in the tab navigator, so it is never unmounted: every
-  // `/add-entry?entryId=…` push re-focuses the same instance holding the last
-  // edit's text, files and `removed` list. Reload from the database on *every*
-  // focus — skipping the reload when the id happened to match left already
-  // uploaded files marked `kind: 'new'`, so removing one deleted nothing (the
-  // attachment came back after saving) and re-saving uploaded it twice.
+  // Tab screen: reload on every focus so a previous edit never lingers.
   useFocusEffect(useCallback(() => {
-    // A tab screen keeps params it isn't given again, so "Add entry" passes an
-    // empty entryId rather than omitting it; treat empty as "new entry".
-    const target = entryId && entryId.length > 0 ? entryId : null;
-
-    if (!target) {
-      // New entry: start from a clean form so the last entry doesn't linger.
-      setText('');
-      setFiles([]);
-      setRemoved([]);
-      return;
-    }
-
-    // Switching entries: clear first so the previous entry is never shown
-    // against the new one's id while the fetch is in flight.
-    setText('');
-    setFiles([]);
-    setRemoved([]);
-
+    setTitle(''); setNotes(''); setFiles([]); setRemoved([]); setCreatedAt(null); setTitleError(null);
     let cancelled = false;
-    learnRepository.fetchEntries(projectId!).then(async (result) => {
-      if (cancelled || !result.ok) return;
-      const entry = result.data.find((e: any) => e.id === target);
-      if (!entry) return;
-      const existing = ((entry as any).learn_entry_images ?? []) as any[];
-      const paths = existing.map((i) => i.storage_path).filter(Boolean);
-      const urlsResult = await storageService.getLearnImageUrls(paths);
-      if (cancelled) return;
-      const urls = urlsResult.ok ? urlsResult.data : {};
-      setText(entry.body ?? '');
-      setFiles(
-        existing.map((i) => ({
-          kind: 'existing' as const,
-          id: i.id,
-          storagePath: i.storage_path,
-          uri: urls[i.storage_path] ?? '',
-          isPdf: isPdfPath(i.storage_path),
-        }))
-      );
-    });
-
-    return () => { cancelled = true; };
-  }, [entryId, projectId]));
-
-  if (loading) return <LoadingView />;
-
-  const canSave = (text.trim().length > 0 || files.length > 0) && !saving;
-
-  const handleRemoveFile = (index: number) => {
-    const file = files[index];
-    // Remember already-saved files so we can delete them on save.
-    if (file.kind === 'existing') {
-      setRemoved((prev) => [...prev, { id: file.id, storagePath: file.storagePath }]);
+    if (projectId) learnRepository.fetchProject(projectId).then((r) => { if (!cancelled && r.ok) setProjectName(r.data.name); });
+    if (editing && projectId) {
+      learnRepository.fetchEntries(projectId).then(async (r) => {
+        if (cancelled || !r.ok) return;
+        const entry = (r.data as LearnEntryWithImages[]).find((e) => e.id === entryId);
+        if (!entry) return;
+        const existing = entry.learn_entry_images ?? [];
+        const urls = await storageService.getLearnImageUrls(existing.map((i) => i.storage_path));
+        if (cancelled) return;
+        const split = splitEntry(entry.body);
+        setTitle(split.title);
+        setNotes(split.notes);
+        setCreatedAt(entry.created_at);
+        setFiles(existing.map((i) => ({ kind: 'existing' as const, id: i.id, storagePath: i.storage_path, uri: urls.ok ? urls.data[i.storage_path] ?? '' : '', isPdf: isPdfPath(i.storage_path) })));
+      });
     }
+    return () => { cancelled = true; };
+  }, [projectId, entryId, editing]));
+
+  const pickPhotos = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { toast.failure('Photo access is off', { label: 'Try again', onPress: pickPhotos }); return; }
+    suspend();
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, base64: true, allowsMultipleSelection: true, selectionLimit: MAX_FILES - files.length });
+    if (res.canceled) return;
+    const picked: NewFile[] = res.assets.filter((a) => !!a.base64).map((a) => ({ kind: 'new', uri: a.uri, base64: a.base64 ?? '', isPdf: false }));
+    setFiles((prev) => [...prev, ...picked].slice(0, MAX_FILES));
+  };
+
+  const pickPdfs = async () => {
+    suspend();
+    const res = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', multiple: true, copyToCacheDirectory: true });
+    if (res.canceled) return;
+    const picked: NewFile[] = [];
+    for (const asset of res.assets.slice(0, MAX_FILES - files.length)) {
+      if (asset.size != null && asset.size > MAX_PDF_BYTES) { toast.failure('File too large · max 10 MB', { label: 'Pick another', onPress: pickPdfs }); continue; }
+      try {
+        picked.push({ kind: 'new', uri: asset.uri, base64: await new File(asset.uri).base64(), isPdf: true, label: asset.name });
+      } catch {
+        toast.failure('Couldn’t read that file', { label: 'Pick another', onPress: pickPdfs });
+      }
+    }
+    setFiles((prev) => [...prev, ...picked].slice(0, MAX_FILES));
+  };
+
+  const removeFile = (index: number) => {
+    const f = files[index];
+    if (f.kind === 'existing') setRemoved((r) => [...r, { id: f.id, storagePath: f.storagePath }]);
     setFiles(files.filter((_, i) => i !== index));
   };
 
-  const handlePickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Please allow photo access to add images.');
-      return;
-    }
-
-    // Opening the picker backgrounds the app; tell the lock to skip the
-    // re-lock so the user isn't asked for PIN/biometric on return.
-    suspendLock();
-
-    const remaining = MAX_FILES - files.length;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-      base64: true,
-      allowsMultipleSelection: true,
-      selectionLimit: remaining,
-    });
-
-    if (result.canceled) return;
-    const picked: NewFile[] = result.assets
-      .filter((asset) => !!asset.base64)
-      .map((asset) => ({ kind: 'new', uri: asset.uri, base64: asset.base64!, isPdf: false }));
-    if (picked.length === 0) return;
-    setFiles((prev) => [...prev, ...picked].slice(0, MAX_FILES));
-  };
-
-  const handlePickPdf = async () => {
-    suspendLock();
-
-    const result = await DocumentPicker.getDocumentAsync({
-      type: 'application/pdf',
-      multiple: true,
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled) return;
-
-    const remaining = MAX_FILES - files.length;
-    const picked: NewFile[] = [];
-    for (const asset of result.assets.slice(0, remaining)) {
-      if (asset.size != null && asset.size > MAX_PDF_BYTES) {
-        Alert.alert('File too large', `"${asset.name}" is over 10 MB.`);
-        continue;
-      }
-      try {
-        const base64 = await new File(asset.uri).base64();
-        picked.push({ kind: 'new', uri: asset.uri, base64, isPdf: true, label: asset.name });
-      } catch {
-        Alert.alert('Could not read file', `"${asset.name}" could not be opened.`);
-      }
-    }
-    if (picked.length === 0) return;
-    setFiles((prev) => [...prev, ...picked].slice(0, MAX_FILES));
-  };
-
-  const handleOpenPdf = async (file: FormFile) => {
-    if (!file.uri) return;
-    suspendLock();
-    await Linking.openURL(file.uri).catch(() => {
-      Alert.alert('Could not open', 'No app on this device can open the PDF.');
-    });
-  };
-
-  const handleSave = async () => {
-    if (!canSave || !user) return;
+  const save = async () => {
+    if (!user || !projectId) return;
+    if (!title.trim() && !notes.trim() && !files.length) { setTitleError('Add a title or a note'); return; }
     setSaving(true);
     try {
-      let targetEntryId = entryId && entryId.length > 0 ? entryId : undefined;
-
-      if (targetEntryId) {
-        const updated = await learnRepository.updateEntry(targetEntryId, text);
-        if (!updated.ok) {
-          Alert.alert('Error', 'Could not save entry.');
-          return;
-        }
+      const body = joinEntry(title, notes);
+      let target = editing ? entryId : undefined;
+      if (target) {
+        const up = await learnRepository.updateEntry(target, body);
+        if (!up.ok) { toast.failure('Save failed. Your entry is kept.', { label: 'Retry', onPress: save }); return; }
       } else {
-        const result = await createEntry(projectId!, user.id, text);
-        if (!result.ok) {
-          Alert.alert('Error', 'Could not save entry.');
-          return;
-        }
-        targetEntryId = result.data.id;
+        const created = await learnRepository.createEntry(projectId, user.id, body);
+        if (!created.ok) { toast.failure('Save failed. Your entry is kept.', { label: 'Retry', onPress: save }); return; }
+        target = created.data.id;
       }
-
-      // Delete files the user removed while editing. The row is what the entry
-      // renders from, so a failed delete must not be swallowed — otherwise the
-      // attachment reappears the moment the detail screen refetches.
       let removeFailed = false;
       for (const r of removed) {
-        const removedRow = await learnRepository.removeImage(r.id);
-        if (!removedRow.ok) {
-          removeFailed = true;
-          continue;
-        }
+        const row = await learnRepository.removeImage(r.id);
+        if (!row.ok) { removeFailed = true; continue; }
         await storageService.deleteLearnImage(r.storagePath);
       }
-      if (removeFailed) {
-        Alert.alert('Error', 'Some attachments could not be removed.');
-      } else {
-        setRemoved([]);
+      let uploadFailed = 0;
+      for (const f of files) {
+        if (f.kind !== 'new') continue;
+        const id = Crypto.randomUUID();
+        const ext = f.isPdf ? 'pdf' : 'jpg';
+        const up = f.isPdf ? await storageService.uploadLearnPdf(user.id, target ?? '', id, f.base64) : await storageService.uploadLearnImage(user.id, target ?? '', id, f.base64);
+        if (!up.ok) { uploadFailed += 1; continue; }
+        await learnRepository.attachImage(target ?? '', `${user.id}/${target}/${id}.${ext}`);
       }
-
-      // Upload only the newly picked files.
-      for (const file of files) {
-        if (file.kind !== 'new') continue;
-        const fileId = Crypto.randomUUID();
-        const extension = file.isPdf ? 'pdf' : 'jpg';
-        const upload = file.isPdf
-          ? await storageService.uploadLearnPdf(user.id, targetEntryId!, fileId, file.base64)
-          : await storageService.uploadLearnImage(user.id, targetEntryId!, fileId, file.base64);
-        if (!upload.ok) continue;
-        await learnRepository.attachImage(targetEntryId!, `${user.id}/${targetEntryId}/${fileId}.${extension}`);
-      }
-
-      // Everything on screen is now saved; drop it so a re-focus can never
-      // re-upload the same files or re-run a delete against a stale row.
-      setFiles([]);
-      setText('');
-
-      // Back to where the entry actually lives: the entry itself when editing,
-      // otherwise the project it was just added to. These screens are tabs, so
-      // `back()` can land on Home instead of the page the user came from.
-      router.replace(
-        entryId && entryId.length > 0
-          ? `/home/learn/${projectId}/entry?entryId=${entryId}`
-          : `/home/learn/${projectId}`
-      );
+      if (removeFailed) toast.failure('Some attachments couldn’t be removed');
+      else if (uploadFailed) toast.failure(`${uploadFailed} attachment${uploadFailed > 1 ? 's' : ''} didn’t upload`);
+      else toast.success(editing ? 'Entry updated' : 'Entry saved');
+      setFiles([]); setRemoved([]);
+      router.replace(editing
+        ? { pathname: '/home/learn/[projectId]/entry', params: { projectId, entryId: target ?? '' } }
+        : { pathname: '/home/learn/[projectId]', params: { projectId } });
     } finally {
       setSaving(false);
     }
   };
 
+  const dateLabel = createdAt ? new Date(createdAt).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : 'Today';
+
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable
-          onPress={() =>
-            router.replace(
-              entryId && entryId.length > 0
-                ? `/home/learn/${projectId}/entry?entryId=${entryId}`
-                : `/home/learn/${projectId}`
-            )
-          }
-          className="mr-3"
-        >
-          <ChevronLeft size={24} color="#fff" />
-        </Pressable>
-        <Text className="text-xl font-semibold text-foreground">{entryId && entryId.length > 0 ? 'Edit Entry' : 'Add Entry'}</Text>
+    <HeroScreen
+      heroHeight={164}
+      bottomPadding={32}
+      sheetPadding={{ top: 24, horizontal: 24 }}
+      hero={<TopBar title={editing ? 'Edit entry' : 'New entry'} onBack={() => router.back()} close />}
+    >
+      <TextInput label="Title" value={title} onChangeText={(t) => { setTitle(t); setTitleError(null); }} error={titleError} autoCapitalize="sentences" />
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        <AccountPill label={dateLabel} plainIcon={CalendarDays} accessibilityLabel={`Date: ${dateLabel}`} />
+        <AccountPill label={projectName || 'Project'} plainIcon={Folder} accessibilityLabel={`Project: ${projectName}`} />
       </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-4">
-        {/* Text Area */}
-        <View className="mt-4">
-          <Text className="text-xs text-muted-foreground mb-2">Note</Text>
-          <TextInput
-            className="bg-card border border-border rounded-xl px-4 py-3 text-foreground min-h-[120]"
-            placeholder="What did you learn?"
-            placeholderTextColor="#888"
-            value={text}
-            onChangeText={setText}
-            multiline
-            textAlignVertical="top"
-          />
-        </View>
-
-        {/* Attachment Grid */}
-        <View className="mt-4">
-          <Text className="text-xs text-muted-foreground mb-2">Attachments</Text>
-          <View className="flex-row flex-wrap">
-            {files.map((file, index) => (
-              <View key={index} className="relative mr-2 mb-2">
-                {file.isPdf ? (
-                  <Pressable
-                    onPress={() => handleOpenPdf(file)}
-                    className="w-20 h-20 rounded-xl bg-card border border-border items-center justify-center px-1"
-                  >
-                    <Text className="text-lg">📄</Text>
-                    <Text className="text-[10px] text-muted-foreground mt-1" numberOfLines={2}>
-                      {file.kind === 'new' ? file.label ?? 'PDF' : pdfLabel(file.storagePath, file.label)}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Image source={{ uri: file.uri }} className="w-20 h-20 rounded-xl" />
-                )}
-                <Pressable
-                  onPress={() => handleRemoveFile(index)}
-                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-expense items-center justify-center"
-                >
-                  <X size={12} color="#fff" />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-
-          {files.length < MAX_FILES && (
-            <View className="flex-row mt-1">
-              <Pressable
-                onPress={handlePickImage}
-                className="flex-1 flex-row items-center justify-center rounded-xl border-2 border-dashed border-border py-3 mr-2"
-              >
-                <FilePlus size={16} color="#888" />
-                <Text className="text-xs text-muted-foreground ml-2">Add photo</Text>
-              </Pressable>
-              <Pressable
-                onPress={handlePickPdf}
-                className="flex-1 flex-row items-center justify-center rounded-xl border-2 border-dashed border-border py-3 ml-2"
-              >
-                <Text className="text-sm">📄</Text>
-                <Text className="text-xs text-muted-foreground ml-2">Add PDF</Text>
+      <TextInput label="Notes" value={notes} onChangeText={setNotes} area numberOfLines={10} />
+      {files.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {files.map((f, i) => (
+            <View key={`${f.kind}-${i}`} style={{ width: 88, height: 88, borderRadius: radius.sm, backgroundColor: colors['surface-container'], overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              {f.isPdf ? (
+                <View style={{ alignItems: 'center', gap: 4, padding: 6 }}>
+                  <FileText size={22} color={colors['on-surface']} strokeWidth={1.75} />
+                  <Text variant="caption" numberOfLines={2} align="center">{f.kind === 'new' ? f.label ?? 'PDF' : pdfLabel(f.storagePath)}</Text>
+                </View>
+              ) : (
+                <Image source={{ uri: f.uri }} style={{ width: 88, height: 88 }} contentFit="cover" accessibilityLabel="Attached photo" />
+              )}
+              <Pressable onPress={() => removeFile(i)} accessibilityRole="button" accessibilityLabel="Remove attachment" hitSlop={8} style={{ position: 'absolute', top: 4, right: 4, width: 28, height: 28, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+                <X size={14} color={colors['on-surface']} strokeWidth={2} />
               </Pressable>
             </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Save Button */}
-      <View className="px-4 pb-6">
-        <Pressable
-          onPress={handleSave}
-          disabled={!canSave}
-          className={`rounded-2xl py-3 items-center ${
-            canSave ? 'bg-primary' : 'bg-muted'
-          }`}
-        >
-          <Text
-            className={`text-sm font-semibold ${
-              canSave ? 'text-primary-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </Text>
-        </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Button label="Photo" icon={ImagePlus} variant="action" height={44} onPress={pickPhotos} disabled={files.length >= MAX_FILES} />
+        <Button label="PDF" icon={Paperclip} variant="action" height={44} onPress={pickPdfs} disabled={files.length >= MAX_FILES} />
       </View>
-    </SafeAreaView>
+      <View style={{ flex: 1, minHeight: 16 }} />
+      <Button label="Save entry" onPress={save} loading={saving} loadingLabel="Saving…" fullWidth />
+    </HeroScreen>
   );
 }

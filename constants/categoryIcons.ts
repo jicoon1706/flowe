@@ -67,3 +67,36 @@ export function categoryIcon(slugOrIconKey: string | null | undefined, kind?: 't
   if (!slugOrIconKey) return Package;
   return BUILTIN[slugOrIconKey] ?? CUSTOM_ICONS[slugOrIconKey] ?? Tag;
 }
+
+export interface CategoryOption {
+  /** What gets stored in `transactions.category`: built-in slug or custom name. */
+  value: string;
+  label: string;
+  icon: LucideIcon;
+  custom: boolean;
+}
+
+interface CategoryLike { id: string; name: string }
+interface CustomLike { name: string; icon?: string | null; transaction_type: 'expense' | 'income'; is_active?: boolean }
+
+/**
+ * Chips for the add / edit forms: built-ins first, then the user's own.
+ * `usage` (value → count) puts the most-used first (settings/categories note).
+ */
+export function categoryOptions(
+  builtin: readonly CategoryLike[],
+  custom: readonly CustomLike[],
+  type: 'expense' | 'income',
+  usage: Record<string, number> = {},
+): CategoryOption[] {
+  const all: CategoryOption[] = [
+    ...builtin.map((c) => ({ value: c.id, label: c.name, icon: categoryIcon(c.id), custom: false })),
+    ...custom
+      .filter((c) => c.transaction_type === type && c.is_active !== false)
+      .map((c) => ({ value: c.name, label: c.name, icon: categoryIcon(c.icon ?? 'tag'), custom: true })),
+  ];
+  return all
+    .map((o, i) => ({ o, i }))
+    .sort((a, b) => (usage[b.o.value] ?? 0) - (usage[a.o.value] ?? 0) || a.i - b.i)
+    .map(({ o }) => o);
+}

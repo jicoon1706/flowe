@@ -1,196 +1,122 @@
-import { useEffect, useState } from 'react';
-import { View, Text, Pressable, TextInput, ScrollView } from 'react-native';
-import { Check, Ban } from '../ui/icons';
-import { expenseCategories, incomeCategories } from '../../constants/categories';
-import { accountColor } from '../../src/utils/accountColor';
-import { merchantCategory } from '../../src/utils/merchantLogo';
-import type { DetectedTransaction, SaveOverrides } from '../../src/hooks/useDetectedTransactions';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, View } from 'react-native';
+import { CalendarDays, Landmark, Wallet } from 'lucide-react-native';
+import { expenseCategories, incomeCategories } from '@/constants/categories';
+import { categoryOptions } from '@/constants/categoryIcons';
+import { merchantCategory } from '@/src/utils/merchantLogo';
+import { accountDomain, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
+import type { DetectedTransaction, SaveOverrides } from '@/src/hooks/useDetectedTransactions';
+import { AccountPill } from '../ui/AccountPill';
+import { AccountSelector } from '../ui/AccountSelector';
+import { Button } from '../ui/Button';
+import { Chip } from '../ui/Chip';
+import { InlineError } from '../ui/InlineError';
+import { LogoWell } from '../ui/LogoWell';
+import { Money } from '../ui/Money';
+import { SegmentedToggle } from '../ui/SegmentedToggle';
+import { Sheet } from '../ui/Sheet';
+import { Text } from '../ui/Text';
+import { TextInput } from '../ui/TextInput';
 
-interface DetectedTransactionFormProps {
-  detected: DetectedTransaction;
-  accounts: any[];
+export interface DetectedTransactionFormProps {
+  visible: boolean;
+  detected: DetectedTransaction | null;
+  accounts: AnyAccount[];
   onSave: (detected: DetectedTransaction, values: SaveOverrides) => Promise<{ ok: boolean }>;
-  /** Throws the detection away for good: it wasn't a transaction. */
   onDismiss: (id: string) => void;
-  /** Whether the name field grabs the keyboard as soon as the form appears. */
-  autoFocusName?: boolean;
-  /** Reports the in-flight save so a parent can hold off dismissing mid-write. */
-  onSavingChange?: (saving: boolean) => void;
+  onClose: () => void;
+}
+
+export function alertTimeLabel(postedAt: number): string {
+  const d = new Date(postedAt);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const time = d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return sameDay ? `Today ${time}` : `${d.toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })} ${time}`;
 }
 
 /**
- * The fields a detection can't work out on its own — what the payment was
- * for, its direction and category, and (when the alert was ambiguous) which
- * account it came from. Everything the alert *did* say is already filled in,
- * so completing one is a couple of taps rather than the whole add form.
- *
- * Shared by the floating island and the "needs your input" list on Home, so
- * the two never drift apart.
+ * "Edit detected" sheet (m-detected-form): everything pre-filled from the alert,
+ * the user fixes one field. Primary: Confirm. Dismiss = not a transaction.
  */
-export function DetectedTransactionForm({
-  detected,
-  accounts,
-  onSave,
-  onDismiss,
-  autoFocusName = true,
-  onSavingChange,
-}: DetectedTransactionFormProps) {
+export function DetectedTransactionForm({ visible, detected, accounts, onSave, onDismiss, onClose }: DetectedTransactionFormProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [accountId, setAccountId] = useState('');
   const [category, setCategory] = useState('');
   const [saving, setSaving] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
 
-  // Reset the form for each new detection — the previous one's name must never
-  // carry over onto a different payment.
   useEffect(() => {
-    const detectedName = detected.suggestedName ?? detected.parsed.merchant ?? '';
-    setName(detectedName);
+    if (!detected) return;
+    const n = detected.suggestedName ?? detected.parsed.merchant ?? '';
+    setName(n);
     setType(detected.parsed.type);
     setAccountId(detected.accountId ?? '');
-    setCategory(
-      detected.parsed.type === 'expense'
-        // The alert usually names the merchant, so the category is often known
-        // before the user has touched anything.
-        ? merchantCategory(detectedName) ?? 'food'
-        : 'salary'
-    );
+    setCategory(detected.parsed.type === 'expense' ? merchantCategory(n) ?? 'food' : 'salary');
+    setShowErrors(false);
   }, [detected]);
 
-  const categories = type === 'expense' ? expenseCategories : incomeCategories;
-  const selectableAccounts = accounts.filter((a) => a.type === 'bank' || a.type === 'wallet');
-  const canSave = name.trim().length > 0 && !!accountId && !saving;
+  const options = useMemo(
+    () => categoryOptions(type === 'expense' ? expenseCategories : incomeCategories, [], type),
+    [type],
+  );
+  const selectable = spendableAccounts(accounts);
+  const account = selectable.find((a) => a.id === accountId);
+  if (!detected) return null;
 
-  const setSavingState = (value: boolean) => {
-    setSaving(value);
-    onSavingChange?.(value);
-  };
+  const nameError = showErrors && !name.trim() ? 'Add a merchant name' : null;
+  const accountError = showErrors && !accountId ? 'Choose the account this came from' : null;
 
-  const handleSave = async () => {
-    if (!canSave) return;
-    setSavingState(true);
-    await onSave(detected, {
-      name: name.trim(),
-      type,
-      accountId,
-      // Built-in categories are stored by slug id, the same as the main form —
-      // storing the display name here left detected rows with a fallback icon.
-      category,
-    });
-    setSavingState(false);
+  const confirm = async () => {
+    if (!name.trim() || !accountId) { setShowErrors(true); return; }
+    setSaving(true);
+    const res = await onSave(detected, { name: name.trim(), type, accountId, category });
+    setSaving(false);
+    if (res.ok) onClose();
   };
 
   return (
-    <View>
-      {/* Type */}
-      <View className="flex-row gap-2 mb-3">
-        {(['expense', 'income'] as const).map((option) => (
-          <Pressable
-            key={option}
-            onPress={() => {
-              setType(option);
-              setCategory(option === 'expense' ? 'food' : 'salary');
-            }}
-            className={`flex-1 py-2.5 rounded-xl items-center ${
-              type === option ? 'bg-primary' : 'bg-background border border-border'
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold ${
-                type === option ? 'text-black' : 'text-foreground'
-              }`}
-            >
-              {option === 'expense' ? 'Expense' : 'Income'}
-            </Text>
-          </Pressable>
-        ))}
+    <Sheet visible={visible} onClose={onClose} dismissible={!saving} scroll testID="detected-form">
+      <View style={{ gap: 14 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text variant="headline-md" accessibilityRole="header">Edit detected</Text>
+          <Text variant="label-sm" tone="muted">{detected.sourceLabel} alert</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <LogoWell merchant={name} size={48} />
+          <Money amount={detected.parsed.amount} variant="numeric-lg" smallCurrency />
+        </View>
+        <SegmentedToggle
+          options={[{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }]}
+          value={type}
+          onChange={(t) => { setType(t); setCategory(t === 'expense' ? 'food' : 'salary'); }}
+        />
+        <TextInput label="Merchant" value={name} onChangeText={setName} error={nameError} autoCapitalize="words" returnKeyType="done" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {options.map((o) => (
+            <Chip key={o.value} label={o.label} icon={o.icon} selected={o.value === category} onPress={() => setCategory(o.value)} />
+          ))}
+        </ScrollView>
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          <AccountPill
+            label={account?.name ?? 'Choose account'}
+            domain={accountDomain(account)}
+            icon={account?.type === 'wallet' ? Wallet : Landmark}
+            onPress={() => setPicker(true)}
+            invalid={!!accountError}
+            accessibilityLabel={`Account: ${account?.name ?? 'none'}`}
+          />
+          <AccountPill label={alertTimeLabel(detected.parsed.postedAt)} plainIcon={CalendarDays} accessibilityLabel={`Date: ${alertTimeLabel(detected.parsed.postedAt)}`} />
+        </View>
+        {accountError ? <InlineError message={accountError} /> : null}
+        <View style={{ gap: 4, marginTop: 8 }}>
+          <Button label="Confirm" onPress={confirm} loading={saving} loadingLabel="Confirming…" fullWidth />
+          <Button label="Dismiss" variant="text" muted disabled={saving} onPress={() => { onDismiss(detected.id); onClose(); }} style={{ alignSelf: 'center' }} />
+        </View>
       </View>
-
-      {/* Name */}
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder="What was this for?"
-        placeholderTextColor="#6b7280"
-        autoFocus={autoFocusName}
-        className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-3"
-      />
-
-      {/* Category */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
-        <View className="flex-row gap-2">
-          {categories.map((cat) => (
-            <Pressable
-              key={cat.id}
-              onPress={() => setCategory(cat.id)}
-              className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl ${
-                category === cat.id ? 'bg-primary' : 'bg-background border border-border'
-              }`}
-            >
-              <Text className="text-sm">{cat.emoji}</Text>
-              <Text
-                className={`text-xs ${category === cat.id ? 'text-black font-semibold' : 'text-foreground'}`}
-              >
-                {cat.name}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Account — preselected when the alert named one */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
-        <View className="flex-row gap-2">
-          {selectableAccounts.map((account) => (
-            <Pressable
-              key={account.id}
-              onPress={() => setAccountId(account.id)}
-              className={`flex-row items-center gap-2 px-3 py-2 rounded-xl ${
-                accountId === account.id ? 'bg-primary' : 'bg-background border border-border'
-              }`}
-            >
-              <View
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: accountColor(account) }}
-              />
-              <Text
-                className={`text-xs ${
-                  accountId === account.id ? 'text-black font-semibold' : 'text-foreground'
-                }`}
-              >
-                {account.name}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
-
-      <Pressable
-        onPress={handleSave}
-        disabled={!canSave}
-        className={`flex-row items-center justify-center gap-2 py-3 rounded-2xl ${
-          canSave ? 'bg-primary' : 'bg-muted'
-        }`}
-      >
-        <Check size={16} color={canSave ? '#000' : '#a0a0a0'} />
-        <Text className={`text-sm font-semibold ${canSave ? 'text-black' : 'text-muted-foreground'}`}>
-          {saving ? 'Saving…' : !accountId ? 'Choose an account' : 'Save transaction'}
-        </Text>
-      </Pressable>
-
-      {/* Plenty of what Flowe catches is neither expense nor income — a
-          promo quoting a ringgit figure, a balance reminder, a refund
-          notice. Saying so outright drops it, so it stops coming back. */}
-      <Pressable
-        onPress={() => onDismiss(detected.id)}
-        disabled={saving}
-        className="flex-row items-center justify-center gap-2 py-2.5 mt-2 rounded-2xl border border-border"
-      >
-        <Ban size={14} color="#a0a0a0" />
-        <Text className="text-xs font-semibold text-muted-foreground">
-          Not a transaction — ignore
-        </Text>
-      </Pressable>
-    </View>
+      <AccountSelector visible={picker} onClose={() => setPicker(false)} accounts={selectable} selectedId={accountId} onSelect={setAccountId} />
+    </Sheet>
   );
 }

@@ -1,141 +1,180 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Animated, Easing } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, PanResponder, Pressable, View } from 'react-native';
+import Animated, { FadeIn, SlideInUp, SlideOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Sparkle } from '../ui/icons';
-import { DetectedTransactionForm } from './DetectedTransactionForm';
-import type { DetectedTransaction, SaveOverrides } from '../../src/hooks/useDetectedTransactions';
+import { BellRing, CalendarDays, Wallet, X } from 'lucide-react-native';
+import { colors, radius } from '@/theme/tokens';
+import { expenseCategories, incomeCategories } from '@/constants/categories';
+import { categoryIcon } from '@/constants/categoryIcons';
+import { merchantCategory } from '@/src/utils/merchantLogo';
+import { detectedName } from '@/src/services/autoFile';
+import { formatRM } from '@/src/lib/money';
+import type { AnyAccount } from '@/src/utils/accountDisplay';
+import type { DetectedTransaction, SaveOverrides } from '@/src/hooks/useDetectedTransactions';
+import { Button } from '../ui/Button';
+import { GlassChip } from '../ui/GlassChip';
+import { GlassIconButton } from '../ui/GlassIconButton';
+import { GradientFill } from '../ui/GradientFill';
+import { LogoWell } from '../ui/LogoWell';
+import { Money } from '../ui/Money';
+import { Text } from '../ui/Text';
+import { useToast } from '../ui/ToastProvider';
+import { DetectedTransactionForm, alertTimeLabel } from './DetectedTransactionForm';
 
-interface DetectedTransactionIslandProps {
+export interface DetectedTransactionIslandProps {
   detected: DetectedTransaction | null;
-  accounts: any[];
+  accounts: AnyAccount[];
   onSave: (detected: DetectedTransaction, values: SaveOverrides) => Promise<{ ok: boolean }>;
-  /**
-   * Throws the detection away for good: it wasn't a transaction. Distinct from
-   * `onSnooze`, which keeps it queued for later.
-   */
   onDismiss: (id: string) => void;
-  /** Called when the island times out — hides it, but keeps the detection. */
+  /** Hides it into the pending card without discarding it. */
   onSnooze: (id: string) => void;
 }
 
-/**
- * How long the collapsed island hovers before it steps aside. The detection
- * isn't lost: it stays in the "needs your input" list on Home and its Android
- * notification stays in the shade, so the user can file it whenever they get
- * to it. Ten seconds is long enough to read the amount and decide, short
- * enough that it never becomes something to swat away.
- */
-const AUTO_HIDE_MS = 10_000;
+/** Collapsed island hovers this long, then steps into the pending card (m-island-collapsed: 6 s). */
+const AUTO_HIDE_MS = 6000;
+
+function suggestedValues(d: DetectedTransaction): SaveOverrides | null {
+  if (!d.accountId) return null;
+  const name = detectedName(d);
+  return {
+    name,
+    type: d.parsed.type,
+    accountId: d.accountId,
+    category: d.parsed.type === 'expense' ? merchantCategory(name) ?? 'food' : 'salary',
+  };
+}
+
+function categoryLabel(slug: string | undefined): string {
+  return [...expenseCategories, ...incomeCategories].find((c) => c.id === slug)?.name ?? 'Others';
+}
 
 /**
- * The floating capsule that drops in when Flowe spots a payment in a bank or
- * e-wallet notification. Collapsed it's a one-line summary; tapping it expands
- * to the only two things the detection can't work out on its own — what the
- * payment was for, and (when the alert was ambiguous) which account it came from.
- *
- * Amount, date/time and account come from the notification itself, so confirming
- * is a couple of taps rather than a trip through the add-transaction form.
+ * The capsule that drops from the top when a bank alert is detected while Flowe
+ * is open. Overlays any tab, never pushes content. Tap → expanded card;
+ * Edit → DetectedTransactionForm; swipe up → pending card.
  */
-export function DetectedTransactionIsland({
-  detected,
-  accounts,
-  onSave,
-  onDismiss,
-  onSnooze,
-}: DetectedTransactionIslandProps) {
+export function DetectedTransactionIsland({ detected, accounts, onSave, onDismiss, onSnooze }: DetectedTransactionIslandProps) {
   const insets = useSafeAreaInsets();
+  const toast = useToast();
   const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const slide = useRef(new Animated.Value(0)).current;
+  const current = useRef(detected);
+  current.current = detected;
 
-  // Each new detection arrives collapsed, whatever state the last one was in.
-  useEffect(() => {
-    if (detected) setExpanded(false);
-  }, [detected]);
-
-  // Step aside after AUTO_HIDE_MS — but only while collapsed. Once the user has
-  // opened the form they're mid-edit, and yanking it away would throw away what
-  // they've typed; the timer restarts if they collapse it again.
-  useEffect(() => {
-    if (!detected || expanded || saving) return;
-    const timer = setTimeout(() => onSnooze(detected.id), AUTO_HIDE_MS);
-    return () => clearTimeout(timer);
-  }, [detected, expanded, saving, onSnooze]);
+  useEffect(() => { setExpanded(false); setEditing(false); }, [detected?.id]);
 
   useEffect(() => {
-    Animated.timing(slide, {
-      toValue: detected ? 1 : 0,
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [detected, slide]);
+    if (!detected || expanded || editing || saving) return;
+    const t = setTimeout(() => onSnooze(detected.id), AUTO_HIDE_MS);
+    return () => clearTimeout(t);
+  }, [detected, expanded, editing, saving, onSnooze]);
+
+  const pan = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 8,
+    onPanResponderRelease: (_, g) => {
+      if (g.dy < -20 && current.current) onSnooze(current.current.id);
+    },
+  }), [onSnooze]);
 
   if (!detected) return null;
+  const values = suggestedValues(detected);
+  const name = detectedName(detected);
+  const account = accounts.find((a) => a.id === detected.accountId);
+  const sign = detected.parsed.type === 'income' ? 'income' : 'expense';
 
-  const { parsed, sourceLabel } = detected;
-
-  const detectedAt = new Date(parsed.postedAt).toLocaleString('en-MY', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const confirm = async () => {
+    if (!values) { setEditing(true); return; }
+    setSaving(true);
+    const res = await onSave(detected, values);
+    setSaving(false);
+    if (res.ok) {
+      setExpanded(false);
+      toast.success(`Saved · ${formatRM(detected.parsed.amount)} to ${categoryLabel(values.category)}`);
+    } else {
+      toast.failure('Save failed. Your entry is kept.', { label: 'Retry', onPress: confirm });
+    }
+  };
 
   return (
-    <Animated.View
-      pointerEvents="box-none"
-      style={{
-        position: 'absolute',
-        top: insets.top + 8,
-        left: 12,
-        right: 12,
-        zIndex: 100,
-        opacity: slide,
-        transform: [
-          { translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [-80, 0] }) },
-        ],
-      }}
-    >
-      <View className="bg-card border border-primary/40 rounded-3xl overflow-hidden shadow-xl">
-        {/* Collapsed summary — always visible, tapping toggles the form */}
-        <Pressable
-          onPress={() => setExpanded((prev) => !prev)}
-          className="flex-row items-center gap-3 px-4 py-3"
+    <>
+      {!expanded && !editing ? (
+        <Animated.View
+          entering={SlideInUp.duration(260)}
+          exiting={SlideOutUp.duration(200)}
+          {...pan.panHandlers}
+          style={{ position: 'absolute', top: insets.top + 8, left: 16, right: 16, zIndex: 100 }}
         >
-          <View className="w-9 h-9 rounded-full bg-primary/15 items-center justify-center">
-            <Sparkle size={18} color="#C5FF00" />
-          </View>
-          <View className="flex-1">
-            <Text className="text-sm font-semibold text-foreground">
-              {parsed.type === 'expense' ? '−' : '+'}RM {parsed.amount.toFixed(2)}
-            </Text>
-            <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-              {sourceLabel} · {detectedAt}
-            </Text>
-          </View>
-          <Pressable onPress={() => onDismiss(detected.id)} hitSlop={10} className="p-1">
-            <X size={18} color="#a0a0a0" />
+          <Pressable
+            onPress={() => setExpanded(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`New detected transaction: ${formatRM(detected.parsed.amount)} at ${name}. Opens details.`}
+            style={{ height: 60, borderRadius: 9999, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 10, paddingRight: 8 }}
+          >
+            <GradientFill />
+            <LogoWell merchant={name} on="gradient" />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text variant="body-md" weight={600} tone="inverse" numberOfLines={1}>{formatRM(detected.parsed.amount)} · {name}</Text>
+              <Text variant="label-sm" weight={400} tone="soft" numberOfLines={1}>Detected from {detected.sourceLabel} · now</Text>
+            </View>
+            <Button label="Confirm" variant="white" height={44} onPress={confirm} loading={saving} loadingLabel="Confirming…" />
           </Pressable>
-        </Pressable>
+        </Animated.View>
+      ) : null}
 
-        {expanded && (
-          <View className="px-4 pb-4 border-t border-border pt-3">
-            <DetectedTransactionForm
-              detected={detected}
-              accounts={accounts}
-              onSave={async (item, values) => {
-                const result = await onSave(item, values);
-                // A failed write leaves the form up so nothing typed is lost.
-                if (!result.ok) setExpanded(true);
-                return result;
-              }}
-              onDismiss={onDismiss}
-              onSavingChange={setSaving}
-            />
-          </View>
-        )}
-      </View>
-    </Animated.View>
+      <Modal visible={expanded && !editing} transparent animationType="none" onRequestClose={() => !saving && setExpanded(false)} statusBarTranslucent>
+        <Animated.View entering={FadeIn.duration(160)} style={{ flex: 1, backgroundColor: colors.scrim }}>
+          <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => !saving && setExpanded(false)} accessibilityLabel="Close" />
+          <Animated.View
+            entering={SlideInUp.duration(220)}
+            accessibilityViewIsModal
+            accessibilityLabel="Detected transaction"
+            style={{ marginTop: insets.top + 8, marginHorizontal: 12, borderRadius: radius.lg, overflow: 'hidden', padding: 20, gap: 16 }}
+          >
+            <GradientFill />
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <BellRing size={14} color={colors['on-primary-soft']} strokeWidth={1.75} />
+                <Text variant="label-sm" tone="soft">Detected from {detected.sourceLabel} · now</Text>
+              </View>
+              <GlassIconButton icon={X} onPress={() => setExpanded(false)} accessibilityLabel="Close" disabled={saving} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <LogoWell merchant={name} size={48} on="gradient" />
+              <View style={{ flex: 1 }}>
+                <Text variant="body-lg" tone="inverse" numberOfLines={1}>{name}</Text>
+                <Money amount={detected.parsed.amount} direction={sign} variant="display-md" on="gradient" />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {values ? <GlassChip icon={categoryIcon(values.category)} label={`${categoryLabel(values.category)} · suggested`} /> : null}
+              <GlassChip icon={Wallet} label={account?.name ?? 'Choose account'} />
+              <GlassChip icon={CalendarDays} label={alertTimeLabel(detected.parsed.postedAt)} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Button label="Confirm" variant="white" onPress={confirm} loading={saving} loadingLabel="Confirming…" style={{ flex: 1 }} />
+              <Button label="Edit" variant="glass" disabled={saving} onPress={() => { setExpanded(false); setEditing(true); }} />
+            </View>
+            <Pressable
+              onPress={() => { onDismiss(detected.id); setExpanded(false); }}
+              disabled={saving}
+              accessibilityRole="button"
+              style={{ alignSelf: 'center', height: 44, justifyContent: 'center', paddingHorizontal: 16, opacity: saving ? 0.5 : 1 }}
+            >
+              <Text variant="body-md" weight={600} tone="inverse">Dismiss</Text>
+            </Pressable>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
+
+      <DetectedTransactionForm
+        visible={editing}
+        detected={detected}
+        accounts={accounts}
+        onSave={onSave}
+        onDismiss={onDismiss}
+        onClose={() => setEditing(false)}
+      />
+    </>
   );
 }

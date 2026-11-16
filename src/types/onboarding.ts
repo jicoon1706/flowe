@@ -9,8 +9,12 @@ export type DraftBank = {
 export type DraftTabung = {
   kind: 'tabung';
   name: string;
-  /** Emoji character (e.g. "🐷"), persisted directly to the DB. */
+  /** Icon key persisted to tabung_accounts.icon. */
   icon: string;
+  /** Goal type (constants/tabungGoals). */
+  templateType?: string;
+  /** Money already saved before Flowe: becomes the opening balance, not a contribution. */
+  startingAmount?: number;
   target: number;
   fromDate: string;
   toDate: string;

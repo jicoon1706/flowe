@@ -1,84 +1,76 @@
-import { useEffect, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { authRepository, authConfigRepository } from '../../src/repositories';
-import { hashPin } from '../../src/lib/pinCrypto';
-import { flags } from '../../src/lib/secureStore';
-import { useOnboarding } from '../../context/OnboardingContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowRight, Check } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { Button } from '@/components/ui/Button';
+import { GradientFill } from '@/components/ui/GradientFill';
+import { IconButton } from '@/components/ui/IconButton';
+import { ProgressRing } from '@/components/ui/ProgressRing';
+import { Text } from '@/components/ui/Text';
+import { useToast } from '@/components/ui/ToastProvider';
+import { authConfigRepository, authRepository } from '@/src/repositories';
+import { hashPin } from '@/src/lib/pinCrypto';
+import { flags } from '@/src/lib/secureStore';
+import { useOnboarding } from '@/context/OnboardingContext';
 import { refreshGate } from '../_layout';
 
 type Status = 'saving' | 'ready' | 'error';
 
+/** (auth)/success — ring sweeps to a check; Primary: Set up my accounts. */
 export default function Success() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const toast = useToast();
   const { state, dispatch } = useOnboarding();
   const [status, setStatus] = useState<Status>('saving');
+  const fingerprint = state.fingerprintEnabled;
 
-  async function persist() {
+  const persist = useCallback(async () => {
     setStatus('saving');
     if (!state.pin) { setStatus('error'); return; }
     const pinHash = await hashPin(state.pin);
-
     const userRes = await authRepository.getUser();
     if (userRes.ok && userRes.data) {
-      const upsert = await authConfigRepository.upsert({
-        userId: userRes.data.id,
-        pinHash,
-        fingerprintEnabled: state.fingerprintEnabled,
-      });
-      if (!upsert.ok) console.warn('[success] auth_config upsert failed:', upsert.error);
-    } else {
-      console.warn('[success] no auth user — saving PIN locally only');
+      const upsert = await authConfigRepository.upsert({ userId: userRes.data.id, pinHash, fingerprintEnabled: state.fingerprintEnabled });
+      if (!upsert.ok) console.warn('[success] auth_config upsert failed:', upsert.error.code);
     }
-
     try {
       await flags.setPin(pinHash, state.fingerprintEnabled);
-    } catch (e) {
-      console.warn('[success] secure-store setPin failed:', e);
+    } catch {
       setStatus('error');
+      toast.failure('Couldn’t save your PIN', { label: 'Retry', onPress: () => { persist(); } });
       return;
     }
-    refreshGate();
     dispatch({ type: 'CLEAR_PIN' });
     setStatus('ready');
-  }
+  }, [state.pin, state.fingerprintEnabled, dispatch, toast]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { persist(); }, []);
 
+  const next = () => { refreshGate(); router.replace('/(onboarding)/name'); };
+
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="flex-1 items-center justify-center px-6 max-w-md mx-auto w-full">
-        <View className="w-24 h-24 rounded-full bg-primary items-center justify-center mb-8">
-          {status === 'saving'
-            ? <ActivityIndicator color="#000" />
-            : <Feather name="check" size={48} color="#000" />}
+    <View style={{ flex: 1, paddingTop: insets.top + 176, paddingBottom: insets.bottom + 32, paddingHorizontal: 24 }}>
+      <GradientFill />
+      <View style={{ gap: 32 }}>
+        <ProgressRing progress={status === 'ready' ? 1 : 0.72} size={168} stroke={10} accessibilityLabel={status === 'ready' ? 'Done' : 'Saving'}>
+          <View style={{ width: 112, height: 112, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
+            <Check size={56} color={colors['on-primary']} strokeWidth={2} />
+          </View>
+        </ProgressRing>
+        <View style={{ gap: 12 }}>
+          <Text variant="display-lg" tone="inverse" accessibilityRole="header">You’re all set</Text>
+          <Text variant="body-lg" tone="soft">{fingerprint ? 'Your PIN and fingerprint are ready.' : 'Your PIN is ready.'}</Text>
         </View>
-        <Text className="text-foreground text-2xl font-bold">
-          {status === 'error' ? 'Save failed' : 'Your wallet is secured!'}
-        </Text>
-        <Text className="text-muted-foreground text-sm text-center mt-2">
-          {status === 'error'
-            ? "Could not save your PIN. Tap retry to try again."
-            : '6-digit PIN configured · Fingerprint ' + (state.fingerprintEnabled ? 'enabled' : 'disabled')}
-        </Text>
       </View>
-      <View className="px-6 pb-8">
-        {status === 'error' ? (
-          <Pressable onPress={persist} className="bg-primary rounded-2xl py-4 items-center">
-            <Text className="text-primary-foreground font-bold">Retry</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            onPress={() => router.replace('/(onboarding)/name')}
-            disabled={status !== 'ready'}
-            className={`rounded-2xl py-4 items-center ${status === 'ready' ? 'bg-primary' : 'bg-muted'}`}
-          >
-            <Text className="text-primary-foreground font-bold">Continue to App</Text>
-          </Pressable>
-        )}
+      <View style={{ flex: 1 }} />
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Button label={status === 'error' ? 'Try again' : 'Set up my accounts'} variant="white" loading={status === 'saving'} onPress={status === 'error' ? persist : next} style={{ flex: 1 }} />
+        <IconButton icon={ArrowRight} accessibilityLabel="Continue" onPress={next} disabled={status !== 'ready'} />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

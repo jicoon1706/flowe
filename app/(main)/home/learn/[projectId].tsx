@@ -1,266 +1,126 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, TextInput, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { ChevronLeft, DotsThreeVertical, Pencil, Trash2 } from '../../../../components/ui/icons';
-import { useAuth } from '../../../../context/AuthContext';
-import { useLearn } from '../../../../src/hooks/useLearn';
-import { LoadingView } from '../../../../components/ui/LoadingView';
-import { ErrorView } from '../../../../components/ui/ErrorView';
-import { learnRepository } from '../../../../src/repositories/learn.repository';
-import { storageService } from '../../../../src/services/storage';
-import type { LearnEntry } from '../../../../src/types';
-import { isPdfPath } from '../../../../src/utils/attachments';
+import { useCallback, useState } from 'react';
+import { RefreshControl, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { BookOpen, Ellipsis, FileText, Image as ImageIcon, Pen, Plus, RefreshCw, Trash2 } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { LEARN_COVERS } from '@/constants/photos';
+import { Button } from '@/components/ui/Button';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassChip } from '@/components/ui/GlassChip';
+import { GlassIconButton } from '@/components/ui/GlassIconButton';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { PhotoSlot } from '@/components/ui/PhotoSlot';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { SettingsRow } from '@/components/ui/SettingsRow';
+import { Sheet } from '@/components/ui/Sheet';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Text } from '@/components/ui/Text';
+import { TextInput } from '@/components/ui/TextInput';
+import { TopBar } from '@/components/ui/TopBar';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useLearnProject } from '@/src/hooks/useLearnProject';
+import { isPdfPath } from '@/src/utils/attachments';
+import { splitEntry } from '@/src/utils/learnEntry';
 
-interface Project {
-  id: string;
-  name: string;
-  emoji: string;
-  entries: { id: string; text: string; images: string[]; pdfCount: number; timeAgo: string }[];
-}
-
-export default function ProjectDetailScreen() {
+/** home/learn/[projectId] — entries; Primary: Add entry (black). ⋯ = rename, delete. */
+export default function LearnProjectScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const toast = useToast();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { entries, loading, error, fetchEntries } = useLearn();
-  const [projectName, setProjectName] = useState('Loading...');
-  const [showMenu, setShowMenu] = useState(false);
-  const [showRename, setShowRename] = useState(false);
-  const [showDelete, setShowDelete] = useState(false);
-  const [renameText, setRenameText] = useState('');
-  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const { project, entries, loading, error, refresh, rename, remove } = useLearnProject(projectId);
+  const [menu, setMenu] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [newName, setNewName] = useState('');
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-  useFocusEffect(useCallback(() => {
-    if (projectId) {
-      fetchEntries(projectId);
-      learnRepository.fetchProject(projectId).then((result) => {
-        if (result.ok) {
-          setProjectName(result.data.name);
-          setRenameText(result.data.name);
-        }
-      });
-    }
-  }, [projectId, fetchEntries]));
-
-  useEffect(() => {
-    const paths: string[] = entries
-      .flatMap((e: LearnEntry) => ((e as any).learn_entry_images ?? []) as any[])
-      .map((img: any) => img.storage_path)
-      .filter((path: string) => path && !isPdfPath(path));
-    if (paths.length === 0) return;
-    Promise.all(
-      paths.map(async (path) => {
-        const result = await storageService.getLearnImageUrl(path);
-        return [path, result.ok ? result.data : ''] as const;
-      })
-    ).then((pairs) => setImageUrls(Object.fromEntries(pairs)));
-  }, [entries]);
-
-  if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={() => projectId && fetchEntries(projectId)} />;
-
-  const handleRename = async () => {
-    await learnRepository.renameProject(projectId!, renameText);
-    setProjectName(renameText);
-    setShowRename(false);
+  const doRename = async () => {
+    const res = await rename(newName.trim());
+    if (!res.ok) { toast.failure('Couldn’t rename project', { label: 'Retry', onPress: doRename }); return; }
+    setRenaming(false);
+    refresh();
+  };
+  const doDelete = async () => {
+    const res = await remove();
+    if (!res.ok) { toast.failure('Delete failed', { label: 'Retry', onPress: doDelete }); return; }
+    setDeleting(false);
+    toast.success(`${project?.name ?? 'Project'} deleted`);
+    router.replace('/home/learn');
   };
 
-  const handleDeleteProject = async () => {
-    await learnRepository.deleteProject(projectId!);
-    router.back();
-  };
-
-  const project: Project = {
-    id: projectId!,
-    name: projectName,
-    emoji: '📁',
-    entries: entries.map((e: LearnEntry) => {
-      const attachments = ((e as any).learn_entry_images ?? []) as any[];
-      return {
-        id: e.id,
-        text: e.body ?? '',
-        // Only photos have a thumbnail; PDFs are summarised as a count so the
-        // preview row doesn't render an empty tile for them.
-        images: attachments
-          .filter((att: any) => !isPdfPath(att.storage_path))
-          .map((img: any) => imageUrls[img.storage_path] ?? '')
-          .filter(Boolean),
-        pdfCount: attachments.filter((att: any) => isPdfPath(att.storage_path)).length,
-        timeAgo: e.updated_at ? new Date(e.updated_at).toLocaleString() : 'Recently',
-      };
-    }),
-  };
+  const firstLoad = loading && !project;
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="mr-3">
-          <ChevronLeft size={24} color="#fff" />
-        </Pressable>
-        <View className="flex-1 flex-row items-center">
-          <Text className="text-lg font-semibold text-foreground mr-2">{project.emoji}</Text>
-          <Text className="text-lg font-semibold text-foreground">{project.name}</Text>
-        </View>
-        <Pressable onPress={() => setShowMenu(true)} className="p-2">
-          <DotsThreeVertical size={22} color="#fff" />
-        </Pressable>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-        {/* Entries List */}
-        <View className="px-4 mt-4 mb-20">
-          {project.entries.length === 0 ? (
-            <View className="items-center py-12">
-              <Text className="text-4xl mb-3">📝</Text>
-              <Text className="text-foreground font-medium">No entries yet</Text>
-              <Text className="text-muted-foreground text-sm mt-1">
-                {"Tap '+ Add Entry' to add your first note"}
-              </Text>
-            </View>
-          ) : (
-            project.entries.map((entry) => (
-              <Pressable
-                key={entry.id}
-                onPress={() => router.push(`/home/learn/${project.id}/entry?entryId=${entry.id}`)}
-                className="bg-card rounded-2xl p-4 mb-3 border border-border"
-              >
-                <Text className="text-xs text-muted-foreground mb-2">{entry.timeAgo}</Text>
-                <Text className="text-sm text-foreground mb-2" numberOfLines={2}>
-                  {entry.text}
-                </Text>
-                {(entry.images.length > 0 || entry.pdfCount > 0) && (
-                  <View className="flex-row mt-2">
-                    {entry.images.slice(0, 3).map((img, idx) => (
-                      <Image
-                        key={idx}
-                        source={{ uri: img }}
-                        className="w-12 h-12 rounded-lg mr-2"
-                      />
-                    ))}
-                    {entry.images.length > 3 && (
-                      <View className="w-12 h-12 rounded-lg bg-muted items-center justify-center">
-                        <Text className="text-xs text-muted-foreground">+{entry.images.length - 3}</Text>
-                      </View>
-                    )}
-                    {entry.pdfCount > 0 && (
-                      <View className="h-12 px-2 rounded-lg bg-muted items-center justify-center flex-row">
-                        <Text className="text-xs mr-1">📄</Text>
-                        <Text className="text-xs text-muted-foreground">{entry.pdfCount}</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-              </Pressable>
-            ))
-          )}
-        </View>
-
-        {/* FAB Add Entry */}
-        <Pressable
-          onPress={() =>
-            // add-entry is a tab screen, so its params persist between visits —
-            // an omitted entryId would keep the last edited one and make "Add"
-            // overwrite that entry instead of creating a new one.
-            router.push(`/home/learn/${project.id}/add-entry?entryId=`)
-          }
-          className="absolute bottom-6 right-6 left-6 bg-primary rounded-2xl py-3 items-center active:scale-[0.98] transition-transform"
-        >
-          <Text className="text-sm font-semibold text-primary-foreground">+ Add Entry</Text>
-        </Pressable>
-      </ScrollView>
-
-      {/* More Menu Modal */}
-      <Modal visible={showMenu} transparent animationType="fade">
-        <Pressable
-          className="flex-1 bg-black/60"
-          onPress={() => setShowMenu(false)}
-        >
-          <View className="absolute bottom-20 left-4 right-4 bg-card rounded-2xl p-2">
-            <Pressable
-              onPress={() => {
-                setShowMenu(false);
-                setShowRename(true);
-              }}
-              className="flex-row items-center p-3 rounded-xl"
-            >
-              <Pencil size={18} color="#fff" />
-              <Text className="text-foreground">Rename</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                setShowMenu(false);
-                setShowDelete(true);
-              }}
-              className="flex-row items-center p-3 rounded-xl"
-            >
-              <Trash2 size={18} color="#ff4444" />
-              <Text className="text-expense">Delete Project</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
-
-      {/* Rename Modal */}
-      <Modal visible={showRename} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-card rounded-t-3xl p-6 pb-10">
-            <Text className="text-lg font-semibold text-foreground mb-4">Rename Project</Text>
-            <TextInput
-              className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4"
-              value={renameText}
-              onChangeText={setRenameText}
-              maxLength={50}
-            />
-            <View className="flex-row">
-              <Pressable
-                onPress={() => {
-                  setShowRename(false);
-                  setRenameText(projectName);
-                }}
-                className="flex-1 py-3 items-center"
-              >
-                <Text className="text-muted-foreground">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleRename}
-                className="flex-1 bg-primary rounded-2xl py-3 items-center"
-              >
-                <Text className="text-sm font-semibold text-primary-foreground">Save</Text>
-              </Pressable>
-            </View>
+    <HeroScreen
+      heroHeight={300}
+      refreshControl={<RefreshControl refreshing={loading && !!project} onRefresh={refresh} tintColor={colors['on-primary']} />}
+      hero={
+        <View style={{ flex: 1 }}>
+          <PhotoSlot photo={LEARN_COVERS[0]} style={{ position: 'absolute', left: 0, right: 0, top: -80, bottom: -24 }} />
+          <TopBar onBack={() => router.replace('/home/learn')} right={<GlassIconButton icon={Ellipsis} accessibilityLabel="More options" onPress={() => setMenu(true)} disabled={!project} />} />
+          <View style={{ paddingHorizontal: 24, marginTop: 64, gap: 8 }}>
+            {firstLoad ? <Skeleton width={200} height={32} tone="glass" /> : (
+              <>
+                <Text variant="display-md" tone="inverse" accessibilityRole="header">{project?.name}</Text>
+                <GlassChip icon={BookOpen} label={`${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`} />
+              </>
+            )}
           </View>
         </View>
-      </Modal>
-
-      {/* Delete Confirm Modal */}
-      <Modal visible={showDelete} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-card rounded-t-3xl p-6 pb-10">
-            <Text className="text-lg font-semibold text-foreground mb-2">
-              Delete this project?
-            </Text>
-            <Text className="text-sm text-muted-foreground mb-4">
-              All entries will be deleted.
-            </Text>
-            <View className="flex-row">
-              <Pressable
-                onPress={() => setShowDelete(false)}
-                className="flex-1 py-3 items-center"
-              >
-                <Text className="text-muted-foreground">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleDeleteProject}
-                className="flex-1 bg-expense rounded-2xl py-3 items-center"
-              >
-                <Text className="text-sm font-semibold text-white">Delete</Text>
-              </Pressable>
+      }
+      overlay={
+        <>
+          <Sheet visible={menu} onClose={() => setMenu(false)} title={project?.name}>
+            <SettingsRow label="Rename project" icon={Pen} onPress={() => { setMenu(false); setNewName(project?.name ?? ''); setRenaming(true); }} />
+            <SettingsRow label="Delete project" icon={Trash2} onPress={() => { setMenu(false); setDeleting(true); }} />
+          </Sheet>
+          <Sheet visible={renaming} onClose={() => setRenaming(false)} title="Rename project">
+            <View style={{ gap: 16 }}>
+              <TextInput label="Project name" value={newName} onChangeText={setNewName} autoFocus />
+              <Button label="Save" onPress={doRename} disabled={!newName.trim()} fullWidth />
             </View>
-          </View>
+          </Sheet>
+          <ConfirmSheet
+            visible={deleting}
+            title={`Delete ${project?.name ?? 'this project'}?`}
+            message={`Its ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} are deleted with it. This can’t be undone.`}
+            confirmLabel="Delete project"
+            loadingLabel="Deleting…"
+            onConfirm={doDelete}
+            onCancel={() => setDeleting(false)}
+          />
+        </>
+      }
+    >
+      <SectionHeader title="Entries" />
+      {firstLoad ? (
+        <View style={{ gap: 12 }}>
+          {[0, 1, 2].map((i) => <View key={i} style={{ flexDirection: 'row', gap: 12 }}><Skeleton width={40} height={40} /><View style={{ flex: 1, gap: 6 }}><Skeleton width="60%" height={14} /><Skeleton width="30%" height={10} /></View></View>)}
         </View>
-      </Modal>
-    </SafeAreaView>
+      ) : error && !entries.length ? (
+        <EmptyState icon={RefreshCw} title="Couldn’t load entries" body="Check your connection and try again." ctaLabel="Try again" onCta={refresh} />
+      ) : !entries.length ? (
+        <Text variant="body-md" tone="muted">No entries yet. Add your first note below.</Text>
+      ) : (
+        <View>
+          {entries.map((e) => {
+            const { title } = splitEntry(e.body);
+            const files = e.learn_entry_images ?? [];
+            const icon = files.some((f) => !isPdfPath(f.storage_path)) ? ImageIcon : FileText;
+            return (
+              <SettingsRow
+                key={e.id}
+                label={title || 'Untitled'}
+                value={new Date(e.created_at).toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' })}
+                icon={icon}
+                onPress={() => router.push({ pathname: '/home/learn/[projectId]/entry', params: { projectId: projectId ?? '', entryId: e.id } })}
+              />
+            );
+          })}
+        </View>
+      )}
+      <Button label="Add entry" icon={Plus} onPress={() => router.push({ pathname: '/home/learn/[projectId]/add-entry', params: { projectId: projectId ?? '', entryId: '' } })} fullWidth style={{ marginTop: 8 }} />
+    </HeroScreen>
   );
 }

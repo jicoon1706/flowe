@@ -16,6 +16,7 @@ export function GlassIconButton({ icon: Icon, onPress, accessibilityLabel, dot, 
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
+      disabled={!!disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !!disabled }}

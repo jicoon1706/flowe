@@ -1,387 +1,127 @@
-import { useState, useCallback, useMemo } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { Info, ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { FinancialClassBadge } from '../../../components/cashflow/FinancialClassBadge';
-import { CashFlowDiagram } from '../../../components/cashflow/CashFlowDiagram';
-import { IncomeStatementCard } from '../../../components/cashflow/IncomeStatementCard';
-import { BalanceSheetCard } from '../../../components/cashflow/BalanceSheetCard';
-import { MonthlyTrendChart } from '../../../components/cashflow/MonthlyTrendChart';
-import { ManageAssetsLiabilitiesCard } from '../../../components/cashflow/ManageAssetsLiabilitiesCard';
-import { AddAssetModal, NewAsset } from '../../../components/cashflow/AddAssetModal';
-import { AddLiabilityModal, NewLiability } from '../../../components/cashflow/AddLiabilityModal';
-import { useTransactions } from '../../../src/hooks/useTransactions';
-import { useAssets } from '../../../src/hooks/useAssets';
-import { useLiabilities } from '../../../src/hooks/useLiabilities';
-import { useCashflow } from '../../../src/hooks/useCashflow';
-import { useAccounts } from '../../../src/hooks/useAccounts';
-import { transactionsRepository } from '../../../src/repositories/transactions.repository';
-import { accountColor } from '../../../src/utils/accountColor';
-import { localYMD, shiftMonth } from '../../../src/utils/date';
-import { LoadingView } from '../../../components/ui/LoadingView';
-import { ErrorView } from '../../../components/ui/ErrorView';
-import { useAuth } from '../../../context/AuthContext';
-import type { Asset, Liability, AssetType, LiabilityType } from '../../../src/types/database.types';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, useWindowDimensions, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowLeft, ChevronDown, Info, Plus, RefreshCw } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { expenseCategories } from '@/constants/categories';
+import { categoryIcon } from '@/constants/categoryIcons';
+import { CategoryBubble } from '@/components/ui/CategoryBubble';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassIconButton } from '@/components/ui/GlassIconButton';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { Money } from '@/components/ui/Money';
+import { MonthPickerSheet } from '@/components/ui/MonthPickerSheet';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { StatTile } from '@/components/ui/StatTile';
+import { Text } from '@/components/ui/Text';
+import { useAuth } from '@/context/AuthContext';
+import { useLock } from '@/context/LockContext';
+import { useCustomCategories } from '@/src/hooks/useCustomCategories';
+import { useTransactions } from '@/src/hooks/useTransactions';
+import { spendByCategory } from '@/src/lib/cashflow';
+import { describeTransaction } from '@/src/utils/transactionDisplay';
+import type { Transaction } from '@/src/types';
 
-// ─── Mock fallback data ────────────────────────────────────────────────────────
-const MONTHLY_TREND = [
-  { month: 'Dec', assets: 260000, liabilities: 228000 },
-  { month: 'Jan', assets: 262000, liabilities: 226000 },
-  { month: 'Feb', assets: 265000, liabilities: 224000 },
-  { month: 'Mar', assets: 268000, liabilities: 222000 },
-  { month: 'Apr', assets: 272000, liabilities: 221000 },
-  { month: 'May', assets: 280000, liabilities: 220000 },
+/** Bubble slots on a 390-wide hero (ins-cashflow): [left, top, size], largest first. */
+const SLOTS: [number, number, number][] = [
+  [14, 72, 150], [196, 82, 134], [120, 216, 122], [268, 254, 108], [16, 284, 92], [150, 374, 76],
 ];
 
-// ─── Component-level asset/liability shape (for UI components) ────────────────
-interface UIAsset { id: string; name: string; type: string; icon: string; value: number; monthlyIncome: number; dateAcquired?: string; note?: string; quantity?: number; unit?: string; }
-interface UILiability { id: string; name: string; type: string; icon: string; amountOwed: number; monthlyPayment: number; }
-
-// ─── Main screen ────────────────────────────────────────────────────────────────
-export default function CashFlowScreen() {
+/**
+ * cashflow — glass bubbles sized by share of spend (bright arc = %), month pill
+ * pre-set to this month. Tap a bubble → that category's transactions.
+ */
+export default function CashflowScreen() {
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState(new Date()); // default to current month
-  const [balanceSheetTab, setBalanceSheetTab] = useState<'assets' | 'liabilities'>('assets');
-  const [manageTab, setManageTab] = useState<'assets' | 'liabilities'>('assets');
-  const [showAddAsset, setShowAddAsset] = useState(false);
-  const [showAddLiability, setShowAddLiability] = useState(false);
-  const [editingAsset, setEditingAsset] = useState<UIAsset | null>(null);
-  const [editingLiability, setEditingLiability] = useState<UILiability | null>(null);
-
-  const year = selectedDate.getFullYear();
-  const month = selectedDate.getMonth() + 1;
-  const currentMonth = `${year}-${String(month).padStart(2, '0')}`;
-  const monthLabel = selectedDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-
-  // Whether the selected month is after the current calendar month.
-  // Future months have no data yet, so they start from the "poor" pattern.
-  const now = new Date();
-  const isFutureMonth = year > now.getFullYear() || (year === now.getFullYear() && month > now.getMonth() + 1);
-
-  // ─── Hook calls ────────────────────────────────────────────────────────────
+  const { width } = useWindowDimensions();
   const { user } = useAuth();
-  const { income: incomeTxns, expenses: expenseTxns, loading: txLoading, error: txError, refetch: refetchTxns } = useTransactions(year, month);
-  const { assets: rawAssets, loading: astLoading, error: astError, fetchAssets, createAsset, updateAsset, deleteAsset } = useAssets();
-  const { liabilities: rawLiabilities, loading: liabLoading, error: liabError, fetchLiabilities, createLiability, updateLiability, deleteLiability } = useLiabilities();
-  const { accounts, fetchAccounts } = useAccounts();
-  const { summary, refetch: refetchSummary } = useCashflow(currentMonth);
+  const { locked } = useLock();
+  const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
+  const [picker, setPicker] = useState(false);
+  const { transactions, loading, error, refetch } = useTransactions(month.getFullYear(), month.getMonth() + 1);
+  const { categories: custom, fetchCategories } = useCustomCategories();
+  const [fetched, setFetched] = useState(false);
 
-  // Where a new asset/liability entry lands on the trend by default: the month
-  // being viewed, capped at today (a future month has nothing to record yet).
-  // Memoised so the modals' reset effect doesn't fire on every render.
-  const defaultAsOf = useMemo(
-    () => (isFutureMonth ? new Date() : selectedDate),
-    [isFutureMonth, selectedDate],
-  );
+  useFocusEffect(useCallback(() => { refetch().then(() => setFetched(true)); if (user) fetchCategories(user.id); }, [refetch, fetchCategories, user]));
 
-  // Accounts an asset can be funded from, in the shape AccountSelector wants.
-  const accountOptions = accounts.map((a: any) => {
-    const bal = Number(
-      a.type === 'bank'
-        ? a.bank_accounts?.current_balance ?? 0
-        : a.type === 'wallet'
-        ? a.wallet_accounts?.current_balance ?? 0
-        : a.type === 'tabung'
-        ? a.tabung_accounts?.saved_amount ?? 0
-        : 0
-    );
-    return {
-      id: a.id,
-      name: a.name,
-      balance: bal.toLocaleString('en-US', { minimumFractionDigits: 2 }),
-      color: accountColor(a),
-    };
-  });
+  const { total, items } = useMemo(() => spendByCategory(transactions as Transaction[]), [transactions]);
+  const labelOf = (cat: string) => describeTransaction({ type: 'expense', category: cat } as Transaction, custom).label;
+  const scale = Math.min(1, width / 390);
+  const iconKeyOf = (cat: string) => expenseCategories.find((c) => c.id === cat)?.id ?? custom.find((c) => c.name === cat)?.icon ?? cat;
+  const openCategory = (cat: string) => router.push({ pathname: '/transactions', params: { category: cat, month: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}` } });
+  const firstLoad = loading && !fetched;
+  const monthLabel = month.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' });
 
-  const loading = txLoading || astLoading || liabLoading;
-  const anyError = txError || astError || liabError;
-
-  useFocusEffect(useCallback(() => {
-    fetchAssets();
-    fetchLiabilities();
-    fetchAccounts();
-    refetchTxns();
-    refetchSummary();
-  }, [fetchAssets, fetchLiabilities, fetchAccounts, refetchTxns, refetchSummary]));
-
-  // ─── Loading / error guards ────────────────────────────────────────────────
-  if (loading) return <LoadingView />;
-  if (anyError) return <ErrorView error={anyError} onRetry={() => { fetchAssets(); fetchLiabilities(); refetchTxns(); }} />;
-
-  // ─── Map DB types to UI component types ───────────────────────────────────
-  // Future months have no data yet — show the empty "poor" starting pattern.
-  const assets: UIAsset[] = isFutureMonth ? [] : rawAssets.map((a: Asset) => ({
-    id: a.id,
-    name: a.name,
-    type: a.type,
-    icon: a.icon ?? '📦',
-    value: a.current_value,
-    quantity: a.quantity,
-    unit: a.unit,
-    monthlyIncome: a.monthly_income,
-    dateAcquired: a.date_acquired,
-    note: a.note,
-  }));
-
-  const liabilities: UILiability[] = isFutureMonth ? [] : rawLiabilities.map((l: Liability) => ({
-    id: l.id,
-    name: l.name,
-    type: l.type,
-    icon: l.icon ?? '📦',
-    amountOwed: l.amount_owed,
-    monthlyPayment: l.monthly_payment,
-  }));
-
-  // ─── Income / expense items (from local transactions) ──────────────────────
-  const incomeItems = isFutureMonth ? [] : incomeTxns.map(t => ({ label: t.name || t.category || 'Income', amount: Number(t.amount) }));
-  const expenseItems = isFutureMonth ? [] : expenseTxns.map(t => ({ label: t.name || t.category || 'Expense', amount: Number(t.amount) }));
-
-  // ─── Computed totals ────────────────────────────────────────────────────────
-  const totalIncome = incomeItems.reduce((s, i) => s + i.amount, 0);
-  const totalExpenses = expenseItems.reduce((s, e) => s + e.amount, 0);
-  const netCashFlow = totalIncome - totalExpenses;
-
-  const totalAssets = assets.reduce((s, a) => s + a.value, 0);
-  const totalLiabilities = liabilities.reduce((s, l) => s + l.amountOwed, 0);
-  const netWorth = totalAssets - totalLiabilities;
-
-  const passiveFromAssets = assets.reduce((s, a) => s + a.monthlyIncome, 0);
-  const allIncome = totalIncome + passiveFromAssets;
-
-  const financialClass = assets.length === 0 ? 'poor' :
-    passiveFromAssets >= totalExpenses ? 'rich' : 'middle';
-
-  const monthlyTrend = isFutureMonth
-    ? []
-    : summary?.monthly_trend?.length ? summary.monthly_trend : MONTHLY_TREND;
-
-  const currMonth = monthlyTrend[monthlyTrend.length - 1];
-  const prevMonth = monthlyTrend.length > 1 ? monthlyTrend[monthlyTrend.length - 2] : null;
-  const netWorthChange = (currMonth?.assets ?? 0) - (currMonth?.liabilities ?? 0)
-    - ((prevMonth?.assets ?? 0) - (prevMonth?.liabilities ?? 0));
-
-  // ─── Handlers ───────────────────────────────────────────────────────────────
-  const navigateMonth = (delta: number) => {
-    setSelectedDate((prev) => shiftMonth(prev, delta));
-  };
-
-  const handleAddAsset = async (a: NewAsset) => {
-    if (!user) return;
-    const result = editingAsset
-      ? await updateAsset(editingAsset.id, {
-          name: a.name,
-          type: a.type as AssetType,
-          icon: a.icon,
-          current_value: a.value,
-          quantity: a.quantity,
-          unit: a.unit,
-          monthly_income: a.monthlyIncome,
-          date_acquired: a.dateAcquired,
-          note: a.note,
-        }, a.asOfMonth)
-      : await createAsset({
-          user_id: user.id,
-          name: a.name,
-          type: a.type as AssetType,
-          icon: a.icon,
-          current_value: a.value,
-          quantity: a.quantity,
-          unit: a.unit,
-          monthly_income: a.monthlyIncome,
-          date_acquired: a.dateAcquired,
-          note: a.note,
-          as_of_month: a.asOfMonth,
-        });
-    if (result.ok) {
-      // Funded from an account: record the money leaving it, exactly as a
-      // transfer into this asset from the Add Transaction screen would — a
-      // transfer with no destination account, filed under the asset's name.
-      // The asset row already holds the new total, so only the account side is
-      // left to write.
-      //
-      // `contribution` — not `value` — is what moved: on a top-up the total is
-      // the running balance, and charging that to an account would re-spend
-      // everything the asset had ever received.
-      if (a.fundFromAccountId && a.contribution > 0) {
-        await transactionsRepository.create({
-          user_id: user.id,
-          type: 'transfer',
-          name: editingAsset ? `Top-up ${a.name}` : `Into ${a.name}`,
-          amount: a.contribution,
-          category: a.name,
-          from_account_id: a.fundFromAccountId,
-          date: localYMD(new Date()),
-        });
-        await fetchAccounts();
-        await refetchTxns();
-      }
-      setEditingAsset(null);
-      setShowAddAsset(false);
-      // The trend is computed server-side from the value history, so it has
-      // to be pulled again for the new entry to show.
-      refetchSummary();
-    }
-  };
-
-  const handleAddLiability = async (l: NewLiability) => {
-    if (!user) return;
-    const result = editingLiability
-      ? await updateLiability(editingLiability.id, {
-          name: l.name,
-          type: l.type as LiabilityType,
-          icon: l.icon,
-          amount_owed: l.amountOwed,
-          monthly_payment: l.monthlyPayment,
-          interest_rate: l.interestRate,
-          note: l.note,
-        }, l.asOfMonth)
-      : await createLiability({
-          user_id: user.id,
-          name: l.name,
-          type: l.type as LiabilityType,
-          icon: l.icon,
-          amount_owed: l.amountOwed,
-          monthly_payment: l.monthlyPayment,
-          interest_rate: l.interestRate,
-          note: l.note,
-          as_of_month: l.asOfMonth,
-        });
-    if (result.ok) {
-      setEditingLiability(null);
-      setShowAddLiability(false);
-      refetchSummary();
-    }
-  };
-
-  const handleEdit = (item: UIAsset | UILiability) => {
-    if (manageTab === 'assets') {
-      setEditingAsset(item as UIAsset);
-      setShowAddAsset(true);
-    } else {
-      setEditingLiability(item as UILiability);
-      setShowAddLiability(true);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (manageTab === 'assets') {
-      await deleteAsset(id);
-    } else {
-      await deleteLiability(id);
-    }
-    refetchSummary();
-  };
+  const bubbles = firstLoad
+    ? SLOTS.map(([l, t, s], i) => (
+        <View key={i} style={{ position: 'absolute', left: l * scale, top: t, width: s * scale, height: s * scale, borderRadius: 9999, backgroundColor: colors.glass }} />
+      ))
+    : items.length === 0
+    ? SLOTS.slice(0, 4).map(([l, t, s], i) => (
+        <View key={i} style={{ position: 'absolute', left: l * scale, top: t }}>
+          <CategoryBubble label="" share={0} icon={Plus} size={s * scale} ghost />
+        </View>
+      ))
+    : items.slice(0, SLOTS.length).map((c, i) => {
+        const [l, t, s] = SLOTS[i];
+        return (
+          <View key={c.category} style={{ position: 'absolute', left: l * scale, top: t }}>
+            <CategoryBubble label={labelOf(c.category)} share={c.share} icon={categoryIcon(iconKeyOf(c.category))} size={s * scale} onPress={() => openCategory(c.category)} />
+          </View>
+        );
+      });
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScreenHeader
-        title="Cash Flow"
-        rightAction={
-          <Pressable onPress={() => router.push('/cashflow/info')} className="p-2">
-            <Info size={22} color="#ffffff" />
-          </Pressable>
-        }
-      />
-      <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-        {/* Month Navigator */}
-        <View className="flex-row items-center justify-between px-4 py-3">
-          <Pressable onPress={() => navigateMonth(-1)} className="p-2">
-            <ChevronLeft size={24} color="#ffffff" />
-          </Pressable>
-          <Text className="text-lg font-semibold text-foreground">{monthLabel}</Text>
-          <Pressable onPress={() => navigateMonth(1)} className="p-2">
-            <ChevronRight size={24} color="#ffffff" />
-          </Pressable>
+    <HeroScreen
+      heroHeight={580}
+      refreshControl={<RefreshControl refreshing={loading && fetched} onRefresh={refetch} tintColor={colors['on-primary']} />}
+      hero={
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
+            <GlassIconButton icon={ArrowLeft} accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(main)'))} />
+            <Pressable
+              onPress={() => setPicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Month: ${monthLabel}. Change month`}
+              style={{ height: 44, paddingHorizontal: 16, borderRadius: 9999, backgroundColor: colors.glass, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+            >
+              <Text variant="body-md" weight={500} tone="inverse">{monthLabel}</Text>
+              <ChevronDown size={16} color={colors['on-primary']} strokeWidth={1.75} />
+            </Pressable>
+            <GlassIconButton icon={Info} accessibilityLabel="Cashflow info" onPress={() => router.push('/cashflow/info')} />
+          </View>
+          <View style={{ flex: 1 }} accessibilityLabel={items.length ? 'Spending by category' : undefined}>
+            {bubbles}
+            {!firstLoad && items.length === 0 && !error ? (
+              <View style={{ position: 'absolute', left: 24, right: 24, bottom: 48, alignItems: 'center' }}>
+                <Text variant="body-md" tone="soft" align="center">Your spending shows up here as bubbles.</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
-
-        {/* Financial Class Badge */}
-        <View className="px-4 mb-4">
-          <FinancialClassBadge
-            financialClass={financialClass}
-            totalAssets={totalAssets}
-            totalLiabilities={totalLiabilities}
-            passiveIncome={passiveFromAssets}
-            netWorth={netWorth}
-            totalIncome={allIncome}
-            totalExpenses={totalExpenses}
-          />
-        </View>
-
-        {/* Cash Flow Diagram */}
-        <View className="px-4 mb-4">
-          <CashFlowDiagram
-            financialClass={financialClass}
-            totalIncome={allIncome}
-            passiveIncome={passiveFromAssets}
-            totalExpenses={totalExpenses}
-            totalAssets={totalAssets}
-            totalLiabilities={totalLiabilities}
-          />
-        </View>
-
-        {/* Income Statement */}
-        <View className="px-4 mb-4">
-          <IncomeStatementCard
-            incomeItems={incomeItems}
-            expenseItems={expenseItems}
-            passiveFromAssets={passiveFromAssets}
-            totalIncome={allIncome}
-            totalExpenses={totalExpenses}
-            netCashFlow={netCashFlow}
-          />
-        </View>
-
-        {/* Balance Sheet */}
-        <View className="px-4 mb-4">
-          <BalanceSheetCard
-            assets={assets}
-            liabilities={liabilities}
-            activeTab={balanceSheetTab}
-            onTabChange={setBalanceSheetTab}
-            onAddAsset={() => setShowAddAsset(true)}
-            onAddLiability={() => setShowAddLiability(true)}
-            totalAssets={totalAssets}
-            totalLiabilities={totalLiabilities}
-            netWorth={netWorth}
-          />
-        </View>
-
-        {/* Monthly Trend */}
-        <View className="px-4 mb-4">
-          <MonthlyTrendChart data={monthlyTrend} netWorthChange={netWorthChange} />
-        </View>
-
-        {/* Manage Assets & Liabilities */}
-        <View className="px-4 mb-32">
-          <ManageAssetsLiabilitiesCard
-            assets={assets}
-            liabilities={liabilities}
-            activeTab={manageTab}
-            onTabChange={setManageTab}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onAdd={() => (manageTab === 'assets' ? setShowAddAsset(true) : setShowAddLiability(true))}
-          />
-        </View>
-      </ScrollView>
-
-      <AddAssetModal
-        visible={showAddAsset}
-        onClose={() => { setShowAddAsset(false); setEditingAsset(null); }}
-        onSubmit={handleAddAsset}
-        initial={editingAsset}
-        accounts={accountOptions}
-        defaultAsOf={defaultAsOf}
-      />
-      <AddLiabilityModal
-        visible={showAddLiability}
-        onClose={() => { setShowAddLiability(false); setEditingLiability(null); }}
-        onSubmit={handleAddLiability}
-        initial={editingLiability}
-        defaultAsOf={defaultAsOf}
-      />
-    </SafeAreaView>
+      }
+      overlay={<MonthPickerSheet visible={picker} onClose={() => setPicker(false)} value={month} onChange={setMonth} />}
+    >
+      {error && transactions.length === 0 ? (
+        <EmptyState icon={RefreshCw} title="Couldn’t load cashflow" body="Check your connection and try again." ctaLabel="Try again" ctaIcon={RefreshCw} onCta={refetch} />
+      ) : !firstLoad && items.length === 0 ? (
+        <EmptyState title="No spending yet this month" body="Add a transaction and Flowe sorts it into categories here." ctaLabel="Add transaction" ctaIcon={Plus} onCta={() => router.push({ pathname: '/add-transaction', params: { nonce: String(Date.now()) } })} />
+      ) : (
+        <>
+          <SectionHeader title="Expenses" onAction={() => router.push('/transactions')} />
+          {firstLoad ? <Skeleton width={180} height={32} /> : <Money amount={total} variant="display-md" masked={locked} />}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {firstLoad
+              ? [0, 1].map((i) => <View key={i} style={{ width: '48.8%' }}><Skeleton height={84} radius={12} /></View>)
+              : items.map((c) => (
+                  <View key={c.category} style={{ width: '48.8%' }}>
+                    <StatTile label={labelOf(c.category)} icon={categoryIcon(iconKeyOf(c.category))} amount={c.amount} masked={locked} onPress={() => openCategory(c.category)} />
+                  </View>
+                ))}
+          </View>
+        </>
+      )}
+    </HeroScreen>
   );
 }

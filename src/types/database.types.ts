@@ -9,6 +9,10 @@ export type LiabilityType = 'mortgage' | 'car_loan' | 'credit_card' | 'study_loa
 export type NotificationType = 'expense' | 'income' | 'transfer' | 'recurring' | 'alert' | 'tabung' | 'milestone' | 'asset' | 'liability' | 'cashflow' | 'note' | 'affirmation' | 'project';
 export type AffirmationCategory = 'saving' | 'investing' | 'mindset' | 'awareness';
 export type FinancialIdentity = 'employee' | 'entrepreneur' | 'investor' | 'business_owner';
+/** What the pinned Android live budget update shows. Migration 20261117. */
+export type LiveBudgetMode = 'off' | 'daily' | 'monthly' | 'both';
+/** How a Tabung ring is computed. Migration 20261117. */
+export type TabungProgressMode = 'contributed' | 'balance';
 
 // ─── Table Row Types ───
 export interface Profile {
@@ -69,6 +73,8 @@ export interface TabungAccount {
   color?: string;
   template_type?: string;
   auto_save: boolean;
+  /** Migration 20261117. Defaults to 'contributed'. */
+  progress_mode: TabungProgressMode;
 }
 
 export interface WalletAccount {
@@ -203,6 +209,16 @@ export interface LearnEntry {
   updated_at: string;
 }
 
+/** A learn entry as fetchEntries returns it, attachments joined. */
+export interface LearnEntryWithImages extends LearnEntry {
+  learn_entry_images?: LearnEntryImage[];
+}
+
+/** A project as fetchProjects returns it, with entry summaries joined. */
+export interface LearnProjectWithEntries extends LearnProject {
+  learn_entries?: { id: string; body?: string; updated_at: string; learn_entry_images?: { id: string }[] }[];
+}
+
 export interface LearnEntryImage {
   id: string;
   entry_id: string;
@@ -270,6 +286,10 @@ export interface Settings {
    * haven't set one — the daily-budget widget shows no figure until they do.
    */
   daily_budget: number | null;
+  /** Monthly spending limit in RM, null when unset. Migration 20261117. */
+  monthly_budget: number | null;
+  /** Pinned live budget update. Migration 20261117. */
+  live_budget_mode: LiveBudgetMode;
   created_at: string;
   updated_at: string;
 }
@@ -312,4 +332,14 @@ export interface LiabilityValue {
   amount_owed: number;
   created_at: string;
   updated_at: string;
+}
+
+/** Row of the tabung_monthly_flows view (migration 20261117). */
+export interface TabungMonthlyFlow {
+  user_id: string;
+  account_id: string;
+  /** First day of the month, YYYY-MM-01. */
+  month: string;
+  topped_up: number;
+  paid_out: number;
 }

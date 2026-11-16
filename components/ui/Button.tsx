@@ -28,6 +28,8 @@ export interface ButtonProps {
   height?: 52 | 44;
   /** Muted text tone for text buttons (Dismiss, Delete on detail). */
   muted?: boolean;
+  /** Text button drawn on the gradient (white ink). */
+  onGradient?: boolean;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
@@ -62,6 +64,7 @@ export function Button({
   fullWidth = false,
   height = 52,
   muted = false,
+  onGradient = false,
   accessibilityLabel,
   accessibilityHint,
   style,
@@ -73,11 +76,13 @@ export function Button({
   const fill = disabled && variant === 'primary' ? colors['surface-container-high'] : FILL[variant];
   let ink = disabled && variant === 'primary' ? colors['on-surface-variant-aa'] : INK[variant];
   if (variant === 'text' && muted) ink = colors['on-surface-variant-aa'];
+  if (variant === 'text' && onGradient) ink = colors['on-primary'];
   const padH = variant === 'text' ? 16 : variant === 'action' ? 16 : 24;
 
   return (
     <Pressable
       onPress={inactive ? undefined : onPress}
+      disabled={inactive}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}

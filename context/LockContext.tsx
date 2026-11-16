@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { AppState } from 'react-native';
 import { LockOverlay } from '../components/home/LockOverlay';
 import { useAuth } from './AuthContext';
+import { useProfile } from '../src/hooks/useProfile';
 import { authConfigRepository } from '../src/repositories/authConfig.repository';
 import { autoLockMinutesFrom, shouldRelock, DEFAULT_AUTO_LOCK_MINUTES } from '../src/utils/autoLock';
 
@@ -80,6 +81,7 @@ export function LockProvider({ children }: { children: React.ReactNode }) {
   // whenever the app goes to or comes back from the background, so a change
   // made in Settings applies to the very next time the user leaves.
   const { user } = useAuth();
+  const { displayName } = useProfile(user?.id);
   const autoLockMinutesRef = useRef<number | null>(DEFAULT_AUTO_LOCK_MINUTES);
   const backgroundedAtRef = useRef<number | null>(null);
   const skipNextCheckRef = useRef(false);
@@ -121,6 +123,7 @@ export function LockProvider({ children }: { children: React.ReactNode }) {
       {children}
       {locked && prompting && (
         <LockOverlay
+          displayName={displayName || undefined}
           onUnlock={() => { setLocked(false); settle(true); }}
           onCancel={() => settle(false)}
         />

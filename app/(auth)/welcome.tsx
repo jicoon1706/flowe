@@ -1,39 +1,32 @@
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowRight } from 'lucide-react-native';
+import { BrandMark } from '@/components/ui/BrandMark';
+import { Button } from '@/components/ui/Button';
+import { GradientFill } from '@/components/ui/GradientFill';
+import { IconButton } from '@/components/ui/IconButton';
+import { PhotoSlot } from '@/components/ui/PhotoSlot';
+import { Text } from '@/components/ui/Text';
 
+/** (auth)/welcome — full gradient, hero photo, one primary: Get Started. */
 export default function Welcome() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const start = () => router.push('/(auth)/create-pin');
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <ScrollView contentContainerClassName="flex-1 px-6 max-w-md mx-auto w-full" showsVerticalScrollIndicator={false}>
-        <View className="flex-1 items-center justify-center">
-          <View className="w-20 h-20 rounded-2xl bg-primary items-center justify-center mb-8">
-            <Feather name="credit-card" size={36} color="#000" />
-          </View>
-          <Text className="text-foreground text-4xl font-bold mb-2">Flowe</Text>
-          <Text className="text-muted-foreground text-base mb-10">Your personal finance companion</Text>
-          {[
-            { icon: '💰', text: 'Track income & expenses effortlessly' },
-            { icon: '📈', text: 'Build assets like the rich do' },
-            { icon: '💎', text: 'Achieve financial freedom' },
-          ].map((p) => (
-            <View key={p.text} className="bg-card rounded-2xl px-4 py-3 mb-3 w-full flex-row items-center gap-3">
-              <Text className="text-xl">{p.icon}</Text>
-              <Text className="text-foreground text-sm">{p.text}</Text>
-            </View>
-          ))}
-          <Text className="text-muted-foreground/60 text-xs italic mt-6">Inspired by Rich Dad Poor Dad</Text>
-        </View>
-        <Pressable
-          onPress={() => router.push('/(auth)/create-pin')}
-          className="bg-primary rounded-2xl py-4 mb-6 flex-row items-center justify-center gap-2 active:opacity-90"
-        >
-          <Text className="text-primary-foreground text-base font-bold">Get Started</Text>
-          <Feather name="chevron-right" size={20} color="#000" />
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+    <View style={{ flex: 1 }}>
+      <GradientFill />
+      <PhotoSlot photo="welcomeHero" style={{ position: 'absolute', left: 0, right: 0, top: 260, height: 520 }} />
+      <View style={{ paddingTop: insets.top + 24, paddingHorizontal: 24, gap: 24 }}>
+        <BrandMark size={28} wordmark />
+        <Text variant="display-lg" tone="inverse" accessibilityRole="header">Know where every ringgit flows</Text>
+      </View>
+      <View style={{ flex: 1 }} />
+      <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 24, paddingBottom: insets.bottom + 32 }}>
+        <Button label="Get Started" variant="white" onPress={start} style={{ flex: 1 }} />
+        <IconButton icon={ArrowRight} accessibilityLabel="Get started" onPress={start} />
+      </View>
+    </View>
   );
 }

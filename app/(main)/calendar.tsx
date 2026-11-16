@@ -1,399 +1,158 @@
-import { useState, useCallback } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, RefreshCw, Image } from 'lucide-react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ScreenHeader } from '../../components/ui/ScreenHeader';
-import { Card } from '../../components/ui/Card';
-import { SearchBar } from '../../components/ui/SearchBar';
-import { MerchantIcon } from '../../components/ui/MerchantIcon';
-import { TransactionDetail } from '../../components/home/TransactionDetail';
-import { useTransactions } from '../../src/hooks/useTransactions';
-import { useCustomCategories } from '../../src/hooks/useCustomCategories';
-import { useAuth } from '../../context/AuthContext';
-import { LoadingView } from '../../components/ui/LoadingView';
-import { ErrorView } from '../../components/ui/ErrorView';
-import { resolveCategory } from '../../src/utils/resolveCategory';
-import { shiftMonth } from '../../src/utils/date';
-import type { Transaction, CustomCategory } from '../../src/types/database.types';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { TransactionDetail } from '@/components/home/TransactionDetail';
+import { TransactionList } from '@/components/home/TransactionList';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassIconButton } from '@/components/ui/GlassIconButton';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { Money } from '@/components/ui/Money';
+import { Sheet } from '@/components/ui/Sheet';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Text } from '@/components/ui/Text';
+import { useAuth } from '@/context/AuthContext';
+import { useLock } from '@/context/LockContext';
+import { useAccounts } from '@/src/hooks/useAccounts';
+import { useCustomCategories } from '@/src/hooks/useCustomCategories';
+import { useTransactions } from '@/src/hooks/useTransactions';
+import { spendOnDay } from '@/src/lib/calendarSpend';
+import { localYMD } from '@/src/utils/date';
+import { editParams, type TxWithAccounts } from '@/src/utils/transactionDisplay';
+import type { AnyAccount } from '@/src/utils/accountDisplay';
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEK = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-interface DayTransaction {
-  id: string;
-  name: string;
-  category: string;
-  categoryIcon: string;
-  amount: string;
-  type: 'income' | 'expense' | 'transfer';
-  date: string;
-  recurring: boolean;
-  recurringFreq?: 'weekly' | 'monthly' | 'yearly';
-  account: string;
-  toAccount?: string;
-  note?: string;
-  hasReceipt?: boolean;
-  receiptPath?: string;
-}
-
+/** calendar — opens on today; dots scale with daily spend; tap a day → day sheet. */
 export default function CalendarScreen() {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedTransaction, setSelectedTransaction] = useState<DayTransaction | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [query, setQuery] = useState('');
-
-  const year = selectedDate.getFullYear();
-  const month = selectedDate.getMonth() + 1;
-
   const router = useRouter();
-  const { transactions, loading, error, refetch } = useTransactions(year, month);
   const { user } = useAuth();
-  const { categories: customCategories, fetchCategories: fetchCustomCategories } = useCustomCategories();
-
-  useFocusEffect(useCallback(() => {
-    refetch();
-    if (user) fetchCustomCategories(user.id);
-  }, [refetch, fetchCustomCategories, user]));
-
-  if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={refetch} />;
-
-  const customByName: Record<string, CustomCategory> = Object.fromEntries(
-    customCategories.map((c) => [c.name, c])
-  );
-
-  const monthName = selectedDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-
-  // Build calendar days
-  const firstDayOfMonth = new Date(year, month - 1, 1);
-  const lastDayOfMonth = new Date(year, month, 0);
-  const daysInMonth = lastDayOfMonth.getDate();
-  const startDayOfWeek = firstDayOfMonth.getDay();
-
-  // Group transactions by day
-  const transactionsByDay: Record<number, typeof transactions> = {};
-  transactions.forEach(tx => {
-    // Read the calendar day straight from the string: `new Date('YYYY-MM-DD')`
-    // is UTC midnight, which is the previous day in negative-offset timezones.
-    const [txYear, txMonth, day] = tx.date.slice(0, 10).split('-').map(Number);
-    if (txYear === year && txMonth === month) {
-      if (!transactionsByDay[day]) transactionsByDay[day] = [];
-      transactionsByDay[day].push(tx);
-    }
-  });
-
-  // Calculate monthly totals
-  const monthlyIncome = transactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-  const monthlyExpenses = transactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-  const monthlyNet = monthlyIncome - monthlyExpenses;
-
-  const calendarDays: {
-    day: number;
-    hasTransaction: boolean;
-    types: string[];
-  }[] = [];
-
-  // Empty cells before first day
-  for (let i = 0; i < startDayOfWeek; i++) {
-    calendarDays.push({ day: 0, hasTransaction: false, types: [] });
-  }
-
-  // Days of month
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dayTxs = transactionsByDay[d] ?? [];
-    const types = [...new Set(dayTxs.map(t => t.type))];
-    calendarDays.push({
-      day: d,
-      hasTransaction: dayTxs.length > 0,
-      types,
-    });
-  }
-
-  // Selected day transactions
+  const { locked } = useLock();
   const today = new Date();
-  const selectedDay = selectedDate.getDate();
-  const selectedDayTxs = transactionsByDay[selectedDay] ?? [];
+  const [month, setMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [day, setDay] = useState<string | null>(null);
+  const [detail, setDetail] = useState<TxWithAccounts | null>(null);
+  const { transactions, loading, error, refetch } = useTransactions(month.getFullYear(), month.getMonth() + 1);
+  const { accounts, fetchAccounts } = useAccounts();
+  const { categories: custom, fetchCategories } = useCustomCategories();
+  const [fetched, setFetched] = useState(false);
 
-  const selectedDayLabel = selectedDay === today.getDate() &&
-    selectedDate.getMonth() === today.getMonth() &&
-    selectedDate.getFullYear() === today.getFullYear()
-    ? 'Today'
-    : `${selectedDay} ${selectedDate.toLocaleString('en-US', { month: 'short' })}`;
+  useFocusEffect(useCallback(() => { refetch().then(() => setFetched(true)); fetchAccounts(); if (user) fetchCategories(user.id); }, [refetch, fetchAccounts, fetchCategories, user]));
 
-  const toDayTransaction = (tx: (typeof transactions)[number]): DayTransaction => {
-    const cat = resolveCategory(tx as Transaction, customByName);
-    return {
-    id: tx.id,
-    name: tx.name,
-    category: cat.name,
-    categoryIcon: cat.emoji,
-    amount: `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}RM ${Number(tx.amount).toLocaleString('en-US')}`,
-    type: tx.type as 'income' | 'expense' | 'transfer',
-    date: new Date(tx.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
-    recurring: tx.is_recurring,
-    recurringFreq: (tx as any).recurring?.frequency,
-    account: (tx.type === 'income'
-      ? (tx as any).to_account?.name
-      : (tx as any).from_account?.name) ?? '',
-    toAccount: (tx as any).to_account?.name ?? undefined,
-    note: tx.note ?? undefined,
-    hasReceipt: !!tx.receipt_url,
-    receiptPath: tx.receipt_url ?? undefined,
-  };
-  };
-
-  const isTransactionRow = (tx: (typeof transactions)[number]) =>
-    tx.type === 'income' || tx.type === 'expense' || tx.type === 'transfer';
-
-  const dayTransactions: DayTransaction[] = selectedDayTxs
-    .filter(isTransactionRow)
-    .map(toDayTransaction);
-
-  // Search spans the whole month on screen (not just the selected day) and
-  // matches name, category, note and account, so "maybank" or "grab" both work.
-  const trimmedQuery = query.trim().toLowerCase();
-  const searching = trimmedQuery.length > 0;
-  const searchResults: DayTransaction[] = searching
-    ? transactions
-        .filter(isTransactionRow)
-        .map(toDayTransaction)
-        .filter((tx) =>
-          [tx.name, tx.category, tx.note, tx.account, tx.toAccount].some((field) =>
-            field?.toLowerCase().includes(trimmedQuery)
-          )
-        )
-    : [];
-
-  const handleEdit = (id: string) => {
-    const tx = transactions.find((t) => t.id === id);
-    if (!tx) return;
-    setModalVisible(false);
-    router.push({
-      pathname: '/(main)/add-transaction',
-      params: {
-        editId: tx.id,
-        type: tx.type,
-        name: tx.name,
-        amount: String(tx.amount),
-        category: tx.category ?? '',
-        fromAccountId: tx.from_account_id ?? '',
-        toAccountId: tx.to_account_id ?? '',
-        assetId: tx.asset_id ?? '',
-        date: tx.date,
-        note: tx.note ?? '',
-        nonce: String(Date.now()),
-      },
-    });
-  };
-
-  const navigateMonth = (delta: number) => {
-    setSelectedDate(shiftMonth(selectedDate, delta));
-  };
+  const rows = transactions as TxWithAccounts[];
+  const { levels, total } = useMemo(() => spendOnDay(rows), [rows]);
+  const first = month.getDay();
+  const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  const todayYmd = localYMD(today);
+  const ymdOf = (d: number) => localYMD(new Date(month.getFullYear(), month.getMonth(), d));
+  const dayRows = day ? rows.filter((t) => t.date.slice(0, 10) === day) : [];
+  const daySpent = dayRows.reduce((s, t) => (t.type === 'expense' ? s + Number(t.amount) : s), 0);
+  const firstLoad = loading && !fetched;
+  const monthName = month.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' });
+  const shift = (n: number) => { setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1)); setFetched(false); };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScreenHeader title="Calendar" />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
-      >
-        {/* Month Navigator */}
-        <View className="flex-row items-center justify-between px-4 py-3">
-          <Pressable onPress={() => navigateMonth(-1)} className="p-2">
-            <ChevronLeft size={24} color="#ffffff" />
-          </Pressable>
-          <Text className="text-lg font-semibold text-foreground">{monthName}</Text>
-          <Pressable onPress={() => navigateMonth(1)} className="p-2">
-            <ChevronRight size={24} color="#ffffff" />
-          </Pressable>
+    <HeroScreen
+      heroHeight={260}
+      refreshControl={<RefreshControl refreshing={loading && fetched} onRefresh={refetch} tintColor={colors['on-primary']} />}
+      hero={
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
+            <GlassIconButton icon={ChevronLeft} accessibilityLabel="Previous month" onPress={() => shift(-1)} />
+            <Text variant="body-lg" weight={500} tone="inverse" accessibilityRole="header">{monthName}</Text>
+            <GlassIconButton icon={ChevronRight} accessibilityLabel="Next month" onPress={() => shift(1)} />
+          </View>
+          <View style={{ alignItems: 'center', gap: 8, marginTop: 24 }}>
+            {firstLoad ? <><Skeleton width={130} height={14} tone="glass" /><Skeleton width={220} height={56} tone="glass" /></> : (
+              <>
+                <Text variant="body-lg" tone="soft">Spent this month</Text>
+                <Money amount={total} variant="numeric-lg" on="gradient" smallCurrency masked={locked} />
+              </>
+            )}
+          </View>
         </View>
-
-        {/* Search */}
-        <View className="px-4 mb-3">
-          <SearchBar
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search this month's transactions"
-          />
-        </View>
-
-        {/* Summary Cards */}
-        <View className="flex-row gap-2 px-4 mb-4">
-          <Card className="flex-1">
-            <Text className="text-xs text-muted-foreground mb-1">Income</Text>
-            <Text className="text-base font-bold text-income">
-              +RM {monthlyIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </Text>
-          </Card>
-          <Card className="flex-1">
-            <Text className="text-xs text-muted-foreground mb-1">Expense</Text>
-            <Text className="text-base font-bold text-expense">
-              -RM {monthlyExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </Text>
-          </Card>
-          <Card className="flex-1">
-            <Text className="text-xs text-muted-foreground mb-1">Net</Text>
-            <Text className={`text-base font-bold ${monthlyNet >= 0 ? 'text-income' : 'text-expense'}`}>
-              {monthlyNet >= 0 ? '+' : '-'}RM {Math.abs(monthlyNet).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </Text>
-          </Card>
-        </View>
-
-        {!searching && (
+      }
+      overlay={
         <>
-        {/* Calendar Grid */}
-        <View className="px-4 mb-4">
-          <View className="bg-card border border-border rounded-2xl p-6">
-            {/* Day Headers */}
-            <View className="flex-row mb-4">
-              {DAYS.map((day) => (
-                <View key={day} className="flex-1 items-center">
-                  <Text className="text-xs text-muted-foreground font-medium">{day}</Text>
-                </View>
-              ))}
+          <Sheet visible={!!day} onClose={() => setDay(null)} scroll testID="calendar-day">
+            <View style={{ gap: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text variant="headline-md" accessibilityRole="header">
+                  {day ? new Date(`${day}T12:00:00`).toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short' }) : ''}
+                </Text>
+                {daySpent ? <Money amount={daySpent} direction="expense" variant="headline-md" masked={locked} /> : null}
+              </View>
+              {dayRows.length ? (
+                <TransactionList transactions={dayRows} customCategories={custom} masked={locked} onPress={(t) => { setDay(null); setDetail(t); }} />
+              ) : (
+                <Text variant="body-md" tone="muted" style={{ paddingVertical: 12 }}>Nothing on this day.</Text>
+              )}
+              <Button label="Add to this day" icon={Plus} variant="action" onPress={() => { const d = day; setDay(null); router.push({ pathname: '/add-transaction', params: { date: d ?? '', nonce: String(Date.now()) } }); }} fullWidth />
             </View>
-            {/* Calendar Days */}
-            <View className="flex-row flex-wrap">
-              {calendarDays.map((item, index) => {
-                const isToday =
-                  item.day === today.getDate() &&
-                  selectedDate.getMonth() === today.getMonth() &&
-                  selectedDate.getFullYear() === today.getFullYear();
-                const isSelected = item.day === selectedDay && item.day > 0;
-
-                if (item.day === 0) {
-                  return <View key={`empty-${index}`} className="w-[14.28%] h-12" />;
-                }
-
-                return (
-                  <Pressable
-                    key={item.day}
-                    onPress={() => setSelectedDate(new Date(year, month - 1, item.day))}
-                    className="w-[14.28%] h-12 items-center justify-center"
-                  >
-                    <View
-                      className={`w-10 h-10 rounded-xl items-center justify-center ${
-                        isSelected
-                          ? isToday
-                            ? 'bg-primary'
-                            : 'bg-primary/30'
-                          : isToday
-                          ? 'border-2 border-primary'
-                          : ''
-                      }`}
+          </Sheet>
+          <TransactionDetail
+            visible={!!detail}
+            transaction={detail}
+            accounts={accounts as AnyAccount[]}
+            customCategories={custom}
+            masked={locked}
+            onClose={() => setDetail(null)}
+            onChanged={refetch}
+            onEdit={(tx) => router.push({ pathname: '/add-transaction', params: editParams(tx) })}
+          />
+        </>
+      }
+    >
+      {error && !rows.length ? (
+        <EmptyState icon={RefreshCw} title="Couldn’t load this month" body="Check your connection and try again." ctaLabel="Try again" onCta={refetch} />
+      ) : (
+        <>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {WEEK.map((w, i) => (
+              <View key={`${w}${i}`} style={{ width: `${100 / 7}%`, alignItems: 'center', paddingBottom: 8 }}>
+                <Text variant="label-sm" tone="muted">{w}</Text>
+              </View>
+            ))}
+            {cells.map((d, i) => {
+              if (!d) return <View key={`b${i}`} style={{ width: `${100 / 7}%`, height: 52 }} />;
+              const ymd = ymdOf(d);
+              const isToday = ymd === todayYmd;
+              const future = ymd > todayYmd;
+              const level = levels[ymd] ?? 0;
+              const label = `${d} ${month.toLocaleDateString('en-MY', { month: 'long' })}${level ? `, spend level ${level} of 3` : ''}`;
+              return (
+                <View key={ymd} style={{ width: `${100 / 7}%`, padding: 2 }}>
+                  {firstLoad ? (
+                    <Skeleton height={44} />
+                  ) : (
+                    <Pressable
+                      onPress={() => setDay(ymd)}
+                      accessibilityRole="button"
+                      accessibilityLabel={label}
+                      accessibilityState={{ selected: isToday }}
+                      style={{ height: 48, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', gap: 3, backgroundColor: isToday ? colors.secondary : 'transparent' }}
                     >
-                      <Text
-                        className={`text-base font-medium ${
-                          isSelected && isToday
-                            ? 'text-primary-foreground'
-                            : isToday
-                            ? 'text-primary'
-                            : 'text-foreground'
-                        }`}
-                      >
-                        {item.day}
-                      </Text>
-                    </View>
-                    {/* Transaction dots */}
-                    {item.hasTransaction && (
-                      <View className="absolute bottom-1 flex-row gap-0.5">
-                        {item.types.slice(0, 3).map((type, i) => (
-                          <View
-                            key={i}
-                            className={`w-1 h-1 rounded-full ${
-                              type === 'income' ? 'bg-income' : type === 'expense' ? 'bg-expense' : 'bg-transfer'
-                            }`}
-                          />
+                      <Text variant="body-md" size={15} weight={500} tone="inherit" style={{ color: isToday ? colors['on-secondary'] : future ? colors['on-surface-variant'] : colors['on-surface'] }}>{d}</Text>
+                      <View style={{ flexDirection: 'row', gap: 2, height: 4 }}>
+                        {Array.from({ length: level }).map((_, k) => (
+                          <View key={k} style={{ width: 4, height: 4, borderRadius: 9999, backgroundColor: isToday ? colors['on-secondary'] : colors['primary-container'] }} />
                         ))}
                       </View>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
+                    </Pressable>
+                  )}
+                </View>
+              );
+            })}
           </View>
-        </View>
-
-        {/* Legend */}
-        <View className="flex-row items-center justify-center gap-4 px-4 mb-4">
-          <View className="flex-row items-center gap-1.5">
-            <View className="w-2 h-2 rounded-full bg-income" />
-            <Text className="text-xs text-muted-foreground">Income</Text>
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            <Text variant="label-sm" weight={400} tone="muted">Dots = spend level (1–3)</Text>
+            <Text variant="label-sm" weight={400} tone="muted">Today = black</Text>
           </View>
-          <View className="flex-row items-center gap-1.5">
-            <View className="w-2 h-2 rounded-full bg-expense" />
-            <Text className="text-xs text-muted-foreground">Expense</Text>
-          </View>
-          <View className="flex-row items-center gap-1.5">
-            <View className="w-2 h-2 rounded-full bg-transfer" />
-            <Text className="text-xs text-muted-foreground">Transfer</Text>
-          </View>
-        </View>
-
         </>
-        )}
-
-        {/* Day Transactions */}
-        <View className="px-4 mb-6 pb-8">
-          <Text className="text-sm font-semibold text-foreground mb-3">
-            {searching
-              ? `${searchResults.length} result${searchResults.length === 1 ? '' : 's'} in ${monthName}`
-              : selectedDayLabel}
-          </Text>
-          {(searching ? searchResults : dayTransactions).length === 0 ? (
-            <Text className="text-sm text-muted-foreground text-center py-4">
-              {searching ? 'No transactions match your search' : 'No transactions on this day'}
-            </Text>
-          ) : (
-            <View className="gap-2">
-              {(searching ? searchResults : dayTransactions).map((tx) => (
-                <Pressable
-                  key={tx.id}
-                  onPress={() => {
-                    setSelectedTransaction(tx);
-                    setModalVisible(true);
-                  }}
-                  className="flex-row items-center justify-between bg-card border border-border rounded-xl px-4 py-3 active:scale-[0.98] transition-transform"
-                >
-                  <View className="flex-row items-center gap-3">
-                    <MerchantIcon name={tx.name} fallback={tx.categoryIcon} />
-                    <View>
-                      <View className="flex-row items-center gap-1.5">
-                        <Text className="text-sm font-medium text-foreground">{tx.name}</Text>
-                        {tx.recurring && <RefreshCw size={10} color="#a0a0a0" />}
-                        {tx.hasReceipt && <Image size={10} color="#a0a0a0" />}
-                      </View>
-                      <Text className="text-xs text-muted-foreground">{tx.date}</Text>
-                    </View>
-                  </View>
-                  <View className="flex-row items-center gap-2">
-                    <Text
-                      className={`text-sm font-semibold ${
-                        tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : 'text-transfer'
-                      }`}
-                    >
-                      {tx.amount}
-                    </Text>
-                    <ChevronRight size={16} color="#a0a0a0" />
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      <TransactionDetail
-        transaction={selectedTransaction}
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onDeleted={() => { setModalVisible(false); refetch(); }}
-        onEdit={handleEdit}
-      />
-    </SafeAreaView>
+      )}
+    </HeroScreen>
   );
 }

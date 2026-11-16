@@ -1,205 +1,127 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert, Platform, AppState } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Target, LayoutGrid, Check } from 'lucide-react-native';
-import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { Input } from '../../../components/ui/Input';
-import { Chip } from '../../../components/ui/Chip';
-import { Button } from '../../../components/ui/Button';
-import { LoadingView } from '../../../components/ui/LoadingView';
-import { KeyboardAvoider } from '../../../components/ui/KeyboardAvoider';
-import { useAuth } from '../../../context/AuthContext';
-import { useDailyBudget } from '../../../src/hooks/useDailyBudget';
-import { parseBudgetInput, budgetProgress } from '../../../src/utils/dailyBudget';
-import * as FloweNotifications from '../../../modules/flowe-notifications';
-
-const QUICK_AMOUNTS = [30, 50, 80, 100, 150, 200];
+import { View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Gauge, LayoutGrid } from 'lucide-react-native';
+import { AmountField } from '@/components/ui/AmountField';
+import { Button } from '@/components/ui/Button';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { Money } from '@/components/ui/Money';
+import { ProgressRing } from '@/components/ui/ProgressRing';
+import { SettingsRow } from '@/components/ui/SettingsRow';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Text } from '@/components/ui/Text';
+import { TopBar } from '@/components/ui/TopBar';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useAuth } from '@/context/AuthContext';
+import { useBudgetSettings } from '@/src/hooks/useBudgetSettings';
+import { useTodaySpend } from '@/src/hooks/useTodaySpend';
+import { useTransactions } from '@/src/hooks/useTransactions';
+import { budgetStatus, dailyFromMonthly, defaultLiveMode, spentInMonth } from '@/src/lib/budget';
+import { formatRM, parseAmount } from '@/src/lib/money';
+import * as FloweNotifications from '@/modules/flowe-notifications';
 
 /**
- * Settings → Daily Budget. One number: how much the user means to spend in a
- * day. With it set, Flowe's home-screen widget shows how much of today is
- * left, and every payment caught outside the app moves it.
+ * settings/budget — today's limit as a glass ring; monthly + daily limits.
+ * Daily pre-fills as monthly ÷ days. Turning daily off asks first. Primary: Save limits.
  */
-export default function DailyBudgetScreen() {
+export default function BudgetScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { user } = useAuth();
-  const { budget, loaded, saving, fetchBudget, saveBudget } = useDailyBudget(user?.id);
-  const [draft, setDraft] = useState('');
+  const { value, loading, fetch, save } = useBudgetSettings(user?.id);
+  const { spent } = useTodaySpend();
+  const now = new Date();
+  const { transactions } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const [monthly, setMonthly] = useState('');
+  const [daily, setDaily] = useState('');
+  const [dailyTouched, setDailyTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [confirmOff, setConfirmOff] = useState(false);
   const [widgetPinned, setWidgetPinned] = useState(false);
-  const [canAddWidget, setCanAddWidget] = useState(false);
-  const [spentToday, setSpentToday] = useState(0);
 
-  useEffect(() => { fetchBudget(); }, [fetchBudget]);
+  useFocusEffect(useCallback(() => { fetch(); setWidgetPinned(FloweNotifications.isBudgetWidgetPinned()); }, [fetch]));
   useEffect(() => {
-    if (loaded) setDraft(budget === null ? '' : String(budget));
-  }, [loaded, budget]);
+    if (!value) return;
+    setMonthly(value.monthly ? String(value.monthly) : '');
+    setDaily(value.daily ? String(value.daily) : '');
+    setDailyTouched(!!value.daily);
+  }, [value]);
 
-  // Adding the widget happens outside the app, in the launcher, so the only
-  // honest moment to ask whether it's there is every time this screen comes
-  // back to the foreground.
-  const readNativeState = useCallback(() => {
-    if (!FloweNotifications.isAvailable) return;
-    setWidgetPinned(FloweNotifications.isBudgetWidgetPinned());
-    setCanAddWidget(FloweNotifications.canRequestBudgetWidget());
-    setSpentToday(FloweNotifications.getBudgetSnapshot().spent);
-  }, []);
-  useEffect(() => {
-    readNativeState();
-    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') readNativeState(); });
-    return () => sub.remove();
-  }, [readNativeState]);
-
-  if (!loaded) return <LoadingView />;
-
-  const parsed = parseBudgetInput(draft);
-  const dirty = parsed !== budget;
-  const progress = budget ? budgetProgress(budget, spentToday) : null;
-
-  const save = async (value: number | null) => {
-    const result = await saveBudget(value);
-    if (!result.ok) Alert.alert('Save failed', 'error' in result ? result.error.message : 'Please try again.');
+  // Daily pre-fills as monthly ÷ days until the user types their own.
+  const onMonthly = (v: string) => {
+    setMonthly(v);
+    const m = parseAmount(v);
+    if (!dailyTouched && m && m > 0) setDaily(String(dailyFromMonthly(m, now)));
   };
 
-  const clear = () => {
-    Alert.alert('Turn off daily budget?', 'The widget stops showing a figure until you set a budget again.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Turn off', style: 'destructive', onPress: () => { setDraft(''); save(null); } },
-    ]);
+  const d = parseAmount(daily);
+  const m = parseAmount(monthly);
+  const status = value?.daily ? budgetStatus(value.daily, spent ?? 0) : null;
+  const monthSpent = spentInMonth(transactions, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+
+  const persist = async (nextDaily: number | null) => {
+    setSaving(true);
+    const nextMonthly = m && m > 0 ? m : null;
+    const mode = value?.liveMode === 'off' ? 'off' : value?.monthly ? value.liveMode : defaultLiveMode(nextMonthly);
+    const res = await save({ daily: nextDaily, monthly: nextMonthly, liveMode: mode });
+    setSaving(false);
+    if (!res.ok) { toast.failure('Save failed', { label: 'Retry', onPress: () => persist(nextDaily) }); return false; }
+    toast.success('Budget saved');
+    return true;
+  };
+
+  const saveLimits = () => {
+    const nextDaily = d && d > 0 ? d : null;
+    if (value?.daily && !nextDaily) { setConfirmOff(true); return; }
+    persist(nextDaily);
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScreenHeader title="Daily Budget" onBack={() => router.back()} />
-      <KeyboardAvoider>
-        <ScrollView className="flex-1 px-4 pt-4" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View className="bg-card border border-border rounded-2xl p-5 mb-4">
-            <View className="flex-row items-center gap-3 mb-4">
-              <View className="w-10 h-10 rounded-xl bg-primary/15 items-center justify-center">
-                <Target size={20} color="#C5FF00" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-foreground text-base font-semibold">How much per day?</Text>
-                <Text className="text-muted-foreground text-xs mt-0.5">
-                  {budget ? `Currently RM ${budget.toFixed(2)}` : 'No budget set'}
-                </Text>
-              </View>
+    <HeroScreen
+      heroHeight={300}
+      bottomPadding={112}
+      hero={
+        <View>
+          <TopBar title="Budget" onBack={() => router.back()} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20, paddingHorizontal: 24, marginTop: 20 }}>
+            <ProgressRing progress={status ? status.used : 0} size={132} stroke={10} accessibilityLabel={status ? `${Math.round(status.used * 100)}% of today used` : 'No daily budget'}>
+              <Text variant="headline-md" tone="inverse">{status ? `${Math.round(status.used * 100)}%` : '—'}</Text>
+              <Text variant="caption" tone="soft">of today</Text>
+            </ProgressRing>
+            <View style={{ flex: 1, gap: 4 }}>
+              {loading && !value ? <Skeleton width={120} height={32} tone="glass" /> : (
+                <>
+                  <Text variant="body-md" tone="soft">Left today</Text>
+                  {status ? <Money amount={status.left} variant="display-md" on="gradient" /> : <Text variant="body-lg" tone="inverse">No daily limit</Text>}
+                  {value?.monthly ? <Text variant="label-sm" weight={400} tone="soft">Month: {formatRM(monthSpent)} of {formatRM(value.monthly).replace('RM ', '')}</Text> : null}
+                </>
+              )}
             </View>
-
-            <Input
-              label="Amount (RM)"
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="e.g. 100"
-              keyboardType="decimal-pad"
-              returnKeyType="done"
-            />
-
-            <View className="flex-row flex-wrap gap-2 mt-3">
-              {QUICK_AMOUNTS.map((amount) => (
-                <Chip
-                  key={amount}
-                  label={`RM ${amount}`}
-                  selected={parsed === amount}
-                  onPress={() => setDraft(String(amount))}
-                />
-              ))}
-            </View>
-
-            <View className="mt-4">
-              <Button
-                title={budget === null ? 'Set budget' : 'Save'}
-                onPress={() => parsed !== null && save(parsed)}
-                disabled={parsed === null || !dirty}
-                loading={saving}
-              />
-            </View>
-            {budget !== null && (
-              <Pressable onPress={clear} className="items-center py-3 mt-1 active:opacity-70">
-                <Text className="text-destructive text-sm font-medium">Turn off daily budget</Text>
-              </Pressable>
-            )}
           </View>
-
-          {/* Today, as the native side sees it — the very figures the widget
-              is drawing right now, so this reads as a preview of it. */}
-          {budget !== null && progress && (
-            <View className="bg-card border border-border rounded-2xl p-5 mb-4">
-              <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-sm text-muted-foreground font-medium">Today</Text>
-                <Text className={`text-sm font-semibold ${progress.over ? 'text-expense' : 'text-foreground'}`}>
-                  {progress.over
-                    ? `RM ${(-progress.remaining).toFixed(2)} over`
-                    : `RM ${progress.remaining.toFixed(2)} left`}
-                </Text>
-              </View>
-              <View className="h-2 bg-muted rounded-full overflow-hidden">
-                <View
-                  className="h-full rounded-full"
-                  style={{ width: `${progress.percent}%`, backgroundColor: progress.over ? '#ff4444' : '#C5FF00' }}
-                />
-              </View>
-              <Text className="text-xs text-muted-foreground mt-2">
-                RM {spentToday.toFixed(2)} of RM {budget.toFixed(2)} spent
-              </Text>
-            </View>
-          )}
-
-          <View className="bg-card border border-border rounded-2xl p-5 mb-4">
-            <View className="flex-row items-center gap-3 mb-2">
-              <LayoutGrid size={18} color="#a0a0a0" />
-              <Text className="text-foreground text-sm font-semibold">Home screen widget</Text>
-            </View>
-            <Text className="text-muted-foreground text-xs leading-5">
-              Flowe&apos;s widget keeps today&apos;s budget on your home screen — a ring that
-              empties as you spend, with what&apos;s left in the middle. It updates the moment
-              Flowe records a payment it spotted in a bank or e-wallet notification, even
-              while the app is closed.
-            </Text>
-
-            {Platform.OS !== 'android' && (
-              <Text className="text-muted-foreground text-xs mt-3">
-                Available on Android only.
-              </Text>
-            )}
-
-            {Platform.OS === 'android' && FloweNotifications.isAvailable && (
-              widgetPinned ? (
-                <View className="flex-row items-center gap-2 mt-4">
-                  <Check size={16} color="#C5FF00" />
-                  <Text className="text-xs text-muted-foreground flex-1">
-                    On your home screen. Long-press it there to resize it.
-                  </Text>
-                </View>
-              ) : canAddWidget ? (
-                <View className="mt-4">
-                  <Button
-                    title="Add to home screen"
-                    variant="secondary"
-                    onPress={() => {
-                      // The launcher takes over from here: it shows its own
-                      // placement sheet, and there is no callback when the user
-                      // backs out. Re-reading on the next foreground is what
-                      // eventually tells us the answer.
-                      if (!FloweNotifications.requestBudgetWidget()) {
-                        Alert.alert(
-                          'Add it from your home screen',
-                          'Long-press an empty spot on your home screen, tap Widgets, then find Flowe.'
-                        );
-                      }
-                    }}
-                  />
-                </View>
-              ) : (
-                <Text className="text-muted-foreground text-xs mt-3">
-                  To add it: long-press an empty spot on your home screen, tap Widgets, then
-                  find Flowe.
-                </Text>
-              )
-            )}
-          </View>
-        </ScrollView>
-      </KeyboardAvoider>
-    </SafeAreaView>
+        </View>
+      }
+      overlay={
+        <ConfirmSheet
+          visible={confirmOff}
+          icon={Gauge}
+          title="Turn off daily budget?"
+          message={`“Left today” and limit alerts will stop.${m ? ` Your ${formatRM(m)} monthly limit stays.` : ''}`}
+          confirmLabel="Turn off"
+          cancelLabel="Keep it on"
+          onConfirm={async () => { if (await persist(null)) setConfirmOff(false); }}
+          onCancel={() => { setConfirmOff(false); if (value?.daily) setDaily(String(value.daily)); }}
+        />
+      }
+    >
+      <AmountField label="Monthly limit" value={monthly} onChangeText={onMonthly} placeholder="Not set" />
+      <AmountField label="Daily limit" value={daily} onChangeText={(v) => { setDaily(v); setDailyTouched(true); }} placeholder="Not set" />
+      {FloweNotifications.isAvailable && !widgetPinned && FloweNotifications.canRequestBudgetWidget() ? (
+        <SettingsRow label="Add the budget widget" value="Left today on your home screen" icon={LayoutGrid} onPress={() => FloweNotifications.requestBudgetWidget()} />
+      ) : null}
+      <View style={{ height: 8 }} />
+      <Button label="Save limits" onPress={saveLimits} loading={saving} loadingLabel="Saving…" fullWidth />
+      {value?.daily ? <Button label="Turn off daily budget" variant="text" muted onPress={() => setConfirmOff(true)} style={{ alignSelf: 'center' }} /> : null}
+    </HeroScreen>
   );
 }

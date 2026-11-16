@@ -1,175 +1,114 @@
-import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { ChevronLeft } from '../../../../components/ui/icons';
-import { useAuth } from '../../../../context/AuthContext';
-import { useLearn } from '../../../../src/hooks/useLearn';
-import { LoadingView } from '../../../../components/ui/LoadingView';
-import { ErrorView } from '../../../../components/ui/ErrorView';
+import { useCallback, useState } from 'react';
+import { Pressable, RefreshControl, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { BookOpen, Plus, RefreshCw } from 'lucide-react-native';
+import { colors, radius } from '@/theme/tokens';
+import { LEARN_COVERS } from '@/constants/photos';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassIconButton } from '@/components/ui/GlassIconButton';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { PhotoSlot } from '@/components/ui/PhotoSlot';
+import { Sheet } from '@/components/ui/Sheet';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Text } from '@/components/ui/Text';
+import { TextInput } from '@/components/ui/TextInput';
+import { TopBar } from '@/components/ui/TopBar';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useAuth } from '@/context/AuthContext';
+import { useLearn } from '@/src/hooks/useLearn';
+import type { LearnProjectWithEntries } from '@/src/types';
 
-interface Project {
-  id: string;
-  name: string;
-  emoji: string;
-  entriesCount: number;
-  imagesCount: number;
-  lastUpdated: string;
-  latestEntry: string;
+function lastLabel(iso?: string): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-MY', { weekday: 'short' });
 }
 
-export default function LearnIndexScreen() {
+/** home/learn — projects with Unsplash covers (first 3); tap → project; "+" new project. */
+export default function LearnScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { user } = useAuth();
-  const { projects: hookProjects, loading, error, createProject, fetchProjects } = useLearn();
-  const [showModal, setShowModal] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
+  const { projects, loading, error, fetchProjects, createProject } = useLearn();
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [fetched, setFetched] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    if (user) fetchProjects(user.id);
-  }, [user, fetchProjects]));
+  const load = useCallback(async () => { if (user) { await fetchProjects(user.id); setFetched(true); } }, [user, fetchProjects]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={() => user && fetchProjects(user.id)} />;
+  const list = projects as LearnProjectWithEntries[];
+  const totalEntries = list.reduce((s, p) => s + (p.learn_entries?.length ?? 0), 0);
+  const lastEntry = list.flatMap((p) => p.learn_entries ?? []).sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
 
-  const projects: Project[] = (hookProjects as any[]).map((p) => {
-    const entries = (p.learn_entries ?? []) as any[];
-    const sorted = [...entries].sort(
-      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-    );
-    return {
-      id: p.id,
-      name: p.name,
-      emoji: '📁',
-      entriesCount: entries.length,
-      imagesCount: entries.reduce((sum, e) => sum + (e.learn_entry_images?.length ?? 0), 0),
-      lastUpdated: p.updated_at ? new Date(p.updated_at).toLocaleDateString() : '',
-      latestEntry: sorted[0]?.body ?? '',
-    };
-  });
-  const totalEntries = projects.reduce((sum, p) => sum + p.entriesCount, 0);
-  const totalImages = projects.reduce((sum, p) => sum + p.imagesCount, 0);
-
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim() || !user) return;
-    const result = await createProject(user.id, newProjectName.trim());
-    if (result.ok) {
-      setNewProjectName('');
-      setShowModal(false);
-      router.push(`/home/learn/${result.data.id}`);
-    }
+  const create = async () => {
+    if (!user || !name.trim()) return;
+    setSaving(true);
+    const res = await createProject(user.id, name.trim());
+    setSaving(false);
+    if (!res.ok) { toast.failure('Couldn’t create project', { label: 'Retry', onPress: create }); return; }
+    setCreating(false);
+    setName('');
+    router.push(`/home/learn/${res.data.id}`);
   };
 
+  const firstLoad = loading && !fetched;
+
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="mr-3">
-          <ChevronLeft size={24} color="#fff" />
-        </Pressable>
-        <Text className="text-xl font-semibold text-foreground">Personal Finance Notes</Text>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Stats Card */}
-        <View className="mx-4 mt-4 bg-card rounded-2xl p-4 border border-border">
-          <View className="flex-row">
-            <View className="flex-1">
-              <Text className="text-xs text-muted-foreground">Projects</Text>
-              <Text className="text-lg font-bold text-foreground">{projects.length}</Text>
-            </View>
-            <View className="flex-1">
-              <Text className="text-xs text-muted-foreground">Entries</Text>
-              <Text className="text-lg font-bold text-foreground">{totalEntries}</Text>
-            </View>
-            <View className="flex-1">
-              <Text className="text-xs text-muted-foreground">Images</Text>
-              <Text className="text-lg font-bold text-foreground">{totalImages}</Text>
-            </View>
+    <HeroScreen
+      heroHeight={240}
+      refreshControl={<RefreshControl refreshing={loading && fetched} onRefresh={load} tintColor={colors['on-primary']} />}
+      hero={
+        <View>
+          <TopBar title="Learn" onBack={() => router.back()} right={<GlassIconButton icon={Plus} accessibilityLabel="New project" onPress={() => setCreating(true)} />} />
+          <View style={{ paddingHorizontal: 24, marginTop: 20, gap: 4 }}>
+            {firstLoad ? <Skeleton width={160} height={32} tone="glass" /> : (
+              <>
+                <Text variant="display-md" tone="inverse">{list.length} project{list.length === 1 ? '' : 's'}</Text>
+                <Text variant="body-md" tone="soft">{totalEntries} entr{totalEntries === 1 ? 'y' : 'ies'}{lastEntry ? ` · last on ${lastLabel(lastEntry.updated_at)}` : ''}</Text>
+              </>
+            )}
           </View>
         </View>
-
-        {/* Add Project Button */}
-        <View className="px-4 mt-4">
-          <Pressable
-            onPress={() => setShowModal(true)}
-            className="flex-row items-center justify-center bg-card rounded-2xl py-3 border border-dashed border-border"
-            style={{ borderStyle: 'dashed' }}
-          >
-            <Text className="text-primary font-semibold">+ Add Project</Text>
-          </Pressable>
-        </View>
-
-        {/* Projects List */}
-        <View className="px-4 mt-4 mb-6">
-          {projects.length === 0 ? (
-            <View className="items-center py-12">
-              <Text className="text-4xl mb-3">📁</Text>
-              <Text className="text-foreground font-medium">No projects yet</Text>
-              <Text className="text-muted-foreground text-sm mt-1">
-                Create your first project to start tracking
-              </Text>
-            </View>
-          ) : (
-            projects.map((project) => (
-              <Pressable
-                key={project.id}
-                onPress={() => router.push(`/home/learn/${project.id}`)}
-                className="bg-card rounded-2xl p-4 mb-3 border border-border"
-              >
-                <View className="flex-row items-center mb-2">
-                  <Text className="text-2xl mr-3">{project.emoji}</Text>
-                  <View className="flex-1">
-                    <Text className="text-sm font-medium text-foreground">{project.name}</Text>
-                    <Text className="text-xs text-muted-foreground mt-0.5">
-                      {project.entriesCount} entries • Updated {project.lastUpdated}
-                    </Text>
-                  </View>
-                </View>
-                {project.latestEntry ? (
-                  <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-                    {project.latestEntry}
-                  </Text>
-                ) : null}
-              </Pressable>
-            ))
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Create Project Modal */}
-      <Modal visible={showModal} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/60">
-          <View className="bg-card rounded-t-3xl p-6 pb-10">
-            <Text className="text-lg font-semibold text-foreground mb-4">New Project</Text>
-            <TextInput
-              className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-4"
-              placeholder="Project name"
-              placeholderTextColor="#888"
-              value={newProjectName}
-              onChangeText={setNewProjectName}
-              maxLength={50}
-            />
-            <View className="flex-row">
-              <Pressable
-                onPress={() => {
-                  setShowModal(false);
-                  setNewProjectName('');
-                }}
-                className="flex-1 py-3 items-center"
-              >
-                <Text className="text-muted-foreground">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleCreateProject}
-                className="flex-1 bg-primary rounded-2xl py-3 items-center"
-              >
-                <Text className="text-sm font-semibold text-primary-foreground">Create Project</Text>
-              </Pressable>
-            </View>
+      }
+      overlay={
+        <Sheet visible={creating} onClose={() => setCreating(false)} title="New project" dismissible={!saving}>
+          <View style={{ gap: 16 }}>
+            <TextInput label="Project name" value={name} onChangeText={setName} autoFocus autoCapitalize="sentences" returnKeyType="done" onSubmitEditing={create} placeholder="e.g. Budgeting 101" />
+            <Button label="Create project" onPress={create} loading={saving} disabled={!name.trim()} fullWidth />
           </View>
+        </Sheet>
+      }
+    >
+      {firstLoad ? (
+        <View style={{ gap: 20 }} accessibilityLabel="Loading projects">
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={{ gap: 10 }}>
+              <Skeleton height={120} radius={radius.md} />
+              <Skeleton width="50%" height={14} />
+              <Skeleton height={6} />
+            </View>
+          ))}
         </View>
-      </Modal>
-    </SafeAreaView>
+      ) : error && !list.length ? (
+        <EmptyState icon={RefreshCw} title="Couldn’t load your projects" body="Check your connection and try again." ctaLabel="Try again" onCta={load} />
+      ) : !list.length ? (
+        <EmptyState icon={BookOpen} title="Start a learning project" body="Keep notes on what you learn about money, one project at a time." ctaLabel="New project" ctaIcon={Plus} onCta={() => setCreating(true)} />
+      ) : (
+        list.map((p, i) => {
+          const n = p.learn_entries?.length ?? 0;
+          return (
+            <Pressable key={p.id} onPress={() => router.push(`/home/learn/${p.id}`)} accessibilityRole="link" accessibilityLabel={`${p.name}, ${n} entries`} style={({ pressed }) => ({ gap: 10, opacity: pressed ? 0.8 : 1 })}>
+              {i < 3 ? <PhotoSlot photo={LEARN_COVERS[i]} style={{ height: 120, borderRadius: radius.md }} /> : null}
+              <View>
+                <Text variant="body-lg" weight={500}>{p.name}</Text>
+                <Text variant="label-sm" tone="muted">{n} entr{n === 1 ? 'y' : 'ies'}</Text>
+              </View>
+            </Pressable>
+          );
+        })
+      )}
+    </HeroScreen>
   );
 }

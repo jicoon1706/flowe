@@ -1,64 +1,53 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { TextInput as RNTextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { OnboardingProgress } from '../../components/ui/OnboardingProgress';
-import { useOnboarding } from '../../context/OnboardingContext';
+import { colors, familyForWeight, type } from '@/theme/tokens';
+import { Button } from '@/components/ui/Button';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { InlineError } from '@/components/ui/InlineError';
+import { Text } from '@/components/ui/Text';
+import { OnboardingHero } from '@/components/onboarding/OnboardingHero';
+import { useOnboarding } from '@/context/OnboardingContext';
 
+/** (onboarding)/name — keyboard opens on load; Primary: Continue (black). */
 export default function Name() {
   const { state, dispatch } = useOnboarding();
-  const [value, setValue] = useState(state.name);
   const router = useRouter();
-  const trimmed = value.trim();
-  const enabled = trimmed.length > 0;
+  const [value, setValue] = useState(state.name);
+  const [error, setError] = useState<string | null>(null);
+  const spec = type['display-md'];
 
-  function next() {
-    if (!enabled) return;
+  const next = () => {
+    const trimmed = value.trim();
+    if (!trimmed) { setError('Enter a name'); return; }
     dispatch({ type: 'SET_NAME', name: trimmed });
     router.push('/(onboarding)/accounts');
-  }
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <OnboardingProgress step={1} />
-      <View className="flex-1 px-6 max-w-md mx-auto w-full">
-        <View className="items-center mt-8 mb-6">
-          <View className="w-20 h-20 rounded-2xl bg-secondary items-center justify-center">
-            <Text className="text-4xl">👋</Text>
-          </View>
-        </View>
-        <Text className="text-foreground text-3xl font-bold text-center">What should we{'\n'}call you?</Text>
-        <Text className="text-muted-foreground text-sm text-center mt-2">We&apos;ll use your name to personalise your experience</Text>
-        <View className="bg-card border-2 border-primary rounded-2xl mt-8 flex-row items-center px-4">
-          <TextInput
+    <HeroScreen hero={<OnboardingHero title="What should we call you?" step={1} onBack={router.canGoBack() ? () => router.back() : undefined} />} bottomPadding={32} sheetPadding={{ top: 28, horizontal: 24 }}>
+      <View style={{ gap: 8 }}>
+        <Text variant="label-sm" tone="muted">Your name</Text>
+        <View style={{ backgroundColor: colors['surface-container'], borderRadius: 20, paddingHorizontal: 20, paddingVertical: 16, borderWidth: 1.5, borderColor: error ? colors.secondary : 'transparent' }}>
+          <RNTextInput
             value={value}
-            onChangeText={setValue}
-            placeholder="e.g. Ahmad, Siti, Lee..."
-            placeholderTextColor="#a0a0a0"
-            maxLength={30}
-            autoCapitalize="words"
+            onChangeText={(t) => { setValue(t); setError(null); }}
             autoFocus
-            className="flex-1 text-foreground text-lg py-4"
+            autoCapitalize="words"
+            maxLength={30}
+            returnKeyType="done"
+            onSubmitEditing={next}
+            accessibilityLabel="Your name"
+            placeholder="Your name"
+            placeholderTextColor={colors['on-surface-variant-aa']}
+            style={{ fontFamily: familyForWeight[500], fontSize: spec.size, letterSpacing: spec.trackingEm * spec.size, color: colors['on-surface'], padding: 0 }}
           />
-          {value.length > 0 && (
-            <Pressable onPress={() => setValue('')} className="p-2">
-              <Feather name="x" size={18} color="#a0a0a0" />
-            </Pressable>
-          )}
         </View>
-        <Text className="text-muted-foreground/70 text-xs text-center mt-3">This is stored only on your device</Text>
+        {error ? <InlineError message={error} /> : null}
       </View>
-      <View className="px-6 pb-8">
-        <Pressable
-          onPress={next}
-          disabled={!enabled}
-          className={`rounded-2xl py-4 flex-row items-center justify-center gap-2 ${enabled ? 'bg-primary active:opacity-90' : 'bg-muted'}`}
-        >
-          <Text className={`font-bold ${enabled ? 'text-primary-foreground' : 'text-muted-foreground'}`}>Next</Text>
-          <Feather name="chevron-right" size={20} color={enabled ? '#000' : '#a0a0a0'} />
-        </Pressable>
-      </View>
-    </SafeAreaView>
+      <Text variant="body-md" tone="muted" style={{ paddingHorizontal: 4 }}>We’ll use it on your home screen. Nothing else.</Text>
+      <View style={{ flex: 1, minHeight: 24 }} />
+      <Button label="Continue" onPress={next} fullWidth />
+    </HeroScreen>
   );
 }

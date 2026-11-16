@@ -1,276 +1,140 @@
-import { View, Text, Pressable, Modal, ScrollView, Image, Alert } from 'react-native';
-import { useState, useEffect } from 'react';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { transactionsRepository } from '../../src/repositories/transactions.repository';
-import { storageService } from '../../src/services/storage';
-import { notify } from '../../src/services/notifications';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
+import { Image } from 'expo-image';
+import { Pen } from 'lucide-react-native';
+import { colors, radius } from '@/theme/tokens';
+import { categoryIcon } from '@/constants/categoryIcons';
+import { transactionsRepository } from '@/src/repositories/transactions.repository';
+import { storageService } from '@/src/services/storage';
+import { notify } from '@/src/services/notifications';
+import { formatRM } from '@/src/lib/money';
+import { describeTransaction, timeOf, type TxWithAccounts } from '@/src/utils/transactionDisplay';
+import { accountDomain, type AnyAccount } from '@/src/utils/accountDisplay';
+import type { CustomCategory } from '@/src/types';
+import { Button } from '../ui/Button';
+import { ConfirmSheet } from '../ui/ConfirmSheet';
+import { DetailRow } from '../ui/DetailRow';
+import { LogoWell } from '../ui/LogoWell';
+import { Money } from '../ui/Money';
+import { Sheet } from '../ui/Sheet';
+import { Text } from '../ui/Text';
+import { useToast } from '../ui/ToastProvider';
 
-const X = (props: { size: number; color: string }) => <MaterialIcons name="close" size={props.size} color={props.color} />;
-const RefreshCw = (props: { size: number; color: string }) => <MaterialIcons name="refresh" size={props.size} color={props.color} />;
-const Calendar = (props: { size: number; color: string }) => <MaterialIcons name="event" size={props.size} color={props.color} />;
-const Trash = (props: { size: number; color: string }) => <MaterialIcons name="delete" size={props.size} color={props.color} />;
-const Pencil = (props: { size: number; color: string }) => <MaterialIcons name="edit" size={props.size} color={props.color} />;
-
-export interface TransactionData {
-  id: string;
-  name: string;
-  category: string;
-  categoryIcon: string;
-  amount: string;
-  type: 'expense' | 'income' | 'transfer';
-  date: string;
-  recurring: boolean;
-  recurringFreq?: 'weekly' | 'monthly' | 'yearly';
-  startDate?: string;
-  endDate?: string;
-  reminder?: string;
-  note?: string;
-  hasReceipt?: boolean;
-  receiptPath?: string;
-  account?: string;
-  toAccount?: string;
-}
-
-interface TransactionDetailProps {
-  transaction: TransactionData | null;
+export interface TransactionDetailProps {
+  transaction: TxWithAccounts | null;
   visible: boolean;
   onClose: () => void;
-  onDeleted?: (id: string) => void;
-  onEdit?: (id: string) => void;
+  onEdit: (tx: TxWithAccounts) => void;
+  /** After delete and after Undo, so lists refresh. */
+  onChanged?: () => void;
+  accounts?: AnyAccount[];
+  customCategories?: CustomCategory[];
+  masked?: boolean;
 }
 
-const typeColors = {
-  expense: { bg: 'bg-expense/10', text: 'text-expense', label: 'Expense' },
-  income: { bg: 'bg-income/10', text: 'text-income', label: 'Income' },
-  transfer: { bg: 'bg-[#00d4ff]/10', text: 'text-[#00d4ff]', label: 'Transfer' },
-};
-
-export function TransactionDetail({ transaction, visible, onClose, onDeleted, onEdit }: TransactionDetailProps) {
-  const [deleting, setDeleting] = useState(false);
+/**
+ * Transaction detail sheet (core-transaction-detail): logo, signed amount,
+ * category / account / date / note / source. Primary: Edit. Delete = text
+ * button → ConfirmSheet → toast with Undo (5 s).
+ */
+export function TransactionDetail({ transaction: tx, visible, onClose, onEdit, onChanged, accounts = [], customCategories = [], masked }: TransactionDetailProps) {
+  const toast = useToast();
+  const [confirming, setConfirming] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
-  const [receiptViewerVisible, setReceiptViewerVisible] = useState(false);
-
-  const receiptPath = transaction?.receiptPath;
 
   useEffect(() => {
     setReceiptUrl(null);
-    if (!visible || !receiptPath) return;
+    if (!visible || !tx?.receipt_url) return;
     let cancelled = false;
-    storageService.getReceiptUrl(receiptPath).then((result) => {
-      if (!cancelled && result.ok) setReceiptUrl(result.data);
-    });
+    storageService.getReceiptUrl(tx.receipt_url).then((r) => { if (!cancelled && r.ok) setReceiptUrl(r.data); });
     return () => { cancelled = true; };
-  }, [visible, receiptPath]);
+  }, [visible, tx?.receipt_url]);
 
-  if (!transaction) return null;
+  if (!tx) return null;
+  const d = describeTransaction(tx, customCategories);
+  const fromName = tx.from_account?.name ?? accounts.find((a) => a.id === tx.from_account_id)?.name;
+  const toName = tx.to_account?.name ?? accounts.find((a) => a.id === tx.to_account_id)?.name;
+  const account = tx.type === 'income' ? toName : tx.type === 'transfer' ? [fromName, toName ?? tx.category].filter(Boolean).join(' → ') : fromName;
+  const accountRow = accounts.find((a) => a.id === (tx.type === 'income' ? tx.to_account_id : tx.from_account_id));
+  const dateText = `${new Date(`${tx.date.slice(0, 10)}T12:00:00`).toLocaleDateString('en-MY', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${timeOf(tx)}`;
+  const balanceEffect = tx.type === 'expense' ? `${fromName ?? 'The account'} goes back up by ${formatRM(Number(tx.amount))}.`
+    : tx.type === 'income' ? `${toName ?? 'The account'} goes down by ${formatRM(Number(tx.amount))}.`
+    : 'Both account balances are restored.';
 
-  const typeStyle = typeColors[transaction.type];
-
-  const handleDelete = () => {
-    Alert.alert(
-      'Delete transaction?',
-      'This will permanently remove this transaction.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            const result = await transactionsRepository.delete(transaction.id);
-            setDeleting(false);
-            if (!result.ok) {
-              Alert.alert('Delete failed', result.error.message);
-              return;
-            }
-            const emoji = transaction.type === 'income' ? '💰' : transaction.type === 'transfer' ? '🔄' : '💸';
-            notify({
-              type: transaction.type,
-              emoji,
-              message: `${typeColors[transaction.type].label} deleted`,
-              sub_text: `${transaction.name} • ${transaction.amount}`,
-              related_entity_id: transaction.id,
-            });
-            onDeleted?.(transaction.id);
-            onClose();
-          },
+  const remove = async () => {
+    const snapshot = tx;
+    const res = await transactionsRepository.delete(snapshot.id);
+    setConfirming(false);
+    if (!res.ok) {
+      toast.failure('Delete failed', { label: 'Retry', onPress: remove });
+      return;
+    }
+    onClose();
+    onChanged?.();
+    notify({ type: snapshot.type === 'income' ? 'income' : snapshot.type === 'transfer' ? 'transfer' : 'expense', emoji: '🗑️', message: 'Transaction deleted', sub_text: `${snapshot.name} • ${formatRM(Number(snapshot.amount))}`, related_entity_id: snapshot.id });
+    toast.show({
+      kind: 'success',
+      message: 'Transaction deleted',
+      action: {
+        label: 'Undo',
+        onPress: async () => {
+          const again = await transactionsRepository.create({
+            user_id: snapshot.user_id,
+            type: snapshot.type,
+            name: snapshot.name,
+            amount: Number(snapshot.amount),
+            category: snapshot.category,
+            from_account_id: snapshot.from_account_id ?? undefined,
+            to_account_id: snapshot.to_account_id ?? undefined,
+            date: snapshot.date,
+            note: snapshot.note,
+            receipt_url: snapshot.receipt_url,
+            is_recurring: snapshot.is_recurring,
+            recurring_id: snapshot.recurring_id,
+            asset_id: snapshot.asset_id ?? undefined,
+          });
+          if (again.ok) { toast.success('Transaction restored'); onChanged?.(); }
+          else toast.failure('Couldn’t restore it', { label: 'Retry', onPress: () => {} });
         },
-      ]
-    );
+      },
+    });
   };
 
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 bg-black/60 justify-end">
-        <Pressable className="flex-1" onPress={onClose} />
-        <Pressable className="bg-card rounded-t-3xl max-h-[85%]">
-          <View className="w-12 h-1 bg-border rounded-full mx-auto mt-3 mb-2" />
-          {/* Header */}
-          <View className="flex-row items-center justify-between px-5 py-4 border-b border-border">
-            <Text className="text-lg font-semibold text-foreground">Transaction Details</Text>
-            <Pressable onPress={onClose} className="p-2 -mr-2">
-              <X size={20} color="#a0a0a0" />
-            </Pressable>
+    <>
+      <Sheet visible={visible && !confirming} onClose={onClose} scroll testID="transaction-detail">
+        <View style={{ gap: 16 }}>
+          <View style={{ alignItems: 'center', gap: 12 }}>
+            <LogoWell merchant={tx.name} fallback={categoryIcon(d.iconKey, d.kind)} size={64} />
+            <Text variant="body-lg">{tx.name}</Text>
+            <Money amount={Number(tx.amount)} direction={d.direction} arrow variant="numeric-lg" smallCurrency masked={masked} />
           </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} className="px-5 py-4">
-            {/* Type Badge + Category + Delete */}
-            <View className="flex-row items-center justify-between mb-4">
-              <View className="flex-row items-center gap-2 flex-wrap flex-1">
-                <View className={`px-3 py-1 rounded-full ${typeStyle.bg}`}>
-                  <Text className={`text-xs font-semibold ${typeStyle.text}`}>{typeStyle.label}</Text>
-                </View>
-                <View className="flex-row items-center gap-1.5 bg-secondary px-3 py-1 rounded-full">
-                  <Text className="text-base">{transaction.categoryIcon}</Text>
-                  <Text className="text-xs text-foreground">{transaction.category}</Text>
-                </View>
-              </View>
-              <View className="flex-row items-center gap-2">
-                <Pressable
-                  onPress={() => onEdit?.(transaction.id)}
-                  className="p-2 rounded-full bg-primary/10 active:opacity-70"
-                  accessibilityLabel="Edit transaction"
-                >
-                  <Pencil size={18} color="#C5FF00" />
-                </Pressable>
-                <Pressable
-                  onPress={handleDelete}
-                  disabled={deleting}
-                  className="p-2 -mr-2 rounded-full bg-destructive/10 active:opacity-70"
-                  accessibilityLabel="Delete transaction"
-                >
-                  <Trash size={18} color="#ff4444" />
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Amount */}
-            <Text
-              className={`text-3xl font-bold mb-4 ${
-                transaction.type === 'income' ? 'text-income' : transaction.type === 'expense' ? 'text-expense' : transaction.type === 'transfer' ? 'text-[#00d4ff]' : 'text-primary'
-              }`}
-            >
-              {transaction.amount}
-            </Text>
-
-            {/* Name */}
-            <View className="mb-4">
-              <Text className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Description</Text>
-              <Text className="text-base text-foreground font-medium">{transaction.name}</Text>
-            </View>
-
-            {/* Account Info */}
-            <View className="mb-4">
-              <Text className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                {transaction.type === 'transfer' ? 'From → To' : 'Account'}
-              </Text>
-              <View className="bg-secondary rounded-xl px-4 py-3">
-                {transaction.type === 'transfer' && transaction.toAccount ? (
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-sm text-foreground">{transaction.account || 'Account'}</Text>
-                    <Text className="text-muted-foreground">→</Text>
-                    <Text className="text-sm text-foreground">{transaction.toAccount}</Text>
-                  </View>
-                ) : (
-                  <Text className="text-sm text-foreground">{transaction.account || 'Account'}</Text>
-                )}
-              </View>
-            </View>
-
-            {/* Date */}
-            <View className="mb-4">
-              <Text className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Date</Text>
-              <View className="flex-row items-center gap-2 bg-secondary rounded-xl px-4 py-3">
-                <Calendar size={16} color="#a0a0a0" />
-                <Text className="text-sm text-foreground">{transaction.date}</Text>
-              </View>
-            </View>
-
-            {/* Recurring Details */}
-            {transaction.recurring && (
-              <View className="mb-4">
-                <Text className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Recurring</Text>
-                <View className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-3">
-                  <View className="flex-row items-center gap-2 mb-2">
-                    <RefreshCw size={16} color="#C5FF00" />
-                    <Text className="text-sm text-primary font-medium">
-                      {transaction.recurringFreq ? transaction.recurringFreq.charAt(0).toUpperCase() + transaction.recurringFreq.slice(1) : 'Monthly'}
-                    </Text>
-                  </View>
-                  {transaction.startDate && (
-                    <View className="flex-row items-center gap-2 mb-1">
-                      <Text className="text-xs text-muted-foreground">Start:</Text>
-                      <Text className="text-xs text-foreground">{transaction.startDate}</Text>
-                    </View>
-                  )}
-                  {transaction.endDate && (
-                    <View className="flex-row items-center gap-2 mb-1">
-                      <Text className="text-xs text-muted-foreground">End:</Text>
-                      <Text className="text-xs text-foreground">{transaction.endDate}</Text>
-                    </View>
-                  )}
-                  {transaction.reminder && (
-                    <View className="flex-row items-center gap-2">
-                      <Text className="text-xs text-muted-foreground">Reminder:</Text>
-                      <Text className="text-xs text-foreground">{transaction.reminder}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            )}
-
-            {/* Note */}
-            {transaction.note && (
-              <View className="mb-4">
-                <Text className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Note</Text>
-                <View className="bg-secondary rounded-xl px-4 py-3">
-                  <Text className="text-sm text-foreground">{transaction.note}</Text>
-                </View>
-              </View>
-            )}
-
-            {/* Receipt Image */}
-            {transaction.hasReceipt && (
-              <View className="mb-4">
-                <Text className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Receipt</Text>
-                {receiptUrl ? (
-                  <Pressable
-                    onPress={() => setReceiptViewerVisible(true)}
-                    className="bg-secondary rounded-xl overflow-hidden active:opacity-80"
-                    accessibilityLabel="View receipt"
-                  >
-                    <Image
-                      source={{ uri: receiptUrl }}
-                      className="w-full h-40"
-                      resizeMode="cover"
-                    />
-                  </Pressable>
-                ) : (
-                  <View className="bg-secondary rounded-xl h-40 items-center justify-center">
-                    <Text className="text-xs text-muted-foreground">Loading receipt…</Text>
-                  </View>
-                )}
-              </View>
-            )}
-          </ScrollView>
-        </Pressable>
-      </View>
-
-      {/* Fullscreen Receipt Viewer */}
-      <Modal visible={receiptViewerVisible} transparent animationType="fade" onRequestClose={() => setReceiptViewerVisible(false)}>
-        <Pressable className="flex-1 bg-black/90 justify-center" onPress={() => setReceiptViewerVisible(false)}>
-          <Pressable
-            onPress={() => setReceiptViewerVisible(false)}
-            className="absolute top-12 right-5 z-10 p-2 rounded-full bg-white/10"
-            accessibilityLabel="Close receipt"
-          >
-            <X size={24} color="#ffffff" />
-          </Pressable>
-          {receiptUrl && (
-            <Image source={{ uri: receiptUrl }} className="w-full h-2/3" resizeMode="contain" />
-          )}
-        </Pressable>
-      </Modal>
-    </Modal>
+          <View>
+            <DetailRow label="Category" value={d.label} icon={d.kind === 'transfer' ? categoryIcon(null, 'transfer') : categoryIcon(d.iconKey)} />
+            {account ? <DetailRow label="Account" value={account} domain={accountDomain(accountRow)} /> : null}
+            <DetailRow label="Date" value={dateText} />
+            {tx.note ? <DetailRow label="Note" value={tx.note} /> : null}
+          </View>
+          {receiptUrl ? (
+            <Image source={{ uri: receiptUrl }} style={{ height: 160, borderRadius: radius.sm, backgroundColor: colors['surface-container'] }} contentFit="cover" accessibilityLabel="Receipt photo" />
+          ) : null}
+          <View style={{ gap: 4 }}>
+            <Button label="Edit" icon={Pen} onPress={() => { onClose(); onEdit(tx); }} fullWidth />
+            <Button label="Delete" variant="text" muted onPress={() => setConfirming(true)} style={{ alignSelf: 'center' }} />
+          </View>
+        </View>
+      </Sheet>
+      <ConfirmSheet
+        visible={confirming}
+        title="Delete this transaction?"
+        message={`${formatRM(Number(tx.amount))} at ${tx.name} will be removed. ${balanceEffect}`}
+        confirmLabel="Delete"
+        loadingLabel="Deleting…"
+        onConfirm={remove}
+        onCancel={() => setConfirming(false)}
+      />
+    </>
   );
 }
+

@@ -22,6 +22,7 @@ export function IconButton({ icon: Icon, onPress, accessibilityLabel, variant = 
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
+      disabled={!!disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !!disabled }}

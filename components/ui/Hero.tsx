@@ -38,7 +38,7 @@ export function Hero({ children, height, full, safeTop = true, style, dimmed }: 
       ]}
     >
       <GradientFill />
-      <View style={{ flex: full ? 1 : undefined, opacity: dimmed ? 0.55 : 1 }}>{children}</View>
+      <View style={{ flex: full || height ? 1 : undefined, opacity: dimmed ? 0.55 : 1 }}>{children}</View>
     </View>
   );
 }

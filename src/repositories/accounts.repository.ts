@@ -39,6 +39,8 @@ export interface CreateTabungAccountRequest {
   template_type?: string;
   auto_save?: boolean;
   monthly_amount?: number;
+  /** Opening balance (money saved before Flowe). Not a contribution. */
+  starting_amount?: number;
 }
 
 export const accountsRepository = {
@@ -127,7 +129,7 @@ export const accountsRepository = {
       .insert({
         account_id: account.id,
         target_amount: req.target_amount,
-        saved_amount: 0,
+        saved_amount: req.starting_amount ?? 0,
         from_date: req.from_date,
         to_date: req.to_date,
         linked_bank_id: req.linked_bank_id,
@@ -211,7 +213,7 @@ export const accountsRepository = {
 
   async updateTabungGoal(
     accountId: string,
-    patch: { name?: string; target_amount?: number; icon?: string; color?: string },
+    patch: { name?: string; target_amount?: number; icon?: string; color?: string; progress_mode?: 'contributed' | 'balance'; to_date?: string },
   ): Promise<Result<void, SupabaseError>> {
     // Update the parent `accounts` row (name/icon/color render from here).
     const accountPatch: Record<string, unknown> = {};
@@ -229,6 +231,8 @@ export const accountsRepository = {
     // Keep the `tabung_accounts` row in sync (icon/color stored in both on create).
     const tabungPatch: Record<string, unknown> = {};
     if (patch.target_amount !== undefined) tabungPatch.target_amount = patch.target_amount;
+    if (patch.progress_mode !== undefined) tabungPatch.progress_mode = patch.progress_mode;
+    if (patch.to_date !== undefined) tabungPatch.to_date = patch.to_date;
     if (patch.icon !== undefined) tabungPatch.icon = patch.icon;
     if (patch.color !== undefined) tabungPatch.color = patch.color;
     if (Object.keys(tabungPatch).length > 0) {

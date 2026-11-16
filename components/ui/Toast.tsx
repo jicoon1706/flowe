@@ -48,7 +48,7 @@ export function Toast({ kind, message, action, onDismiss }: ToastProps) {
         <View style={{ width: 36, height: 36, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={18} color={colors['on-surface']} strokeWidth={2} />
         </View>
-        <Text variant="body-md" weight={500} style={{ flexShrink: 1 }}>{message}</Text>
+        <Text variant="body-md" weight={500} style={{ flexShrink: 1 }} accessibilityRole={kind === 'failure' ? 'alert' : undefined}>{message}</Text>
       </Pressable>
       {action ? (
         <Pressable onPress={action.onPress} accessibilityRole="button" accessibilityLabel={action.label} style={{ height: 44, paddingHorizontal: 12, justifyContent: 'center' }}>

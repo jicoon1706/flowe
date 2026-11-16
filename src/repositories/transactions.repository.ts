@@ -219,6 +219,23 @@ export const transactionsRepository = {
     return { ok: true, data: Math.round(total * 100) / 100 };
   },
 
+  /**
+   * Total of the expenses dated from `startYmd` to `endYmd` inclusive (local
+   * 'YYYY-MM-DD'). The monthly figure behind the Budget widget and the live
+   * budget notification; narrow for the same reason as `sumExpensesOn`.
+   */
+  async sumExpensesBetween(startYmd: string, endYmd: string): Promise<Result<number, SupabaseError>> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('type', 'expense')
+      .gte('date', startYmd)
+      .lte('date', endYmd);
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    const total = (data ?? []).reduce((sum, row: { amount: number | string }) => sum + (Number(row.amount) || 0), 0);
+    return { ok: true, data: Math.round(total * 100) / 100 };
+  },
+
   async fetchByAccount(accountId: string): Promise<Result<Transaction[], SupabaseError>> {
     const { data, error } = await supabase
       .from('transactions')

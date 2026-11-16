@@ -1,301 +1,277 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { supabase } from '../../src/lib/supabase';
-import { ScrollView, Pressable, Text, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter , useFocusEffect } from 'expo-router';
-import { HomeTopBar } from '../../components/home/HomeTopBar';
-import { AffirmationCard } from '../../components/home/AffirmationCard';
-import { BalanceBanner } from '../../components/home/BalanceBanner';
-import { AccountCards } from '../../components/home/AccountCards';
-import { Shortcuts } from '../../components/home/Shortcuts';
-import { RecentTransactions } from '../../components/home/RecentTransactions';
-import { PendingRecurringModal } from '../../components/home/PendingRecurringModal';
-import { PendingEntriesCard } from '../../components/home/PendingEntriesCard';
-import { usePendingRecurring } from '../../src/hooks/usePendingRecurring';
-import { useDailyBudget } from '../../src/hooks/useDailyBudget';
-import { scheduleRecurringReminders } from '../../src/services/recurring';
-import { syncDailyBudget } from '../../src/services/dailyBudget';
-import { notificationsRepository } from '../../src/repositories/notifications.repository';
-import { useLock } from '../../context/LockContext';
-import { useDetected } from '../../context/DetectedTransactionsContext';
-import { flags } from '../../src/lib/secureStore';
-import { edgeFunctionsService } from '../../src/services/edgeFunctions';
-import { refreshGate } from '../_layout';
-import { useAuth } from '../../context/AuthContext';
-import { useAccounts } from '../../src/hooks/useAccounts';
-import { useTransactions } from '../../src/hooks/useTransactions';
-import { LoadingView } from '../../components/ui/LoadingView';
-import { ErrorView } from '../../components/ui/ErrorView';
-import { EmptyState } from '../../components/ui/EmptyState';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RefreshControl, ScrollView, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowDownRight, ArrowUpDown, BookOpen, ChartLine, Gauge, Plus, RefreshCw, ScanLine, Wallet } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { HomeHero } from '@/components/home/HomeHero';
+import { PendingEntriesCard } from '@/components/home/PendingEntriesCard';
+import { PendingRecurringModal } from '@/components/home/PendingRecurringModal';
+import { TransactionDetail } from '@/components/home/TransactionDetail';
+import { TransactionList } from '@/components/home/TransactionList';
+import { AffirmationCard } from '@/components/home/AffirmationCard';
+import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Hero } from '@/components/ui/Hero';
+import { IconButton } from '@/components/ui/IconButton';
+import { PhotoSlot } from '@/components/ui/PhotoSlot';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { StatTile } from '@/components/ui/StatTile';
+import { useAuth } from '@/context/AuthContext';
+import { useLock } from '@/context/LockContext';
+import { useDetected } from '@/context/DetectedTransactionsContext';
+import { useAccounts } from '@/src/hooks/useAccounts';
+import { useTransactions } from '@/src/hooks/useTransactions';
+import { useDailyBudget } from '@/src/hooks/useDailyBudget';
+import { usePendingRecurring } from '@/src/hooks/usePendingRecurring';
+import { useTodaySpend } from '@/src/hooks/useTodaySpend';
+import { useCountDown } from '@/src/hooks/useCountDown';
+import { useProfile } from '@/src/hooks/useProfile';
+import { useAffirmations } from '@/src/hooks/useAffirmations';
+import { useCustomCategories } from '@/src/hooks/useCustomCategories';
+import { notificationsRepository } from '@/src/repositories/notifications.repository';
+import { scheduleRecurringReminders } from '@/src/services/recurring';
+import { refreshSpentToday, syncDailyBudget } from '@/src/services/dailyBudget';
+import { readHomeCache, syncedLabel, writeHomeCache, type HomeCache } from '@/src/lib/homeCache';
+import { sumBalances, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
+import { editParams, type TxWithAccounts } from '@/src/utils/transactionDisplay';
+
+/** "Updated just now" stays this long after a live update (o-home-live-after). */
+const UPDATED_CHIP_MS = 2000;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [balanceVisible, setBalanceVisible] = useState(true);
-  const [affirmationIndex, setAffirmationIndex] = useState(0);
-  const { locked, lock, requireUnlock } = useLock();
-  const detected = useDetected();
-
-  // Until the user has unlocked, every figure on this screen is masked no
-  // matter what the eye toggle says — the toggle itself is what asks for the
-  // PIN. After unlocking it goes back to being the user's own preference.
-  const showFigures = !locked && balanceVisible;
-  const toggleFigures = async () => {
-    if (locked) {
-      if (await requireUnlock()) setBalanceVisible(true);
-      return;
-    }
-    setBalanceVisible((v) => !v);
-  };
-
-  async function resetOnboarding() {
-    await flags.unsetPin();
-    refreshGate();
-    router.replace('/(auth)/welcome');
-  }
-
-  async function smokeTestApi() {
-    const { supabase } = await import('../../src/lib/supabase');
-    const { data: { user } } = await supabase.auth.getUser();
-    console.log('[smoke] auth user:', user?.id ?? 'NONE', 'is_anonymous:', user?.is_anonymous);
-
-    const acc = await supabase.from('accounts').select('*').limit(5);
-    console.log('[smoke] accounts read:', JSON.stringify({ data: acc.data, error: acc.error }));
-
-    const month = '2026-05';
-    const r1 = await edgeFunctionsService.getCashflowSummary(month);
-    const r2 = await edgeFunctionsService.getAnalysis(month);
-    console.log('[smoke] cashflow-summary:', JSON.stringify(r1));
-    console.log('[smoke] analysis-monthly:', JSON.stringify(r2));
-  }
-
   const { user } = useAuth();
-  const [displayName, setDisplayName] = useState<string>('User');
-  const [affirmationItems, setAffirmationItems] = useState<{ emoji: string; category: string; quote: string }[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const { pending, acting, fetchPending, approve, reject } = usePendingRecurring();
-  const [showPending, setShowPending] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const fetchUnread = useCallback(async () => {
-    const result = await notificationsRepository.getUnreadCount();
-    if (result.ok) setUnreadCount(result.data);
-  }, []);
-
-  // Shared by the first load and pull-to-refresh, which used to carry two
-  // diverging copies of these queries.
-  async function loadAffirmations(userId: string) {
-    const CATEGORY_EMOJI: Record<string, string> = {
-      saving: '💰', investing: '📈', mindset: '🧠', awareness: '👁️',
-    };
-    const { data, error } = await supabase
-      .from('user_affirmations')
-      .select('text, category')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.warn('[home] fetch user_affirmations failed:', error);
-      return;
-    }
-    const items = (data ?? []).map((row: any) => ({
-      emoji: CATEGORY_EMOJI[String(row.category).toLowerCase()] ?? '✨',
-      category: String(row.category).charAt(0).toUpperCase() + String(row.category).slice(1),
-      quote: `"${row.text}"`,
-    }));
-    setAffirmationItems(items);
-  }
-
-  async function loadDisplayName(userId: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', userId)
-      .maybeSingle();
-    if (data?.display_name) setDisplayName(data.display_name);
-  }
-
-  useEffect(() => {
-    if (!user) return;
-    loadAffirmations(user.id);
-    loadDisplayName(user.id);
-  }, [user]);
-
+  const { locked, requireUnlock } = useLock();
+  const detected = useDetected();
+  const { displayName } = useProfile(user?.id);
   const now = new Date();
-  const { accounts, loading: accountsLoading, error: accountsError, fetchAccounts } = useAccounts();
-  const { transactions, loading: txLoading, error: txError, refetch: fetchTransactions } = useTransactions(now.getFullYear(), now.getMonth() + 1);
-  const { budget: dailyBudget, loaded: budgetLoaded, fetchBudget } = useDailyBudget(user?.id);
+  const { accounts, loading: accLoading, error: accError, fetchAccounts } = useAccounts();
+  const { transactions, loading: txLoading, error: txError, refetch: fetchTx } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { budget, loaded: budgetLoaded, fetchBudget } = useDailyBudget(user?.id);
+  const { spent, changedAt, refresh: refreshSpent } = useTodaySpend();
+  const { pending, acting, fetchPending, approve, reject } = usePendingRecurring();
+  const { affirmations, userAffirmations, fetchAffirmations, fetchUserAffirmations } = useAffirmations();
+  const { categories: custom, fetchCategories } = useCustomCategories();
 
-  // The native side draws the budget widget on its own, with Flowe closed, so
-  // it keeps its own copy of the budget and of today's spend. Pushing it here
-  // covers the app being opened after a day (or a payment) it knew nothing
-  // about; every write while the app is open is covered by the subscription in
-  // the layout. Today's total is read straight from Supabase rather than summed
-  // out of `transactions`, which is this month's — and therefore the wrong month
-  // on the 1st.
+  const [cache, setCache] = useState<HomeCache | null>(null);
+  const [fetchedOnce, setFetchedOnce] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const [showRecurring, setShowRecurring] = useState(false);
+  const [detail, setDetail] = useState<TxWithAccounts | null>(null);
+  const [affIndex, setAffIndex] = useState(0);
+  const [justUpdated, setJustUpdated] = useState(false);
+
+  useEffect(() => { readHomeCache().then(setCache); }, []);
+
+  const loadAll = useCallback(async () => {
+    await Promise.all([
+      fetchAccounts(), fetchTx(), fetchPending(), fetchBudget(), refreshSpent(),
+      notificationsRepository.getUnreadCount().then((r) => { if (r.ok) setUnread(r.data); }),
+    ]);
+    setFetchedOnce(true);
+  }, [fetchAccounts, fetchTx, fetchPending, fetchBudget, refreshSpent]);
+
+  useFocusEffect(useCallback(() => { loadAll(); }, [loadAll]));
+
   useEffect(() => {
-    if (!budgetLoaded) return;
-    syncDailyBudget(dailyBudget);
-  }, [budgetLoaded, dailyBudget]);
-
-  async function onRefresh() {
     if (!user) return;
-    setRefreshing(true);
-    await Promise.all([fetchAccounts(), fetchTransactions(), fetchPending(), fetchUnread(), fetchBudget(), loadDisplayName(user.id), loadAffirmations(user.id)]);
-    setRefreshing(false);
-  }
+    fetchUserAffirmations(user.id);
+    fetchAffirmations();
+    fetchCategories(user.id);
+  }, [user, fetchUserAffirmations, fetchAffirmations, fetchCategories]);
 
-  useFocusEffect(useCallback(() => {
-    fetchAccounts();
-    fetchTransactions();
-    fetchPending();
-    fetchUnread();
-    fetchBudget();
-  }, [fetchAccounts, fetchTransactions, fetchPending, fetchUnread, fetchBudget]));
+  // Native copy of the budget for the widgets / live notification.
+  useEffect(() => { if (budgetLoaded) syncDailyBudget(budget); }, [budgetLoaded, budget]);
 
-  // Put a 5am reminder on each active rule's next occurrence. Once per session
-  // is enough — the whole set is rebuilt each run, so doing it on every focus
-  // would just cancel and re-add the same notifications. Needs a signed-in
-  // session, which is why it lives here rather than in the root layout.
-  const remindersScheduledRef = useRef(false);
+  // Live update: a write anywhere ticks the figures down and flashes the chip.
   useEffect(() => {
-    if (!user || remindersScheduledRef.current) return;
-    remindersScheduledRef.current = true;
+    if (!changedAt) return;
+    fetchAccounts();
+    fetchTx();
+    setJustUpdated(true);
+    const t = setTimeout(() => setJustUpdated(false), UPDATED_CHIP_MS);
+    return () => clearTimeout(t);
+  }, [changedAt, fetchAccounts, fetchTx]);
+
+  const remindersScheduled = useRef(false);
+  useEffect(() => {
+    if (!user || remindersScheduled.current) return;
+    remindersScheduled.current = true;
     scheduleRecurringReminders();
   }, [user]);
 
-  // On the date arriving, surface the approve/reject popup automatically — but
-  // only once per app session, so closing it doesn't re-open on every refocus.
-  // Not while locked: the popup names amounts, so it waits for the unlock.
-  const autoShownRef = useRef(false);
+  const autoShown = useRef(false);
   useEffect(() => {
-    if (!autoShownRef.current && !locked && pending.length > 0) {
-      autoShownRef.current = true;
-      setShowPending(true);
-    }
+    if (!autoShown.current && !locked && pending.length > 0) { autoShown.current = true; setShowRecurring(true); }
   }, [pending.length, locked]);
 
-  const openPending = async () => {
-    if (await requireUnlock()) setShowPending(true);
-  };
+  const all = accounts as AnyAccount[];
+  const liveBalance = all.length ? sumBalances(spendableAccounts(all)) : null;
+  useEffect(() => { if (liveBalance !== null && !accError) writeHomeCache(liveBalance); }, [liveBalance, accError]);
 
-  const handleApprove = async (rule: typeof pending[number]) => {
-    const res = await approve(rule);
-    if (res.ok) {
-      fetchTransactions();
-      fetchAccounts();
+  const stale: 'updating' | 'saved' | null = accError ? 'saved' : !fetchedOnce && cache ? 'updating' : null;
+  const shownBalance = useCountDown(liveBalance ?? (stale ? cache?.balance ?? null : null));
+  const left = budget !== null && spent !== null ? Math.round((budget - spent) * 100) / 100 : null;
+  const shownLeft = useCountDown(left);
+  const shownSpent = useCountDown(spent);
+
+  const monthChangePct = useMemo(() => {
+    if (liveBalance === null) return null;
+    let net = 0;
+    for (const t of transactions) {
+      if (t.type === 'income') net += Number(t.amount);
+      else if (t.type === 'expense') net -= Number(t.amount);
     }
+    const start = liveBalance - net;
+    if (start <= 0 || net === 0) return null;
+    return (net / start) * 100;
+  }, [transactions, liveBalance]);
+
+  const recent = useMemo(
+    () => (transactions as TxWithAccounts[]).filter((t) => t.type === 'expense' || t.type === 'income' || t.type === 'transfer').slice(0, 5),
+    [transactions],
+  );
+  const affirmationTexts = useMemo(
+    () => [...userAffirmations.filter((a) => a.is_active).map((a) => a.text), ...affirmations.map((a) => a.quote)],
+    [userAffirmations, affirmations],
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadAll();
+    await refreshSpentToday();
+    setRefreshing(false);
   };
 
-  // Only the first load blanks the screen: every focus refetches, and swapping
-  // the whole page for a spinner each time lost the scroll position.
-  if (accountsLoading && accounts.length === 0) return <LoadingView />;
-  if (accountsError) return <ErrorView error={accountsError} onRetry={fetchAccounts} />;
+  const unlock = () => { requireUnlock(); };
+  const masked = locked;
+  const firstLoad = accLoading && !fetchedOnce && !cache;
+  const empty = fetchedOnce && !accError && all.length === 0;
 
-  const totalBalance = accounts.reduce((sum, acc) => {
-     
-    const bank = (acc as any).bank_accounts;
-     
-    const wallet = (acc as any).wallet_accounts;
-    const bal = bank?.current_balance ?? wallet?.current_balance ?? 0;
-    return sum + Number(bal);
-  }, 0);
+  const hero = (
+    <HomeHero
+      name={displayName}
+      balance={shownBalance}
+      accounts={all}
+      monthChangePct={monthChangePct}
+      masked={masked}
+      unread={unread > 0}
+      loading={firstLoad}
+      stale={stale}
+      lastSynced={syncedLabel(cache)}
+      justUpdated={justUpdated}
+      onAvatar={() => router.push('/settings')}
+      onBell={() => router.push('/home/notifications')}
+      onAccounts={() => router.push('/home/accounts')}
+      onUnlock={unlock}
+    />
+  );
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      {__DEV__ && (
-        <Pressable
-          onPress={resetOnboarding}
-          className="bg-destructive rounded-xl mx-4 mt-2 py-2 items-center active:opacity-80"
-        >
-          <Text className="text-white font-semibold text-xs">DEV: Reset onboarding</Text>
-        </Pressable>
-      )}
-      {__DEV__ && (
-        <Pressable
-          onPress={smokeTestApi}
-          className="bg-primary/20 rounded-xl mx-4 mt-2 py-2 items-center active:opacity-80"
-        >
-          <Text className="text-primary font-semibold text-xs">DEV: Smoke test APIs</Text>
-        </Pressable>
-      )}
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#C5FF00"
-            colors={['#C5FF00']}
-          />
-        }
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors['on-primary']} colors={[colors.secondary]} progressBackgroundColor={colors.surface} />}
       >
-        <HomeTopBar
-          name={displayName}
-          locked={locked}
-          onBellPress={() => router.push('/home/notifications')}
-          onLockPress={locked ? () => { requireUnlock(); } : lock}
-          onPendingPress={openPending}
-          pendingCount={pending.length}
-          hasNotification={unreadCount > 0 || pending.length > 0}
-        />
-        <AffirmationCard
-          index={affirmationIndex}
-          items={affirmationItems}
-          onNext={() => setAffirmationIndex((i) => i + 1)}
-          onPrev={() => setAffirmationIndex((i) => i - 1)}
-          onFavourite={() => {}}
-          onShare={() => {}}
-        />
-        <PendingEntriesCard
-          pending={detected.pending}
-          accounts={detected.accounts}
-          onSave={async (item, values) => {
-            const result = await detected.save(item, values);
-            if (result.ok) { fetchTransactions(); fetchAccounts(); }
-            return result;
-          }}
-          onDismiss={detected.dismiss}
-        />
-        <BalanceBanner
-          balance={totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          visible={showFigures}
-          onToggle={toggleFigures}
-        />
-        <AccountCards accounts={accounts} visible={showFigures} onSeeAll={() => router.push('/home/accounts')} onAccountPress={(id, type) => {
-          if (type === 'tabung') {
-            router.push(`/home/tabung/${id}`);
-          } else if (type === 'wallet') {
-            router.push(`/home/wallet/${id}`);
-          } else {
-            router.push(`/home/account/${id}`);
-          }
-        }} />
-        <Shortcuts onPress={(id) => {
-          switch (id) {
-            case 'analysis': router.push('/home/analysis'); break;
-            case 'learn': router.push('/home/learn'); break;
-            case 'newTabung': router.push('/tabung/new'); break;
-            case 'accounts': router.push('/home/accounts'); break;
-          }
-        }} />
-        <RecentTransactions
-          transactions={transactions.filter((tx) => tx.type === 'expense' || tx.type === 'income' || tx.type === 'transfer')}
-          masked={!showFigures}
-          onRequestUnlock={requireUnlock}
-          onSeeAll={() => router.push('/calendar')}
-          onTransactionPress={(id) => console.log('Transaction pressed:', id)}
-          onTransactionDeleted={() => { fetchTransactions(); fetchAccounts(); }}
-        />
+        <Hero style={{ paddingBottom: 24 }}>{empty ? <View style={{ height: 300 }}>{hero}</View> : hero}</Hero>
+
+        <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 16 }}>
+          {firstLoad ? (
+            <>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Skeleton height={52} tone="pill" flex={1} />
+                <Skeleton width={60} height={52} tone="pill" />
+                <Skeleton height={52} tone="pill" flex={1} />
+              </View>
+              <Skeleton height={150} radius={20} />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Skeleton height={84} radius={12} flex={1} />
+                <Skeleton height={84} radius={12} flex={1} />
+              </View>
+            </>
+          ) : empty ? (
+            <EmptyState
+              art={<PhotoSlot photo="homeEmpty" style={{ width: 200, height: 140, borderRadius: 20 }} />}
+              title="Add your first account"
+              body="Connect a bank, e-wallet or Tabung and Flowe starts counting from today."
+              ctaLabel="Add account"
+              ctaIcon={Plus}
+              onCta={() => router.push({ pathname: '/home/accounts', params: { add: '1' } })}
+            />
+          ) : accError && all.length === 0 ? (
+            <EmptyState
+              icon={RefreshCw}
+              title="Couldn’t refresh balances"
+              body={cache ? `We’re showing what was saved at ${syncedLabel(cache)}. Pull down or try again.` : 'Pull down or try again.'}
+              ctaLabel="Try again"
+              ctaIcon={RefreshCw}
+              onCta={loadAll}
+            />
+          ) : (
+            <>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Button label="Add" icon={Plus} variant="action" style={{ flex: 1 }} onPress={() => router.push({ pathname: '/add-transaction', params: { nonce: String(Date.now()) } })} />
+                <IconButton icon={ArrowUpDown} variant="action" wide accessibilityLabel="Transfer" onPress={() => router.push({ pathname: '/add-transaction', params: { type: 'transfer', nonce: String(Date.now()) } })} />
+                <Button label="Scan" icon={ScanLine} variant="action" style={{ flex: 1 }} onPress={() => router.push({ pathname: '/add-transaction', params: { scan: '1', nonce: String(Date.now()) } })} />
+              </View>
+
+              {detected.pending.length > 0 ? (
+                <PendingEntriesCard pending={detected.pending} accounts={detected.accounts} onSave={detected.save} onDismiss={detected.dismiss} />
+              ) : null}
+
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <StatTile label="Spent today" icon={ArrowDownRight} amount={shownSpent ?? 0} masked={masked} />
+                {budget !== null ? (
+                  <StatTile label="Left today" icon={Wallet} amount={shownLeft ?? 0} masked={masked} />
+                ) : (
+                  <StatTile label="Left today" icon={Gauge} value="Set a budget" onPress={() => router.push('/settings/budget')} />
+                )}
+              </View>
+
+              <SectionHeader title="Recent Transactions" onAction={() => router.push('/transactions')} />
+              {txError && recent.length === 0 ? (
+                <EmptyState icon={RefreshCw} title="Couldn’t load transactions" body="Check your connection and try again." ctaLabel="Try again" onCta={fetchTx} />
+              ) : !txLoading && recent.length === 0 ? (
+                <EmptyState title="No transactions yet" body="Add one, or turn on auto-detect and bank alerts become one-tap confirmations." ctaLabel="Add transaction" ctaIcon={Plus} onCta={() => router.push('/add-transaction')} />
+              ) : (
+                <TransactionList transactions={recent} customCategories={custom} masked={masked} loading={txLoading} skeletonRows={4} onPress={async (tx) => { if (await requireUnlock()) setDetail(tx); }} />
+              )}
+
+              {affirmationTexts.length > 0 ? (
+                <AffirmationCard text={affirmationTexts[affIndex % affirmationTexts.length]} onNext={affirmationTexts.length > 1 ? () => setAffIndex((i) => i + 1) : undefined} />
+              ) : null}
+
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Chip label="Analysis" icon={ChartLine} onPress={() => router.push('/home/analysis')} />
+                <Chip label="Learn" icon={BookOpen} onPress={() => router.push('/home/learn')} />
+              </View>
+            </>
+          )}
+        </View>
       </ScrollView>
 
+      <TransactionDetail
+        visible={!!detail}
+        transaction={detail}
+        accounts={all}
+        customCategories={custom}
+        onClose={() => setDetail(null)}
+        onChanged={() => { fetchTx(); fetchAccounts(); }}
+        onEdit={(tx) => router.push({ pathname: '/add-transaction', params: editParams(tx) })}
+      />
       <PendingRecurringModal
-        visible={showPending}
+        visible={showRecurring}
         pending={pending}
         acting={acting}
-        onApprove={handleApprove}
+        accountNames={Object.fromEntries(all.map((a) => [a.id, a.name]))}
+        onApprove={async (r) => { const res = await approve(r); if (res.ok) { fetchTx(); fetchAccounts(); } return res; }}
         onReject={reject}
-        onClose={() => setShowPending(false)}
+        onClose={() => setShowRecurring(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }

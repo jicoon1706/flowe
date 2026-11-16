@@ -44,7 +44,7 @@ const INSTITUTIONS: Entry[] = LIST.slice().sort((a, b) => b[0].length - a[0].len
 export function institutionDomain(...names: (string | null | undefined)[]): string | undefined {
   for (const raw of names) {
     if (!raw) continue;
-    const name = raw.toLowerCase();
+    const name = raw.toLowerCase().replace(/[-_]+/g, ' ');
     const hit = INSTITUTIONS.find(([kw]) => new RegExp(`(^|[^a-z])${kw.replace(/[.*+?^${}()|[\]\\']/g, '\\$&')}([^a-z]|$)`).test(name));
     if (hit) return hit[1];
   }

@@ -36,6 +36,11 @@ interface FloweNotificationsNativeModule {
   isBudgetWidgetPinned(): boolean;
   canRequestBudgetWidget(): boolean;
   requestBudgetWidget(): boolean;
+  setMonthlyBudget?(budget: number | null): void;
+  setSpentMonth?(spent: number, month: string): void;
+  setLiveBudgetMode?(mode: string): void;
+  setSyncing?(syncing: boolean): void;
+  setTabungWidget?(json: string | null): void;
   addListener(event: 'onCapture', listener: (capture: CapturedNotification) => void): EventSubscription;
 }
 
@@ -185,6 +190,45 @@ export function canRequestBudgetWidget(): boolean {
  */
 export function requestBudgetWidget(): boolean {
   return native?.requestBudgetWidget() ?? false;
+}
+
+// ─── Monthly budget, live update, Tabung widget (v2) ─────────────────────────
+// Optional calls: an older dev build without these functions keeps working.
+
+/** Monthly limit for the Budget widget and the live notification; null clears it. */
+export function setMonthlyBudget(budget: number | null): void {
+  native?.setMonthlyBudget?.(budget);
+}
+
+/** This month's expense total, for month 'YYYY-MM'. */
+export function setSpentMonth(spent: number, month: string): void {
+  native?.setSpentMonth?.(spent, month);
+}
+
+/** What the pinned live budget notification shows: off, daily, monthly or both. */
+export function setLiveBudgetMode(mode: 'off' | 'daily' | 'monthly' | 'both'): void {
+  native?.setLiveBudgetMode?.(mode);
+}
+
+/** Greys the figures with "Syncing…" while a refresh runs (q-live-update-syncing). */
+export function setSyncing(syncing: boolean): void {
+  native?.setSyncing?.(syncing);
+}
+
+/** The Tabung the 4×2 widget follows; null puts it in its "Choose" state. */
+export interface TabungWidgetData {
+  id: string;
+  name: string;
+  /** Counted toward the goal (contributed or balance, per the Tabung's mode). */
+  counted: number;
+  target: number;
+  balance: number;
+  /** Uncapped percent. */
+  percent: number;
+}
+
+export function setTabungWidget(data: TabungWidgetData | null): void {
+  native?.setTabungWidget?.(data ? JSON.stringify(data) : null);
 }
 
 /** Fires while the app is running; anything captured while it wasn't is in `getCaptures()`. */

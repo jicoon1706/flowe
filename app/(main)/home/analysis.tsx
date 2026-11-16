@@ -1,405 +1,120 @@
-import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { ChevronLeft, ChevronRight, Sparkle, TrendingUp, TrendingDown } from '../../../components/ui/icons';
-import { useAnalysis } from '../../../src/hooks/useAnalysis';
-import { LoadingView } from '../../../components/ui/LoadingView';
-import { ErrorView } from '../../../components/ui/ErrorView';
-import { DonutChart } from '../../../components/ui/DonutChart';
-import { expenseCategories, incomeCategories } from '../../../constants/categories';
-import { useCustomCategories } from '../../../src/hooks/useCustomCategories';
-import { useAuth } from '../../../context/AuthContext';
+import { useCallback, useState } from 'react';
+import { RefreshControl, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowDownRight, ArrowUpRight, RefreshCw } from 'lucide-react-native';
+import { chart, colors } from '@/theme/tokens';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { GlassChip } from '@/components/ui/GlassChip';
+import { HeroScreen } from '@/components/ui/HeroScreen';
+import { Money } from '@/components/ui/Money';
+import { SectionHeader } from '@/components/ui/SectionHeader';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Text } from '@/components/ui/Text';
+import { TopBar } from '@/components/ui/TopBar';
+import { useLock } from '@/context/LockContext';
+import { useAnalysis } from '@/src/hooks/useAnalysis';
+import { formatRMCompact } from '@/src/lib/money';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+type Period = 3 | 6 | 12;
+const NEXT: Record<Period, Period> = { 3: 6, 6: 12, 12: 3 };
+const BAR_MAX = 136;
 
-const CATEGORY_COLORS = ['#C5FF00', '#00d4ff', '#ff6b6b', '#ffd93d', '#a78bfa', '#6bcf7f', '#94a3b8'];
+function monthName(ym: string, style: 'short' | 'long' = 'short'): string {
+  const [y, m] = ym.slice(0, 7).split('-').map(Number);
+  if (!y || !m) return ym;
+  return new Date(y, m - 1, 1).toLocaleDateString('en-MY', { month: style });
+}
 
-// Transactions persist the category as either a built-in slug id (e.g. "food",
-// "salary") or a custom category's readable name. Build a lookup keyed by both
-// the id and the name so we resolve the same emoji shown in add-transaction.
-const CATEGORY_EMOJIS: Record<string, string> = [...expenseCategories, ...incomeCategories].reduce(
-  (acc, c) => {
-    acc[c.id] = c.emoji;
-    acc[c.name] = c.emoji;
-    return acc;
-  },
-  {} as Record<string, string>
-);
-
-const INCOME_COLORS = ['#22C55E', '#3B82F6', '#EC4899', '#F59E0B', '#6366F1', '#14B8A6', '#6B7280'];
-
+/** home/analysis — monochrome blues; current month navy; income vs expense with sign + arrow. */
 export default function AnalysisScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-  const { categories: customCategories, fetchCategories: fetchCustomCategories } = useCustomCategories();
-  const [toggleMode, setToggleMode] = useState<'expense' | 'income'>('expense');
-
+  const { locked } = useLock();
   const now = new Date();
-  const [selectedDate, setSelectedDate] = useState(
-    () => new Date(now.getFullYear(), now.getMonth(), 1)
-  );
-  const currentYear = selectedDate.getFullYear();
-  const currentMonth = selectedDate.getMonth() + 1;
-  const monthParam = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const { analysis, loading, error, refetch } = useAnalysis(ym);
+  const [period, setPeriod] = useState<Period>(6);
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
-  const goPrevMonth = () =>
-    setSelectedDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const goNextMonth = () =>
-    setSelectedDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
-
-  const { analysis, loading, error, refetch } = useAnalysis(monthParam);
-
-  useFocusEffect(useCallback(() => {
-    refetch();
-    if (user) fetchCustomCategories(user.id);
-  }, [refetch, fetchCustomCategories, user]));
-
-  // Custom categories are stored on transactions by their readable name; map
-  // that name to the icon/color the user picked in settings/categories.
-  const customByName = customCategories.reduce(
-    (acc, c) => {
-      acc[c.name] = { emoji: c.icon ?? '🏷️', color: c.color };
-      return acc;
-    },
-    {} as Record<string, { emoji: string; color?: string }>
-  );
-
-  if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={() => {}} />;
-
-  const savingsRate = analysis?.savings_rate ?? 0;
-  const netSavings = analysis?.net_savings ?? 0;
-  const incomeTotal = analysis?.income ?? 0;
-  const expensesTotal = analysis?.expenses ?? 0;
-
-  const expenseCategories = (analysis?.expense_by_category ?? []).map((cat, i) => {
-    const custom = customByName[cat.category];
-    return {
-      name: cat.category,
-      amount: cat.amount,
-      percentage: cat.percentage,
-      color: custom?.color ?? CATEGORY_COLORS[i % CATEGORY_COLORS.length],
-      emoji: custom?.emoji ?? CATEGORY_EMOJIS[cat.category] ?? '📦',
-    };
-  });
-
-  const incomeCategories = (analysis?.income_by_category ?? []).map((cat, i) => {
-    const custom = customByName[cat.category];
-    return {
-      name: cat.category,
-      amount: cat.amount,
-      percentage: cat.percentage,
-      color: custom?.color ?? INCOME_COLORS[i % INCOME_COLORS.length],
-      emoji: custom?.emoji ?? CATEGORY_EMOJIS[cat.category] ?? '💰',
-    };
-  });
-
-  const monthlyTrend = analysis?.monthly_trend ?? [];
-  const maxChartValue = Math.max(
-    ...monthlyTrend.map(m => Math.max(m.income, m.expenses)),
-    6000
-  );
-  const chartBarMaxHeight = 96;
-
-  const insightText =
-    savingsRate < 10
-      ? 'Challenge: Your expenses are eating into your income. The rich focus on buying assets.'
-      : savingsRate < 30
-      ? "Good progress! You're building healthy financial habits."
-      : 'Excellent! Your savings rate is impressive. Keep reinvesting in assets.';
-
-  const selectedMonthTrend = monthlyTrend[currentMonth - 1] ?? monthlyTrend[monthlyTrend.length - 1];
-  const prevMonthTrend = currentMonth > 1 ? monthlyTrend[currentMonth - 2] : null;
-  const netOf = (m?: { income: number; expenses: number } | null) =>
-    m ? m.income - m.expenses : 0;
-  const isPositiveTrend = prevMonthTrend
-    ? netOf(selectedMonthTrend) >= netOf(prevMonthTrend)
-    : true;
+  const trend = (analysis?.monthly_trend ?? []).slice(-period);
+  const prev = trend.length > 1 ? trend[trend.length - 2] : null;
+  const spent = analysis?.expenses ?? 0;
+  const income = analysis?.income ?? 0;
+  const change = prev && prev.expenses > 0 ? ((spent - prev.expenses) / prev.expenses) * 100 : null;
+  const max = Math.max(1, ...trend.map((t) => t.expenses));
+  const kept = income > 0 ? Math.round(((income - spent) / income) * 100) : null;
+  const firstLoad = loading && !analysis;
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="mr-3">
-          <ChevronLeft size={24} color="#fff" />
-        </Pressable>
-        <Text className="flex-1 text-lg font-semibold text-foreground">Analysis</Text>
-        <Sparkle size={20} color="#C5FF00" />
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-        {/* Month Display */}
-        <View className="flex-row items-center justify-between mx-4 mt-4">
-          <Pressable
-            onPress={goPrevMonth}
-            hitSlop={8}
-            className="w-9 h-9 items-center justify-center rounded-full bg-card border border-border"
-          >
-            <ChevronLeft size={20} color="#fff" />
-          </Pressable>
-          <Text className="text-base font-semibold text-foreground">
-            {MONTHS[currentMonth - 1]} {currentYear}
-          </Text>
-          <Pressable
-            onPress={goNextMonth}
-            hitSlop={8}
-            className="w-9 h-9 items-center justify-center rounded-full bg-card border border-border"
-          >
-            <ChevronRight size={20} color="#fff" />
-          </Pressable>
+    <HeroScreen
+      heroHeight={300}
+      refreshControl={<RefreshControl refreshing={loading && !!analysis} onRefresh={refetch} tintColor={colors['on-primary']} />}
+      hero={
+        <View>
+          <TopBar title="Analysis" onBack={() => router.back()} />
+          <View style={{ alignItems: 'center', gap: 12, marginTop: 28 }}>
+            {firstLoad ? (
+              <><Skeleton width={150} height={14} tone="glass" /><Skeleton width={240} height={56} tone="glass" /></>
+            ) : (
+              <>
+                <Text variant="body-lg" tone="soft">Spent in {monthName(ym, 'long')}</Text>
+                <Money amount={spent} variant="numeric-lg" on="gradient" smallCurrency masked={locked} />
+                {change !== null && prev ? (
+                  <GlassChip icon={change <= 0 ? ArrowDownRight : ArrowUpRight} label={`${Math.abs(change).toFixed(1)}% ${change <= 0 ? 'less' : 'more'} than ${monthName(prev.month, 'long')}`} />
+                ) : null}
+              </>
+            )}
+          </View>
         </View>
-
-        {/* Net Savings Hero */}
-        <View className="mx-4 mt-2 bg-card rounded-2xl p-5 border border-border">
-          <View className="flex-row items-center">
-            {/* Decorative Donut */}
-            <View className="w-20 h-20 relative items-center justify-center">
-              <View className="absolute w-16 h-16 rounded-full border-4 border-income/20" />
-              <View
-                className="absolute w-16 h-16 rounded-full border-4 border-transparent"
-                style={{
-                  borderTopColor: savingsRate > 0 ? '#22C55E' : 'transparent',
-                  borderRightColor: savingsRate > 25 ? '#22C55E' : 'transparent',
-                  borderBottomColor: savingsRate > 50 ? '#22C55E' : 'transparent',
-                  borderLeftColor: savingsRate > 75 ? '#22C55E' : 'transparent',
-                  transform: [{ rotate: '-45deg' }],
-                }}
-              />
-              <Text className="text-lg font-bold text-foreground">{savingsRate}%</Text>
+      }
+    >
+      {error && !analysis ? (
+        <EmptyState icon={RefreshCw} title="Couldn’t load analysis" body="Check your connection and try again." ctaLabel="Try again" ctaIcon={RefreshCw} onCta={refetch} />
+      ) : (
+        <>
+          <SectionHeader title="Monthly trend" actionLabel={`${period}M`} onAction={() => setPeriod((p) => NEXT[p])} />
+          {firstLoad ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 196, paddingHorizontal: 4 }} accessibilityLabel="Loading chart">
+              {[103, 123, 112, 136, 126, 116].map((h, i) => <Skeleton key={i} width={28} height={h} tone="pill" />)}
             </View>
-            {/* Right side */}
-            <View className="flex-1 ml-4">
-              <Text className="text-sm text-muted-foreground">Net Savings</Text>
-              <Text className="text-2xl font-bold text-foreground">
-                RM {netSavings.toLocaleString('en-US')}
-              </Text>
-              <View className="flex-row items-center mt-1">
-                {isPositiveTrend ? (
-                  <TrendingUp size={16} color="#22C55E" />
-                ) : (
-                  <TrendingDown size={16} color="#EF4444" />
-                )}
-                <Text
-                  className={`text-xs ml-1 ${
-                    isPositiveTrend ? 'text-income' : 'text-expense'
-                  }`}
-                >
-                  {isPositiveTrend ? 'Up' : 'Down'} vs previous month
-                </Text>
-              </View>
-            </View>
-          </View>
-          <Text className="text-sm text-muted-foreground italic mt-3">
-            {insightText}
-          </Text>
-        </View>
-
-        {/* Income/Expenses Summary */}
-        <View className="flex-row mx-4 mt-4 gap-3">
-          <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
-            <Text className="text-sm text-muted-foreground">Income</Text>
-            <Text className="text-lg font-bold text-income">
-              RM {incomeTotal.toLocaleString('en-US')}
-            </Text>
-          </View>
-          <View className="flex-1 bg-card rounded-2xl p-4 border border-border">
-            <Text className="text-sm text-muted-foreground">Expenses</Text>
-            <Text className="text-lg font-bold text-expense">
-              RM {expensesTotal.toLocaleString('en-US')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Monthly Bar Chart */}
-        {monthlyTrend.length > 0 && (
-          <View className="mx-4 mt-4 bg-card rounded-2xl p-4 border border-border">
-            <Text className="text-sm font-semibold text-foreground mb-3">Monthly Overview</Text>
-            <View className="flex-row items-end justify-between h-28 px-2">
-              {monthlyTrend.map((monthData, index) => {
-                const incomeHeight = maxChartValue > 0
-                  ? (monthData.income / maxChartValue) * chartBarMaxHeight
-                  : 0;
-                const expenseHeight = maxChartValue > 0
-                  ? (monthData.expenses / maxChartValue) * chartBarMaxHeight
-                  : 0;
-                const isSelected = index === currentMonth - 1;
-
+          ) : trend.length ? (
+            <View
+              accessible
+              accessibilityRole="image"
+              accessibilityLabel={`Monthly spend: ${trend.map((t) => `${monthName(t.month)} ${formatRMCompact(t.expenses)}`).join(', ')}`}
+              style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 196, paddingHorizontal: 4 }}
+            >
+              {trend.map((t, i) => {
+                const current = i === trend.length - 1;
                 return (
-                  <View key={monthData.month} className="flex-1 items-center">
-                    <View className="flex-row items-end gap-0.5">
-                      <View
-                        className="w-3 rounded-t"
-                        style={{ height: incomeHeight, backgroundColor: '#22C55E' }}
-                      />
-                      <View
-                        className="w-3 rounded-t"
-                        style={{ height: expenseHeight, backgroundColor: '#EF4444' }}
-                      />
-                    </View>
-                    <Text className="text-xs text-muted-foreground mt-1">
-                      {monthData.month.substring(5)}
-                    </Text>
-                    {isSelected && (
-                      <View className="w-1.5 h-1.5 rounded-full bg-primary mt-1" />
-                    )}
+                  <View key={t.month} style={{ alignItems: 'center', gap: 8 }}>
+                    <Text variant="caption" tone="muted">{formatRMCompact(t.expenses).replace('RM ', '')}</Text>
+                    <View style={{ width: period === 12 ? 16 : 28, height: Math.max(8, Math.round((t.expenses / max) * BAR_MAX)), borderRadius: 9999, backgroundColor: current ? chart[0] : chart[1], opacity: current ? 1 : 0.55 }} />
+                    <Text variant="label-sm" tone={current ? 'default' : 'muted'}>{monthName(t.month)}</Text>
                   </View>
                 );
               })}
             </View>
-            {/* Legend */}
-            <View className="flex-row justify-center gap-6 mt-3 pt-3 border-t border-border">
-              <View className="flex-row items-center">
-                <View className="w-3 h-3 rounded bg-income mr-2" />
-                <Text className="text-xs text-muted-foreground">Income</Text>
-              </View>
-              <View className="flex-row items-center">
-                <View className="w-3 h-3 rounded bg-expense mr-2" />
-                <Text className="text-xs text-muted-foreground">Expense</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Category Breakdown */}
-        <View className="mx-4 mt-4 bg-card rounded-2xl p-4 border border-border">
-          {/* Toggle Pill */}
-          <View className="flex-row bg-background rounded-full p-1 mb-4">
-            <Pressable
-              onPress={() => setToggleMode('expense')}
-              className={`flex-1 py-2 rounded-full ${
-                toggleMode === 'expense' ? 'bg-primary' : 'bg-transparent'
-              }`}
-            >
-              <Text
-                className={`text-sm font-medium text-center ${
-                  toggleMode === 'expense' ? 'text-primary-foreground' : 'text-muted-foreground'
-                }`}
-              >
-                Expense
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setToggleMode('income')}
-              className={`flex-1 py-2 rounded-full ${
-                toggleMode === 'income' ? 'bg-primary' : 'bg-transparent'
-              }`}
-            >
-              <Text
-                className={`text-sm font-medium text-center ${
-                  toggleMode === 'income' ? 'text-primary-foreground' : 'text-muted-foreground'
-                }`}
-              >
-                Income
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Category Donut Chart */}
-          <View className="flex-row items-center mb-4">
-            {/* Donut Chart */}
-            <DonutChart
-              size={144}
-              strokeWidth={18}
-              segments={(toggleMode === 'expense' ? expenseCategories : incomeCategories)
-                .filter((c) => c.amount > 0)
-                .map((c) => ({ value: c.amount, color: c.color }))}
-            >
-              <View className="items-center">
-                <Text className="text-xs text-muted-foreground">Total</Text>
-                <Text className="text-base font-bold text-foreground">
-                  RM {(toggleMode === 'expense' ? expensesTotal : incomeTotal).toLocaleString('en-US')}
-                </Text>
-              </View>
-            </DonutChart>
-            {/* Legend */}
-            <View className="flex-1 ml-4 gap-1">
-              {(toggleMode === 'expense' ? expenseCategories : incomeCategories).slice(0, 4).map((cat) => (
-                <View key={cat.name} className="flex-row items-center gap-2">
-                  <View className="w-3 h-3 rounded" style={{ backgroundColor: cat.color }} />
-                  <Text className="text-xs text-muted-foreground flex-1" numberOfLines={1}>{cat.name}</Text>
-                  <Text className="text-xs text-foreground font-medium">{cat.percentage}%</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <Text className="text-sm font-semibold text-foreground mb-3">
-            {toggleMode === 'expense' ? 'Expense Breakdown' : 'Income Breakdown'}
-          </Text>
-
-          {toggleMode === 'expense' ? (
-            <View className="gap-2">
-              {expenseCategories.map((category) => (
-                <View
-                  key={category.name}
-                  className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3"
-                >
-                  <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center mr-3">
-                    <Text className="text-base">{category.emoji}</Text>
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center justify-between mb-2">
-                      <Text className="text-sm font-medium text-foreground">{category.name}</Text>
-                      <Text className="text-sm font-semibold text-foreground">
-                        RM {category.amount.toLocaleString('en-US')}
-                      </Text>
-                    </View>
-                    <View className="flex-row items-center gap-2">
-                      <View className="flex-1 h-2 bg-background rounded-full overflow-hidden">
-                        <View
-                          className="h-full rounded-full"
-                          style={{ width: `${category.percentage}%`, backgroundColor: category.color }}
-                        />
-                      </View>
-                      <Text className="text-xs text-muted-foreground">{category.percentage}%</Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
           ) : (
-            <View className="gap-2">
-              {incomeCategories.map((category) => (
-                <View
-                  key={category.name}
-                  className="flex-row items-center bg-card border border-border rounded-xl px-4 py-3"
-                >
-                  <View className="w-9 h-9 rounded-xl bg-secondary items-center justify-center mr-3">
-                    <Text className="text-base">{category.emoji}</Text>
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center justify-between mb-2">
-                      <Text className="text-sm font-medium text-foreground">{category.name}</Text>
-                      <Text className="text-sm font-semibold text-foreground">
-                        RM {category.amount.toLocaleString('en-US')}
-                      </Text>
-                    </View>
-                    <View className="flex-row items-center gap-2">
-                      <View className="flex-1 h-2 bg-background rounded-full overflow-hidden">
-                        <View
-                          className="h-full rounded-full"
-                          style={{ width: `${category.percentage}%`, backgroundColor: category.color }}
-                        />
-                      </View>
-                      <Text className="text-xs text-muted-foreground">{category.percentage}%</Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
+            <Text variant="body-md" tone="muted">Your first month of spending starts the trend.</Text>
           )}
-        </View>
-
-        {/* Rich Dad Insight Card */}
-        <View className="mx-4 mt-4 mb-6 bg-primary/10 rounded-2xl p-4 border border-primary/20">
-          <View className="flex-row items-center mb-2">
-            <Sparkle size={16} color="#C5FF00" />
-            <Text className="text-sm font-semibold text-primary ml-2">Rich Dad Insight</Text>
-          </View>
-          <Text className="text-sm text-foreground leading-relaxed">{insightText}</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          <SectionHeader title="Income vs expense" />
+          {[{ label: 'Income', value: income, dir: 'income' as const, color: chart[0] }, { label: 'Expense', value: spent, dir: 'expense' as const, color: chart[2] }].map((r) => {
+            const share = Math.max(income, spent) > 0 ? r.value / Math.max(income, spent) : 0;
+            return (
+              <View key={r.label} style={{ gap: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text variant="body-md">{r.label}</Text>
+                  <Money amount={r.value} direction={r.dir} arrow variant="body-md" weight={500} masked={locked} />
+                </View>
+                <View style={{ height: 12, borderRadius: 9999, backgroundColor: colors['surface-container'], overflow: 'hidden' }} accessibilityElementsHidden>
+                  <View style={{ width: `${share * 100}%`, height: 12, borderRadius: 9999, backgroundColor: r.color }} />
+                </View>
+              </View>
+            );
+          })}
+          {kept !== null ? <Text variant="label-sm" weight={400} tone="muted">{kept >= 0 ? `You kept ${kept}% of income this month.` : `You spent ${Math.abs(kept)}% more than you earned this month.`}</Text> : null}
+        </>
+      )}
+    </HeroScreen>
   );
 }
