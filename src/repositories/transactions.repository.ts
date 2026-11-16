@@ -292,12 +292,9 @@ export const transactionsRepository = {
       .single();
     if (fetchError) return { ok: false, error: fromSupabaseError(fetchError) };
 
-    const reverseError = await applyBalanceEffect(
-      old as BalanceShape,
-      -1,
-    );
-    if (reverseError) reportBalanceFailure(reverseError);
-
+    // The row is written first: if that fails nothing has moved, whereas
+    // reversing the old effect before a failed write left the account off by
+    // the original amount.
     const { data, error } = await supabase
       .from('transactions')
       .update({
@@ -315,6 +312,12 @@ export const transactionsRepository = {
       .select()
       .single();
     if (error) return { ok: false, error: fromSupabaseError(error) };
+
+    const reverseError = await applyBalanceEffect(
+      old as BalanceShape,
+      -1,
+    );
+    if (reverseError) reportBalanceFailure(reverseError);
 
     const applyError = await applyBalanceEffect(
       {
