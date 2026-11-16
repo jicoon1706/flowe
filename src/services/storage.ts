@@ -1,6 +1,6 @@
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '../lib/supabase';
-import type { Result, SupabaseError } from '../utils/result';
+import { fromSupabaseError, type Result, type SupabaseError } from '../utils/result';
 
 export const storageService = {
   // Avatars
@@ -9,14 +9,14 @@ export const storageService = {
     const { error } = await supabase.storage
       .from('avatars')
       .upload(path, decode(base64Image), { contentType: 'image/jpeg', upsert: true });
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
     return { ok: true, data: data.publicUrl };
   },
 
   async deleteAvatar(userId: string): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase.storage.from('avatars').remove([`${userId}/avatar.jpg`]);
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: undefined };
   },
 
@@ -28,21 +28,21 @@ export const storageService = {
       // One receipt per transaction at a fixed path: re-attaching one while
       // editing replaces it instead of failing with "already exists".
       .upload(path, decode(base64Image), { contentType: 'image/jpeg', upsert: true });
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     const { data, error: urlError } = await supabase.storage.from('receipts').createSignedUrl(path, 60 * 60);
-    if (urlError) return { ok: false, error: { code: urlError.code, message: urlError.message } };
+    if (urlError) return { ok: false, error: fromSupabaseError(urlError) };
     return { ok: true, data: data.signedUrl };
   },
 
   async getReceiptUrl(path: string): Promise<Result<string, SupabaseError>> {
     const { data, error } = await supabase.storage.from('receipts').createSignedUrl(path, 60 * 60);
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: data.signedUrl };
   },
 
   async deleteReceipt(path: string): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase.storage.from('receipts').remove([path]);
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: undefined };
   },
 
@@ -52,15 +52,15 @@ export const storageService = {
     const { error } = await supabase.storage
       .from('learn-images')
       .upload(path, decode(base64Image), { contentType: 'image/jpeg' });
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     const { data, error: urlError } = await supabase.storage.from('learn-images').createSignedUrl(path, 60 * 60);
-    if (urlError) return { ok: false, error: { code: urlError.code, message: urlError.message } };
+    if (urlError) return { ok: false, error: fromSupabaseError(urlError) };
     return { ok: true, data: data.signedUrl };
   },
 
   async getLearnImageUrl(path: string): Promise<Result<string, SupabaseError>> {
     const { data, error } = await supabase.storage.from('learn-images').createSignedUrl(path, 60 * 60);
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: data.signedUrl };
   },
 
@@ -68,7 +68,7 @@ export const storageService = {
   async getLearnImageUrls(paths: string[]): Promise<Result<Record<string, string>, SupabaseError>> {
     if (paths.length === 0) return { ok: true, data: {} };
     const { data, error } = await supabase.storage.from('learn-images').createSignedUrls(paths, 60 * 60);
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     const map: Record<string, string> = {};
     for (const item of data ?? []) {
       if (item.path && item.signedUrl) map[item.path] = item.signedUrl;
@@ -84,13 +84,13 @@ export const storageService = {
     const { error } = await supabase.storage
       .from('learn-images')
       .upload(path, decode(base64Pdf), { contentType: 'application/pdf' });
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: path };
   },
 
   async deleteLearnImage(path: string): Promise<Result<void, SupabaseError>> {
     const { error } = await supabase.storage.from('learn-images').remove([path]);
-    if (error) return { ok: false, error: { code: error.code, message: error.message } };
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: undefined };
   },
 };
