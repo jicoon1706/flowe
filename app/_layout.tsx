@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, Text, Pressable, LogBox } from 'react-native';
+import { View, ActivityIndicator, LogBox } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -21,7 +21,8 @@ import { AuthProvider } from '../context/AuthContext';
 import { setupNotifications } from '../src/services/notifications';
 import { loadMerchantLogos } from '../src/services/merchantLogos';
 
-type GateState = 'loading' | 'error' | 'auth' | 'onboarding' | 'main';
+// No 'error' state: a failed session or anonymous sign-in continues offline.
+type GateState = 'loading' | 'auth' | 'onboarding' | 'main';
 
 let _refreshGate: (() => void) | null = null;
 export function refreshGate() { _refreshGate?.(); }
@@ -64,23 +65,12 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (state === 'loading' || state === 'error') return;
+    if (state === 'loading') return;
     const top = segments[0];
     if (state === 'auth' && top !== '(auth)') router.replace('/(auth)/welcome');
     else if (state === 'onboarding' && top !== '(onboarding)') router.replace('/(onboarding)/name');
     else if (state === 'main' && top !== '(main)') router.replace('/(main)');
   }, [state, segments, router]);
-
-  if (state === 'error') {
-    return (
-      <View className="flex-1 bg-background items-center justify-center px-6">
-        <Text className="text-foreground text-lg mb-4">Could not connect</Text>
-        <Pressable className="bg-primary rounded-2xl py-3 px-6" onPress={resolve}>
-          <Text className="text-primary-foreground font-semibold">Retry</Text>
-        </Pressable>
-      </View>
-    );
-  }
 
   return (
     <AuthProvider>
