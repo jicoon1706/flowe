@@ -6,8 +6,9 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Numpad } from '../../../components/ui/Numpad';
 import { useAuth } from '../../../context/AuthContext';
 import { authConfigRepository } from '../../../src/repositories/authConfig.repository';
-import { supabase } from '../../../src/lib/supabase';
 import { hashPin } from '../../../src/lib/pinCrypto';
+import { verifyPin } from '../../../src/lib/pinVerify';
+import { flags } from '../../../src/lib/secureStore';
 
 export default function ChangePinScreen() {
   const router = useRouter();
@@ -27,25 +28,37 @@ export default function ChangePinScreen() {
     if (value.length === 6) {
       setTimeout(async () => {
         if (step === 0) {
-          // Verify current PIN against stored hash
-          if (!user) { setError('Not authenticated'); setCurrentPin(''); return; }
-          const { data, error: fetchErr } = await supabase
-            .from('auth_config')
-            .select('pin_hash')
-            .eq('user_id', user.id)
-            .single();
-          if (fetchErr || !data) { setError('PIN not set up'); setCurrentPin(''); return; }
-          const hashedInput = await hashPin(value);
-          if (hashedInput !== data.pin_hash) { setError('Incorrect PIN'); setCurrentPin(''); return; }
+          // Same check as the lock screen: works offline and without a user.
+          if (!(await verifyPin(value, user?.id))) { setError('Incorrect PIN'); setCurrentPin(''); return; }
           setStep(1);
         } else if (step === 1) {
           setStep(2);
         } else {
           if (value === newPin) {
-            // Save new PIN
-            if (!user) return;
+            // Save the new PIN to both copies. Fingerprint keeps its current
+            // setting (it used to be switched off on the server here), and
+            // success is only reported once the save actually worked.
             const newHash = await hashPin(value);
-            await authConfigRepository.upsert({ userId: user.id, pinHash: newHash, fingerprintEnabled: false });
+            const fingerprintEnabled = await flags.fingerprintEnabled().catch(() => false);
+            if (user) {
+              const res = await authConfigRepository.upsert({ userId: user.id, pinHash: newHash, fingerprintEnabled });
+              if (!res.ok) {
+                setError('Could not save your new PIN. Check your connection and try again.');
+                setConfirmPin('');
+                return;
+              }
+            }
+            try {
+              await flags.setPin(newHash, fingerprintEnabled);
+            } catch {
+              // With a user, the server copy already holds the new PIN and the
+              // lock screen falls back to it. Without one, nothing was saved.
+              if (!user) {
+                setError('Could not save your new PIN. Try again.');
+                setConfirmPin('');
+                return;
+              }
+            }
             Alert.alert('PIN Changed', 'Your PIN has been updated successfully.');
             router.back();
           } else {
