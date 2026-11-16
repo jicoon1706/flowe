@@ -169,6 +169,38 @@ class FloweNotificationsModule : Module() {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       BudgetWidgetProvider.requestPin(context)
     }
+
+    // ── Monthly budget, live update, Tabung widget (v2) ───────────────────
+
+    /** Null clears the monthly limit. */
+    Function("setMonthlyBudget") { budget: Double? ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetStore.setMonthlyBudget(context, budget)
+    }
+
+    /** This month's expense total; `month` is 'YYYY-MM'. */
+    Function("setSpentMonth") { spent: Double, month: String ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetStore.setSpentMonth(context, spent, month)
+    }
+
+    /** 'off' | 'daily' | 'monthly' | 'both' — what the pinned live notification shows. */
+    Function("setLiveBudgetMode") { mode: String ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetStore.setLiveMode(context, mode)
+    }
+
+    /** True while the app re-reads the figures (the notification says "Syncing…"). */
+    Function("setSyncing") { syncing: Boolean ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      BudgetStore.setSyncing(context, syncing)
+    }
+
+    /** JSON of the followed Tabung, or null for the widget's "Choose" face. */
+    Function("setTabungWidget") { json: String? ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      TabungStore.set(context, json)
+    }
   }
 
   companion object {

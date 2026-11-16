@@ -23,13 +23,6 @@ import {
  * repository's change event, and today's total is read back from Supabase.
  */
 
-/** Pushes the budget and re-reads today's spend. Called when Home loads. */
-export function syncDailyBudget(budget: number | null): void {
-  if (!FloweNotifications.isAvailable) return;
-  FloweNotifications.setDailyBudget(budget);
-  refreshSpentToday();
-}
-
 /**
  * Re-reads today's expenses from Supabase and pushes the total.
  *

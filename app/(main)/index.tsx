@@ -23,7 +23,7 @@ import { useLock } from '@/context/LockContext';
 import { useDetected } from '@/context/DetectedTransactionsContext';
 import { useAccounts } from '@/src/hooks/useAccounts';
 import { useTransactions } from '@/src/hooks/useTransactions';
-import { useDailyBudget } from '@/src/hooks/useDailyBudget';
+import { useBudgetSettings } from '@/src/hooks/useBudgetSettings';
 import { usePendingRecurring } from '@/src/hooks/usePendingRecurring';
 import { useTodaySpend } from '@/src/hooks/useTodaySpend';
 import { useCountDown } from '@/src/hooks/useCountDown';
@@ -32,7 +32,7 @@ import { useAffirmations } from '@/src/hooks/useAffirmations';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
 import { notificationsRepository } from '@/src/repositories/notifications.repository';
 import { scheduleRecurringReminders } from '@/src/services/recurring';
-import { refreshSpentToday, syncDailyBudget } from '@/src/services/dailyBudget';
+import { refreshSpentToday, syncBudgetLimits } from '@/src/services/dailyBudget';
 import { readHomeCache, syncedLabel, writeHomeCache, type HomeCache } from '@/src/lib/homeCache';
 import { sumBalances, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
 import { editParams, type TxWithAccounts } from '@/src/utils/transactionDisplay';
@@ -49,7 +49,8 @@ export default function HomeScreen() {
   const now = new Date();
   const { accounts, loading: accLoading, error: accError, fetchAccounts } = useAccounts();
   const { transactions, loading: txLoading, error: txError, refetch: fetchTx } = useTransactions(now.getFullYear(), now.getMonth() + 1);
-  const { budget, loaded: budgetLoaded, fetchBudget } = useDailyBudget(user?.id);
+  const { value: limits, fetch: fetchBudget } = useBudgetSettings(user?.id);
+  const budget = limits?.daily ?? null;
   const { spent, changedAt, refresh: refreshSpent } = useTodaySpend();
   const { pending, acting, fetchPending, approve, reject } = usePendingRecurring();
   const { affirmations, userAffirmations, fetchAffirmations, fetchUserAffirmations } = useAffirmations();
@@ -84,7 +85,7 @@ export default function HomeScreen() {
   }, [user, fetchUserAffirmations, fetchAffirmations, fetchCategories]);
 
   // Native copy of the budget for the widgets / live notification.
-  useEffect(() => { if (budgetLoaded) syncDailyBudget(budget); }, [budgetLoaded, budget]);
+  useEffect(() => { if (limits) syncBudgetLimits(limits.daily, limits.monthly, limits.liveMode); }, [limits]);
 
   // Live update: a write anywhere ticks the figures down and flashes the chip.
   useEffect(() => {

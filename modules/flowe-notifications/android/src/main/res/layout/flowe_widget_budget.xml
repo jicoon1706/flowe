@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Budget 4×2 (p-widget-states-budget #2): "Today left" and "Month left" side by side; + opens Add. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/flowe_budget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/flowe_widget_background"
+    android:padding="16dp">
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+    <ImageView android:layout_width="16dp" android:layout_height="16dp" android:src="@drawable/ic_flowe_mark" android:contentDescription="@null" />
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="6dp"
+        android:text="@string/flowe_widget_budget_label"
+        android:textSize="12sp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/flowe_on_primary_soft" />
+    <ImageView
+        android:id="@+id/flowe_budget_add"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:padding="12dp"
+        android:background="@drawable/flowe_widget_glass_pill"
+        android:src="@drawable/ic_flowe_plus"
+        android:contentDescription="@string/flowe_widget_add_transaction" />
+  </LinearLayout>
+
+  <LinearLayout
+      android:id="@+id/flowe_budget_values"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:orientation="horizontal"
+      android:gravity="bottom">
+    <LinearLayout
+        android:id="@+id/flowe_budget_day"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginEnd="10dp"
+        android:orientation="vertical">
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/flowe_widget_today_left" android:textSize="12sp" android:textColor="@color/flowe_on_primary_soft" />
+      <TextView android:id="@+id/flowe_budget_day_amount" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="22sp" android:fontFamily="sans-serif-medium" android:letterSpacing="-0.02" android:textColor="@color/flowe_on_primary" android:maxLines="1" />
+      <ImageView android:id="@+id/flowe_budget_day_bar" android:layout_width="match_parent" android:layout_height="6dp" android:layout_marginTop="6dp" android:scaleType="fitXY" android:contentDescription="@null" />
+      <TextView android:id="@+id/flowe_budget_day_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textSize="11sp" android:textColor="@color/flowe_on_primary_soft" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/flowe_budget_month"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/flowe_widget_month_left" android:textSize="12sp" android:textColor="@color/flowe_on_primary_soft" />
+      <TextView android:id="@+id/flowe_budget_month_amount" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="22sp" android:fontFamily="sans-serif-medium" android:letterSpacing="-0.02" android:textColor="@color/flowe_on_primary" android:maxLines="1" />
+      <ImageView android:id="@+id/flowe_budget_month_bar" android:layout_width="match_parent" android:layout_height="6dp" android:layout_marginTop="6dp" android:scaleType="fitXY" android:contentDescription="@null" />
+      <TextView android:id="@+id/flowe_budget_month_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textSize="11sp" android:textColor="@color/flowe_on_primary_soft" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+  </LinearLayout>
+
+  <LinearLayout
+      android:id="@+id/flowe_budget_empty"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="bottom"
+      android:visibility="gone">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/flowe_widget_budget_empty" android:textSize="15sp" android:fontFamily="sans-serif-medium" android:textColor="@color/flowe_on_primary" />
+    <TextView
+        android:id="@+id/flowe_budget_set"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginTop="10dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:gravity="center"
+        android:background="@drawable/flowe_widget_white_pill"
+        android:text="@string/flowe_widget_set_budget"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="@color/flowe_on_surface" />
+  </LinearLayout>
+
+  <LinearLayout
+      android:id="@+id/flowe_budget_loading"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:orientation="horizontal"
+      android:gravity="bottom"
+      android:visibility="gone">
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginEnd="10dp" android:orientation="vertical">
+      <ImageView android:layout_width="90dp" android:layout_height="24dp" android:src="@drawable/flowe_widget_glass_pill" android:scaleType="fitXY" android:contentDescription="@null" />
+      <ImageView android:layout_width="match_parent" android:layout_height="6dp" android:layout_marginTop="8dp" android:src="@drawable/flowe_widget_glass_pill" android:scaleType="fitXY" android:contentDescription="@null" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+      <ImageView android:layout_width="90dp" android:layout_height="24dp" android:src="@drawable/flowe_widget_glass_pill" android:scaleType="fitXY" android:contentDescription="@null" />
+      <ImageView android:layout_width="match_parent" android:layout_height="6dp" android:layout_marginTop="8dp" android:src="@drawable/flowe_widget_glass_pill" android:scaleType="fitXY" android:contentDescription="@null" />
+    </LinearLayout>
+  </LinearLayout>
+</LinearLayout>

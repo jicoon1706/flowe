@@ -54,4 +54,25 @@ object BudgetRing {
     }
     return bitmap
   }
+
+  /**
+   * A rounded progress bar (6 dp in the widgets): the track, then the filled
+   * share. RemoteViews' ProgressBar can't take the token colours at runtime,
+   * so it is painted like the ring.
+   */
+  fun bar(widthPx: Int, heightPx: Int, fraction: Float, color: Int, trackColor: Int): Bitmap {
+    val w = widthPx.coerceIn(48, 900)
+    val h = heightPx.coerceIn(4, 24)
+    val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val r = h / 2f
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = trackColor }
+    canvas.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), r, r, paint)
+    val f = fraction.coerceIn(0f, 1f)
+    if (f > 0f) {
+      paint.color = color
+      canvas.drawRoundRect(RectF(0f, 0f, (w * f).coerceAtLeast(h.toFloat()), h.toFloat()), r, r, paint)
+    }
+    return bitmap
+  }
 }

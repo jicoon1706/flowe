@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  2x2 daily-budget widget. Only views RemoteViews supports: no custom view can
-  be inflated here, which is why the ring arrives as a bitmap in an ImageView
-  with the figures laid over it in a FrameLayout.
+  "Left today" 2×2 (p-widget-states-budget #1): gradient field, label + mark,
+  the amount, a white bar on glass, and a footer. Empty / stale / loading
+  faces are the same layout with views shown or hidden by BudgetWidgetProvider.
+  RemoteViews-safe views only.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/flowe_widget_root"
@@ -10,88 +11,128 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/flowe_widget_background"
-    android:padding="10dp">
+    android:padding="16dp">
 
   <LinearLayout
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:orientation="horizontal"
       android:gravity="center_vertical">
-
-    <ImageView
-        android:layout_width="13dp"
-        android:layout_height="13dp"
-        android:src="@drawable/ic_flowe_budget"
-        android:tint="#C5FF00"
-        android:contentDescription="@null" />
-
     <TextView
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginStart="6dp"
         android:text="@string/flowe_widget_daily_budget_header"
-        android:textSize="11sp"
-        android:textColor="#A0A0A0"
-        android:maxLines="1"
-        android:ellipsize="end" />
+        android:textSize="12sp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/flowe_on_primary_soft"
+        android:maxLines="1" />
+    <ImageView
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:src="@drawable/ic_flowe_mark"
+        android:contentDescription="@null" />
   </LinearLayout>
 
-  <FrameLayout
+  <!-- Normal / stale -->
+  <LinearLayout
+      android:id="@+id/flowe_widget_values"
       android:layout_width="match_parent"
       android:layout_height="0dp"
       android:layout_weight="1"
-      android:layout_marginTop="2dp">
-
+      android:orientation="vertical"
+      android:gravity="bottom">
+    <TextView
+        android:id="@+id/flowe_widget_amount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="30sp"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="-0.03"
+        android:textColor="@color/flowe_on_primary"
+        android:includeFontPadding="false"
+        android:maxLines="1" />
+    <TextView
+        android:id="@+id/flowe_widget_caption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="@color/flowe_on_primary_soft"
+        android:maxLines="1" />
     <ImageView
         android:id="@+id/flowe_widget_ring"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_gravity="center"
-        android:scaleType="fitCenter"
+        android:layout_height="6dp"
+        android:layout_marginTop="8dp"
+        android:scaleType="fitXY"
         android:contentDescription="@null" />
-
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:orientation="vertical"
-        android:gravity="center">
-
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+      <ImageView
+          android:id="@+id/flowe_widget_stale_icon"
+          android:layout_width="12dp"
+          android:layout_height="12dp"
+          android:layout_marginEnd="6dp"
+          android:src="@drawable/ic_flowe_refresh"
+          android:visibility="gone"
+          android:contentDescription="@null" />
       <TextView
-          android:id="@+id/flowe_widget_amount"
-          android:layout_width="wrap_content"
+          android:id="@+id/flowe_widget_footer"
+          android:layout_width="0dp"
           android:layout_height="wrap_content"
-          android:textSize="19sp"
-          android:textStyle="bold"
-          android:textColor="#FFFFFF"
-          android:includeFontPadding="false"
+          android:layout_weight="1"
+          android:textSize="11sp"
+          android:textColor="@color/flowe_on_primary_soft"
           android:maxLines="1"
-          android:ellipsize="end"
-          android:text="@string/flowe_widget_daily_budget_header" />
-
-      <TextView
-          android:id="@+id/flowe_widget_caption"
-          android:layout_width="wrap_content"
-          android:layout_height="wrap_content"
-          android:layout_marginTop="1dp"
-          android:textSize="9sp"
-          android:textColor="#A0A0A0"
-          android:includeFontPadding="false"
-          android:maxLines="1"
-          android:text="@string/flowe_widget_daily_budget_header" />
+          android:ellipsize="end" />
     </LinearLayout>
-  </FrameLayout>
+  </LinearLayout>
 
-  <TextView
-      android:id="@+id/flowe_widget_footer"
+  <!-- Empty -->
+  <LinearLayout
+      android:id="@+id/flowe_widget_empty"
       android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="2dp"
-      android:gravity="center"
-      android:textSize="10sp"
-      android:textColor="#A0A0A0"
-      android:maxLines="1"
-      android:ellipsize="end"
-      android:text="@string/flowe_widget_daily_budget_header" />
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="bottom"
+      android:visibility="gone">
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/flowe_widget_no_daily_budget"
+        android:textSize="15sp"
+        android:fontFamily="sans-serif-medium"
+        android:textColor="@color/flowe_on_primary" />
+    <TextView
+        android:id="@+id/flowe_widget_set_budget"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:background="@drawable/flowe_widget_white_pill"
+        android:text="@string/flowe_widget_set_budget"
+        android:textSize="13sp"
+        android:fontFamily="sans-serif-medium"
+        android:textStyle="bold"
+        android:textColor="@color/flowe_on_surface" />
+  </LinearLayout>
+
+  <!-- Loading -->
+  <LinearLayout
+      android:id="@+id/flowe_widget_loading"
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:orientation="vertical"
+      android:gravity="bottom"
+      android:visibility="gone">
+    <ImageView android:layout_width="110dp" android:layout_height="30dp" android:src="@drawable/flowe_widget_glass_pill" android:contentDescription="@null" />
+    <ImageView android:layout_width="match_parent" android:layout_height="6dp" android:layout_marginTop="10dp" android:src="@drawable/flowe_widget_glass_pill" android:scaleType="fitXY" android:contentDescription="@null" />
+    <ImageView android:layout_width="70dp" android:layout_height="10dp" android:layout_marginTop="10dp" android:src="@drawable/flowe_widget_glass_pill" android:scaleType="fitXY" android:contentDescription="@null" />
+  </LinearLayout>
 </LinearLayout>

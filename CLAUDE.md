@@ -121,32 +121,23 @@ transaction write — `transactionsRepository` emits `onTransactionsChanged`, an
 `services/dailyBudget.ts` re-reads today's total and pushes it. Full walkthrough:
 `docs/Flowe_AutoDetect_Flow.md`.
 
-## Design System
+## Design System (v2)
 
-**Dark mode only.** Brand accent: `#C5FF00` (lime-green). Tokens are defined once in
-`tailwind.config.js` and mirrored in `constants/theme.ts` — change both together.
+Light, navy→cobalt. Source files are read-only: `design/DESIGN.md` and `design/tailwind.theme.json`.
+`theme/tokens.js` is the one token module (it reads the JSON and adds the AA tokens
+`on-surface-variant-aa` #666666 and `on-primary-soft` 80% white). It feeds `tailwind.config.js`,
+TypeScript (`theme/tokens.d.ts`), `app.config.js` (splash / icon colours) and the Android widget
+colours (`node scripts/generate-native-tokens.js` → `res/values/flowe_tokens.xml`;
+`tests/nativeTokens.test.ts` fails on drift). Never hard-code a hex value in a component.
 
-| Token | Hex | Usage |
-|---|---|---|
-| `background` | `#0D0D0D` | App background |
-| `card` / `popover` / `input-background` | `#1A1A1A` | Cards, surfaces, inputs |
-| `secondary` | `#2a2a2a` | Secondary surfaces |
-| `muted` / `muted-foreground` | `#404040` / `#a0a0a0` | Dividers, subdued text |
-| `primary` / `accent` | `#C5FF00` | CTAs, active states |
-| `primary-foreground` | `#000000` | Text on primary |
-| `border` | `rgba(255,255,255,0.1)` | Hairlines |
-| `destructive` | `#ff4444` | Delete/error |
-| `income` / `expense` / `transfer` | `#22C55E` / `#EF4444` / `#3B82F6` | Amount semantics |
+Rules: the gradient (`GradientFill`, `Hero`) only as a field holding one key metric; white sheets with a
+32 px top radius; glass (white 16%) only on the gradient; `#F5F5F5` stat tiles (12 radius), `#EFEFEF`
+pills; black `#020202` is the only selected / primary colour, one primary per region; every control a pill
+or circle; no shadows; Inter 400–600 with tabular figures via `components/ui/Text`; amounts via
+`components/ui/Money` (muted cents, sign + arrow, never red/green); charts use `tokens.chart` only.
 
-Chart colors: `#C5FF00` (lime), `#00d4ff` (cyan), `#ff6b6b` (coral), `#ffd93d` (yellow), `#6bcf7f` (green).
-
-**Radius:** `rounded-2xl` (16px) for cards/buttons, `rounded-xl` (14px) for inputs.
-
-Component patterns:
-
-- Primary CTA: `bg-primary text-primary-foreground rounded-2xl`
-- Card: `bg-card border border-border rounded-2xl p-5`
-- Input: `bg-background border border-border rounded-xl px-4 py-3 focus:border-primary`
+Feedback: `ConfirmSheet` (destructive), `InlineError` (validation), `useToast()` (success / failure with
+Retry or Undo). There are no `Alert.alert` calls; keep it that way. The plan and frame map: `docs/V2_PLAN.md`.
 
 ## Conventions
 
@@ -155,6 +146,6 @@ Component patterns:
   (`applyBalanceEffect` in `transactions.repository.ts`). Never read a balance, add to it in
   JS and write it back: auto-detect files from several runtimes at once, and that pattern
   loses adjustments. `recalculate_account_balances` (Settings → Data) is the repair.
-- Reuse `components/ui/` primitives (`Button`, `Card`, `Input`, `ScreenHeader`, `EmptyState`, `LoadingView`, `ErrorView`) rather than restyling from scratch.
+- Reuse `components/ui/` primitives (`Text`, `Money`, `Button`, `HeroScreen`, `Sheet`, `ConfirmSheet`, `TextInput`, `SettingsRow`, `EmptyState`, `Skeleton`, …) rather than restyling from scratch.
 - Row/enum types come from `src/types/database.types.ts` — extend there when the schema changes, and add a matching SQL file under `supabase/migrations/`.
 - Tests cover pure logic (parsing, matching, crypto, recurring); add specs alongside the existing ones in `tests/`.

@@ -19,7 +19,7 @@ Only the UI layer is rewritten.
 | `src/utils/*` | **Kept** | |
 | `context/*` | **Kept** | `ToastProvider` added in `components/ui/ToastProvider.tsx`. |
 | `modules/flowe-notifications` | **Kept**, extended (scope: step 6 only) | `BudgetStore` gains monthly figures + mode; new `LiveBudgetNotifier` (ongoing notification, `ProgressStyle` on API 36+), restyled `BudgetWidgetProvider` (2×2), new `MonthBudgetWidgetProvider` (4×2) and `TabungWidgetProvider` (4×2) + `TabungStore`. Colours come from generated `res/values/flowe_tokens.xml`. |
-| `app/**` screens | **Rewritten UI** | Same routes. One new route: `(onboarding)/notification-access` (frame C6). |
+| `app/**` screens | **Rewritten UI** | Same routes. New routes: `(onboarding)/notification-access` (C6) and `(main)/transactions` (H7–H9). |
 | `components/**` | **Rewritten UI** | New design-system layer in `components/ui/`; old dark-theme primitives removed. |
 | `tailwind.config.js`, `constants/theme.ts` | **Replaced** | Both read the one token module `theme/tokens.js`. |
 
@@ -141,9 +141,9 @@ Pay-outs never reduce it. Balance (`saved_amount`) and paid-out total are shown 
 | H | `st-cashflow-empty` | cashflow · empty | cashflow | EmptyState (ghost bubbles) | useCashflow |
 | H | `st-cashflow-loading` | cashflow · loading | cashflow | Skeleton glass discs | useCashflow |
 | H | `st-cashflow-error` | cashflow · error | cashflow | ErrorState | useCashflow |
-| H | `st-recent-empty` | transactions · empty | (main)/index RecentTransactions | EmptyState | useTransactions |
-| H | `st-recent-loading` | transactions · loading | (main)/index RecentTransactions | Skeleton rows | useTransactions |
-| H | `st-recent-error` | transactions · error | (main)/index RecentTransactions | ErrorState | useTransactions |
+| H | `st-recent-empty` | transactions · empty | (main)/transactions (new) | EmptyState | useTransactions |
+| H | `st-recent-loading` | transactions · loading | (main)/transactions (new) | Skeleton rows | useTransactions |
+| H | `st-recent-error` | transactions · error | (main)/transactions (new) | ErrorState | useTransactions |
 | I | `m-island-collapsed` | DetectedTransactionIsland · collapsed | (main)/_layout overlay | DetectedTransactionIsland | useDetected |
 | I | `m-island-expanded` | DetectedTransactionIsland · expanded | (main)/_layout overlay | DetectedTransactionIsland (expanded) | useDetected |
 | I | `m-detected-form` | DetectedTransactionForm · edit | (main)/_layout overlay | DetectedTransactionForm | useDetected |
@@ -220,9 +220,8 @@ Notes on the mapping:
 
 - **E4/E5 vs N1/N5:** `acc-tabung-id` and `acc-tabung-add-money` are the pre-N versions of
   `tabung/[id]`; section N supersedes them (same route, new progress rule).
-- **H7–H9 "transactions":** there is no separate transactions route in `app/`; these are the
-  states of the Recent Transactions section on Home. "View All" opens `calendar`, the existing
-  full-history screen.
+- **H7–H9 "transactions":** the frames show a full "Recent Transactions" screen (back + search), reached by
+  View All on Home. It is the one new route in `(main)`: `app/(main)/transactions.tsx`.
 - **M:** the canvas's own note confirms no missing screens; every existing route has a frame.
 - **L4 / L5:** the Android heads-up and push cards restyle notification *content* only;
   system chrome is drawn by Android.

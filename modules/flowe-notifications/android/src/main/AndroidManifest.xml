@@ -77,5 +77,31 @@
         android:name="android.appwidget.provider"
         android:resource="@xml/flowe_widget_daily_budget_info" />
     </receiver>
+
+    <!-- Budget 4×2: today left + month left. Same BudgetStore as above. -->
+    <receiver
+      android:name="expo.modules.flowenotifications.MonthBudgetWidgetProvider"
+      android:label="@string/flowe_widget_budget_label"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/flowe_widget_budget_info" />
+    </receiver>
+
+    <!-- Tabung 4×2: progress toward the Tabung the app last showed. -->
+    <receiver
+      android:name="expo.modules.flowenotifications.TabungWidgetProvider"
+      android:label="@string/flowe_widget_tabung_label"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/flowe_widget_tabung_info" />
+    </receiver>
   </application>
 </manifest>

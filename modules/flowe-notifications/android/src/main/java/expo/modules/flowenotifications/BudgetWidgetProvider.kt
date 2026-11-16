@@ -1,28 +1,23 @@
 package expo.modules.flowenotifications
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.RemoteViews
-import java.util.Locale
+import androidx.core.content.ContextCompat
 
 /**
- * Flowe's home-screen widget: a 2×2 ring showing how much of today's budget is
- * left, sitting among the user's app icons.
+ * "Left today" 2×2 widget (p-widget-states-budget #1): gradient field, the
+ * figure left today, a white bar on glass and "of RM 200.00 · 81%".
  *
- * It replaced the daily-budget live update, and the difference is the point —
- * a notification is gone in a minute and only appears when Flowe happens to
- * catch a payment, while this is on screen every time the phone is unlocked,
- * whether or not anything was spent.
- *
- * All of its state comes from [BudgetStore], so it draws correctly with the
- * app closed and no Supabase session anywhere in sight. Every write to that
- * store calls [refresh].
+ * Faces: loading (nothing pushed yet), empty (no daily budget → "Set budget"),
+ * stale (no refresh from the app for an hour → "Updated 2h ago") and normal.
+ * Tapping opens Home, which re-reads today's spend. All state comes from
+ * [BudgetStore]; colours come from res/values/flowe_tokens.xml.
  */
 class BudgetWidgetProvider : AppWidgetProvider() {
 
@@ -30,23 +25,11 @@ class BudgetWidgetProvider : AppWidgetProvider() {
     appWidgetIds.forEach { render(context, manager, it) }
   }
 
-  /** Resized, or moved to a launcher with different cells: the ring is redrawn to fit. */
-  override fun onAppWidgetOptionsChanged(
-    context: Context,
-    manager: AppWidgetManager,
-    appWidgetId: Int,
-    newOptions: Bundle?
-  ) {
+  override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, appWidgetId: Int, newOptions: Bundle?) {
     render(context, manager, appWidgetId)
   }
 
   companion object {
-    private const val ACCENT = 0xFFC5FF00.toInt()
-    private const val OVER = 0xFFFF4444.toInt()
-    private const val TRACK = 0xFF2A2A2A.toInt()
-    private const val FOREGROUND = 0xFFFFFFFF.toInt()
-    private const val MUTED = 0xFFA0A0A0.toInt()
-
     /** Redraws every instance the user has placed. Cheap, and a no-op when there are none. */
     fun refresh(context: Context) {
       val app = context.applicationContext
@@ -54,13 +37,11 @@ class BudgetWidgetProvider : AppWidgetProvider() {
       val ids = try {
         manager.getAppWidgetIds(ComponentName(app, BudgetWidgetProvider::class.java))
       } catch (e: IllegalArgumentException) {
-        // Provider not registered (can happen mid-install); nothing to draw.
         return
       }
       ids.forEach { render(app, manager, it) }
     }
 
-    /** Whether the user has actually put one on their home screen. */
     fun isPinned(context: Context): Boolean {
       val app = context.applicationContext
       val manager = AppWidgetManager.getInstance(app) ?: return false
@@ -71,28 +52,18 @@ class BudgetWidgetProvider : AppWidgetProvider() {
       }
     }
 
-    /**
-     * Whether the launcher will accept an in-app "add this widget" request.
-     * Most do since Android 8; the ones that don't leave the user to the
-     * long-press → Widgets route, which is why Settings says so.
-     */
     fun canRequestPin(context: Context): Boolean {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
       val manager = AppWidgetManager.getInstance(context.applicationContext) ?: return false
       return manager.isRequestPinAppWidgetSupported
     }
 
-    /** Asks the launcher to offer the widget for placement. False if it refused. */
     fun requestPin(context: Context): Boolean {
       if (!canRequestPin(context)) return false
       val app = context.applicationContext
       val manager = AppWidgetManager.getInstance(app) ?: return false
       return try {
-        manager.requestPinAppWidget(
-          ComponentName(app, BudgetWidgetProvider::class.java),
-          null,
-          null
-        )
+        manager.requestPinAppWidget(ComponentName(app, BudgetWidgetProvider::class.java), null, null)
       } catch (e: Exception) {
         false
       }
@@ -100,46 +71,49 @@ class BudgetWidgetProvider : AppWidgetProvider() {
 
     private fun render(context: Context, manager: AppWidgetManager, appWidgetId: Int) {
       val views = RemoteViews(context.packageName, R.layout.flowe_widget_daily_budget)
+      val white = ContextCompat.getColor(context, R.color.flowe_on_primary)
+      val glass = ContextCompat.getColor(context, R.color.flowe_glass)
+      val muted = ContextCompat.getColor(context, R.color.flowe_on_primary_muted)
       val budget = BudgetStore.budget(context)
       val spent = BudgetStore.spentToday(context)
 
-      if (budget == null) {
-        // No budget set: the widget still earns its slot by saying what to do
-        // about it, rather than showing a zero that looks like a bug.
-        views.setImageViewBitmap(
-          R.id.flowe_widget_ring,
-          BudgetRing.draw(ringSizePx(context, manager, appWidgetId), 0, ACCENT, TRACK)
-        )
-        views.setTextViewText(R.id.flowe_widget_amount, "—")
-        views.setTextColor(R.id.flowe_widget_amount, MUTED)
-        views.setTextViewText(R.id.flowe_widget_caption, "no budget")
-        views.setTextViewText(R.id.flowe_widget_footer, "Set one in Flowe")
-      } else {
-        val remaining = budget - spent
-        val over = remaining < 0
-        // What's left, as a share of the budget: a full ring at the start of
-        // the day, empty once it's gone.
-        val left = (((budget - spent) / budget) * 100).toInt().coerceIn(0, 100)
-        val color = if (over) OVER else ACCENT
-
-        views.setImageViewBitmap(
-          R.id.flowe_widget_ring,
-          BudgetRing.draw(
-            ringSizePx(context, manager, appWidgetId),
-            // Overspent reads as a full ring in red, not an empty one — the
-            // budget is blown, which is a state, not an absence.
-            if (over) 100 else left,
-            color,
-            TRACK
-          )
-        )
-        views.setTextViewText(R.id.flowe_widget_amount, money(if (over) -remaining else remaining))
-        views.setTextColor(R.id.flowe_widget_amount, if (over) OVER else FOREGROUND)
-        views.setTextViewText(R.id.flowe_widget_caption, if (over) "RM over" else "RM left")
-        views.setTextViewText(R.id.flowe_widget_footer, "${money(spent)} of ${money(budget)}")
+      fun show(values: Boolean, empty: Boolean, loading: Boolean) {
+        views.setViewVisibility(R.id.flowe_widget_values, if (values) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.flowe_widget_empty, if (empty) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.flowe_widget_loading, if (loading) View.VISIBLE else View.GONE)
       }
 
-      openApp(context)?.let { views.setOnClickPendingIntent(R.id.flowe_widget_root, it) }
+      when {
+        !BudgetStore.isInitialised(context) -> show(values = false, empty = false, loading = true)
+        budget == null -> {
+          show(values = false, empty = true, loading = false)
+          WidgetText.openPath(context, "settings/budget", 11)?.let { views.setOnClickPendingIntent(R.id.flowe_widget_set_budget, it) }
+        }
+        else -> {
+          show(values = true, empty = false, loading = false)
+          val left = budget - spent
+          val over = left < 0
+          val used = (spent / budget).toFloat()
+          views.setTextViewText(R.id.flowe_widget_amount, WidgetText.amount(left, muted))
+          views.setTextViewText(R.id.flowe_widget_caption, if (over) "over today" else "")
+          views.setViewVisibility(R.id.flowe_widget_caption, if (over) View.VISIBLE else View.GONE)
+          val density = context.resources.displayMetrics.density
+          views.setImageViewBitmap(R.id.flowe_widget_ring, BudgetRing.bar((140 * density).toInt(), (6 * density).toInt(), used, white, glass))
+          val stale = BudgetStore.isStale(context)
+          views.setViewVisibility(R.id.flowe_widget_stale_icon, if (stale) View.VISIBLE else View.GONE)
+          views.setTextViewText(
+            R.id.flowe_widget_footer,
+            if (stale) "Updated ${WidgetText.ago(BudgetStore.updatedAt(context))}"
+            else "of RM ${WidgetText.money(budget)} · ${if (over) "used up" else "${(used * 100).toInt().coerceIn(0, 100)}%"}"
+          )
+          views.setContentDescription(
+            R.id.flowe_widget_root,
+            if (over) "RM ${WidgetText.money(-left)} over today's budget" else "RM ${WidgetText.money(left)} left today"
+          )
+        }
+      }
+
+      WidgetText.openPath(context, "", 10)?.let { views.setOnClickPendingIntent(R.id.flowe_widget_root, it) }
 
       try {
         manager.updateAppWidget(appWidgetId, views)
@@ -147,39 +121,5 @@ class BudgetWidgetProvider : AppWidgetProvider() {
         // The widget host went away between the id lookup and the update.
       }
     }
-
-    /**
-     * Side of the ring bitmap, from the cell size the launcher reports. Drawing
-     * to the real size keeps the arc crisp on a stretched widget instead of
-     * letting the ImageView scale a small bitmap up.
-     */
-    private fun ringSizePx(context: Context, manager: AppWidgetManager, appWidgetId: Int): Int {
-      val options = try {
-        manager.getAppWidgetOptions(appWidgetId)
-      } catch (e: Exception) {
-        null
-      }
-      val widthDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
-      val heightDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
-      val cellDp = listOf(widthDp, heightDp).filter { it > 0 }.minOrNull() ?: 110
-      // Padding, the "Today" row and the footer all come out of the square the
-      // ring gets; ~44dp covers them at every text size worth designing for.
-      val ringDp = (cellDp - 44).coerceAtLeast(64)
-      val density = context.resources.displayMetrics.density
-      return (ringDp * density).toInt()
-    }
-
-    private fun openApp(context: Context): PendingIntent? {
-      val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
-      launch.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-      return PendingIntent.getActivity(
-        context,
-        0,
-        launch,
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-      )
-    }
-
-    private fun money(value: Double): String = String.format(Locale.US, "%,.2f", value)
   }
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tabung 4×2. Pushed by TabungStore whenever the app recomputes the followed Tabung. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/flowe_widget_tabung"
+    android:previewLayout="@layout/flowe_widget_tabung"
+    android:previewImage="@drawable/ic_flowe_budget"
+    android:description="@string/flowe_widget_tabung_description"
+    android:widgetCategory="home_screen" />

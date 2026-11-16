@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tabung 4×2 (p-widget-states-tabung): white surface so it reads on any wallpaper; ring + saved toward goal. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/flowe_tabung_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/flowe_widget_surface"
+    android:padding="16dp">
+
+  <FrameLayout
+      android:layout_width="96dp"
+      android:layout_height="96dp">
+    <ImageView
+        android:id="@+id/flowe_tabung_ring"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:contentDescription="@null" />
+    <TextView
+        android:id="@+id/flowe_tabung_percent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@color/flowe_on_surface" />
+  </FrameLayout>
+
+  <LinearLayout
+      android:id="@+id/flowe_tabung_values"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginStart="16dp"
+      android:orientation="vertical">
+    <TextView android:id="@+id/flowe_tabung_name" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textStyle="bold" android:textColor="@color/flowe_on_surface" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/flowe_widget_saved" android:textSize="12sp" android:textColor="@color/flowe_on_surface_variant" />
+    <TextView android:id="@+id/flowe_tabung_amount" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="22sp" android:fontFamily="sans-serif-medium" android:letterSpacing="-0.02" android:textColor="@color/flowe_on_surface" android:maxLines="1" />
+    <TextView android:id="@+id/flowe_tabung_footer" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textSize="12sp" android:textColor="@color/flowe_on_surface_variant" android:maxLines="1" android:ellipsize="end" />
+  </LinearLayout>
+
+  <LinearLayout
+      android:id="@+id/flowe_tabung_empty"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginStart="16dp"
+      android:orientation="vertical"
+      android:visibility="gone">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/flowe_widget_tabung_empty" android:textSize="15sp" android:fontFamily="sans-serif-medium" android:textColor="@color/flowe_on_surface" />
+    <TextView
+        android:id="@+id/flowe_tabung_choose"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginTop="10dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:gravity="center"
+        android:background="@drawable/flowe_widget_black_pill"
+        android:text="@string/flowe_widget_tabung_choose"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="@color/flowe_on_secondary" />
+  </LinearLayout>
+
+  <LinearLayout
+      android:id="@+id/flowe_tabung_loading"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginStart="16dp"
+      android:orientation="vertical"
+      android:visibility="gone">
+    <ImageView android:layout_width="120dp" android:layout_height="14dp" android:src="@drawable/flowe_widget_skeleton" android:scaleType="fitXY" android:contentDescription="@null" />
+    <ImageView android:layout_width="160dp" android:layout_height="22dp" android:layout_marginTop="10dp" android:src="@drawable/flowe_widget_skeleton" android:scaleType="fitXY" android:contentDescription="@null" />
+    <ImageView android:layout_width="100dp" android:layout_height="28dp" android:layout_marginTop="10dp" android:src="@drawable/flowe_widget_skeleton" android:scaleType="fitXY" android:contentDescription="@null" />
+  </LinearLayout>
+</LinearLayout>

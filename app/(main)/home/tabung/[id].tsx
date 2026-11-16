@@ -36,6 +36,7 @@ import { readLastUsed, writeLastUsed } from '@/src/lib/lastUsed';
 import { notify } from '@/src/services/notifications';
 import { accountDomain, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
 import { localYMD } from '@/src/utils/date';
+import * as FloweNotifications from '@/modules/flowe-notifications';
 
 function monthYear(ymd: string): string {
   const [y, m] = ymd.slice(0, 10).split('-').map(Number);
@@ -79,6 +80,19 @@ export default function TabungScreen() {
 
   // Goal reached: show its sheet once per visit.
   useEffect(() => { if (progress?.reached) setReachedOpen(true); }, [progress?.reached]);
+
+  // The Tabung widget follows the Tabung last opened, with the same rule as this ring.
+  useEffect(() => {
+    if (!progress || !account || !tabung) return;
+    FloweNotifications.setTabungWidget({
+      id: account.id,
+      name: account.name,
+      counted: tabung.progress_mode === 'balance' ? progress.balance : progress.contributed,
+      target: Number(tabung.target_amount) || 0,
+      balance: progress.balance,
+      percent: progress.percent,
+    });
+  }, [progress, account, tabung]);
 
   const statusChip = !progress || !tabung ? null
     : target <= 0 ? <GlassChip icon={Plus} label="Set a target" onPress={() => setSettings({ focusTarget: true })} />
@@ -126,6 +140,7 @@ export default function TabungScreen() {
     }
     const res = await accountsRepository.softDeleteAccount(account.id);
     if (!res.ok) { toast.failure('Couldn’t delete Tabung', { label: 'Retry', onPress: remove }); return; }
+    FloweNotifications.setTabungWidget(null);
     setDeleting(false);
     toast.success(`${name} deleted`);
     router.back();

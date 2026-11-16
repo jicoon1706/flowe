@@ -1,7 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Prefixed: these merge into the app's resources alongside every library's. -->
 <resources>
-  <string name="flowe_widget_daily_budget_label">Daily budget</string>
-  <string name="flowe_widget_daily_budget_header">Today</string>
+  <string name="flowe_widget_daily_budget_label">Left today</string>
+  <string name="flowe_widget_daily_budget_header">Left today</string>
   <string name="flowe_widget_daily_budget_description">How much of today\'s budget is left.</string>
+  <string name="flowe_widget_no_daily_budget">No daily budget yet</string>
+  <string name="flowe_widget_set_budget">Set budget</string>
+  <string name="flowe_widget_budget_label">Budget</string>
+  <string name="flowe_widget_budget_description">Today\'s and this month\'s budget left.</string>
+  <string name="flowe_widget_budget_empty">Set a daily and monthly limit to see what\'s left.</string>
+  <string name="flowe_widget_today_left">Today left</string>
+  <string name="flowe_widget_month_left">Month left</string>
+  <string name="flowe_widget_add_transaction">Add transaction</string>
+  <string name="flowe_widget_tabung_label">Tabung</string>
+  <string name="flowe_widget_tabung_description">Progress toward a Tabung goal.</string>
+  <string name="flowe_widget_tabung_empty">Pick a Tabung to follow</string>
+  <string name="flowe_widget_tabung_choose">Choose</string>
+  <string name="flowe_widget_saved">Saved</string>
+  <string name="flowe_live_budget_channel">Live budget</string>
+  <string name="flowe_live_budget_channel_description">A pinned notification with what\'s left of your budget.</string>
 </resources>

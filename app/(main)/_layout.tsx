@@ -4,6 +4,7 @@ import { Tabs, usePathname, useRouter } from 'expo-router';
 import { LockProvider, useLock } from '@/context/LockContext';
 import { DetectedTransactionsProvider, useDetected } from '@/context/DetectedTransactionsContext';
 import { DetectedTransactionIsland } from '@/components/home/DetectedTransactionIsland';
+import { LaunchSync } from '@/components/home/LaunchSync';
 import { FloatingNav, type NavKey } from '@/components/ui/FloatingNav';
 import { colors } from '@/theme/tokens';
 import { isOpenWhileLocked } from '@/src/utils/lockRoutes';
@@ -76,6 +77,7 @@ export default function MainLayout() {
           <MainNav />
           <DetectedTransactionOverlay />
           <LockedRouteGuard />
+          <LaunchSync />
         </View>
       </DetectedTransactionsProvider>
     </LockProvider>

@@ -7,77 +7,155 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * What the native side knows about today's budget: the ceiling the user set,
- * and how much of it is gone. This is what the home-screen widget draws.
+ * What the native side knows about the user's budget: the daily and monthly
+ * limits, how much of today and this month is gone, and what the pinned live
+ * notification should show. The widgets and the live notification draw only
+ * from here, so they work with Flowe closed and no Supabase session.
  *
- * The listener service runs with no Supabase session, so this keeps its own
- * copy: the app pushes both figures whenever it has the real ones, and a
- * payment answered from the shade while Flowe is closed is simply added on
- * top. The next app open overwrites the total with the truth, so drift never
- * lasts longer than that.
+ * The app pushes the real figures whenever it has them (every transaction
+ * write); a payment answered from the shade is added on top until the next
+ * app read overwrites it with the truth.
  *
- * Every write refreshes the widget, because the widget is the only thing
- * these numbers exist for.
+ * Every write redraws all budget surfaces.
  */
 object BudgetStore {
   private const val PREFS = "flowe_daily_budget"
   private const val KEY_BUDGET = "budget"
   private const val KEY_SPENT = "spent"
   private const val KEY_DATE = "date"
+  private const val KEY_MONTHLY = "monthly"
+  private const val KEY_SPENT_MONTH = "spent_month"
+  private const val KEY_MONTH = "month"
+  private const val KEY_MODE = "live_mode"
+  private const val KEY_SYNCING = "syncing"
+  private const val KEY_UPDATED_AT = "updated_at"
+  private const val KEY_INITIALISED = "initialised"
+
+  /** No refresh from the app for this long → widgets show "Updated Xh ago". */
+  const val STALE_AFTER_MS = 60 * 60 * 1000L
 
   private fun prefs(context: Context): SharedPreferences =
     context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
   // Stored as strings: SharedPreferences has no double, and a float would
   // turn RM 100.10 into RM 100.09999.
-  fun budget(context: Context): Double? =
-    prefs(context).getString(KEY_BUDGET, null)?.toDoubleOrNull()?.takeIf { it > 0 }
+  private fun money(p: SharedPreferences, key: String): Double? =
+    p.getString(key, null)?.toDoubleOrNull()
+
+  fun budget(context: Context): Double? = money(prefs(context), KEY_BUDGET)?.takeIf { it > 0 }
+  fun monthlyBudget(context: Context): Double? = money(prefs(context), KEY_MONTHLY)?.takeIf { it > 0 }
+
+  /** Today's running total; zero if the stored figure belongs to another day. */
+  fun spentToday(context: Context): Double {
+    val p = prefs(context)
+    if (p.getString(KEY_DATE, null) != today()) return 0.0
+    return money(p, KEY_SPENT) ?: 0.0
+  }
+
+  /** This month's running total; zero if the stored figure belongs to another month. */
+  fun spentThisMonth(context: Context): Double {
+    val p = prefs(context)
+    if (p.getString(KEY_MONTH, null) != thisMonth()) return 0.0
+    return money(p, KEY_SPENT_MONTH) ?: 0.0
+  }
+
+  /** 'off' | 'daily' | 'monthly' | 'both' — already narrowed by the app to what the limits allow. */
+  fun liveMode(context: Context): String = prefs(context).getString(KEY_MODE, "daily") ?: "daily"
+
+  fun isSyncing(context: Context): Boolean = prefs(context).getBoolean(KEY_SYNCING, false)
+
+  /** Epoch millis of the last figures the app pushed; 0 if never. */
+  fun updatedAt(context: Context): Long = prefs(context).getLong(KEY_UPDATED_AT, 0L)
+
+  /** False until the app has pushed anything — widgets draw their loading face. */
+  fun isInitialised(context: Context): Boolean = prefs(context).getBoolean(KEY_INITIALISED, false)
+
+  fun isStale(context: Context, now: Long = System.currentTimeMillis()): Boolean {
+    val at = updatedAt(context)
+    return at > 0 && now - at > STALE_AFTER_MS
+  }
 
   fun setBudget(context: Context, budget: Double?) {
-    val editor = prefs(context).edit()
-    if (budget == null || budget <= 0) editor.remove(KEY_BUDGET)
-    else editor.putString(KEY_BUDGET, budget.toString())
-    editor.apply()
-    // No budget doesn't mean nothing to show — the widget falls back to its
-    // "set a budget" face rather than going blank.
-    BudgetWidgetProvider.refresh(context)
+    val e = prefs(context).edit().putBoolean(KEY_INITIALISED, true)
+    if (budget == null || budget <= 0) e.remove(KEY_BUDGET) else e.putString(KEY_BUDGET, budget.toString())
+    e.apply()
+    changed(context)
+  }
+
+  fun setMonthlyBudget(context: Context, budget: Double?) {
+    val e = prefs(context).edit().putBoolean(KEY_INITIALISED, true)
+    if (budget == null || budget <= 0) e.remove(KEY_MONTHLY) else e.putString(KEY_MONTHLY, budget.toString())
+    e.apply()
+    changed(context)
   }
 
   fun setSpent(context: Context, spent: Double, date: String) {
     prefs(context).edit()
       .putString(KEY_SPENT, spent.coerceAtLeast(0.0).toString())
       .putString(KEY_DATE, date)
+      .putLong(KEY_UPDATED_AT, System.currentTimeMillis())
+      .putBoolean(KEY_INITIALISED, true)
       .apply()
-    BudgetWidgetProvider.refresh(context)
+    changed(context)
   }
 
-  /** Today's running total; zero if the stored figure belongs to another day. */
-  fun spentToday(context: Context): Double {
-    val p = prefs(context)
-    if (p.getString(KEY_DATE, null) != today()) return 0.0
-    return p.getString(KEY_SPENT, null)?.toDoubleOrNull() ?: 0.0
+  fun setSpentMonth(context: Context, spent: Double, month: String) {
+    prefs(context).edit()
+      .putString(KEY_SPENT_MONTH, spent.coerceAtLeast(0.0).toString())
+      .putString(KEY_MONTH, month)
+      .putLong(KEY_UPDATED_AT, System.currentTimeMillis())
+      .putBoolean(KEY_INITIALISED, true)
+      .apply()
+    changed(context)
+  }
+
+  fun setLiveMode(context: Context, mode: String) {
+    val safe = if (mode in setOf("off", "daily", "monthly", "both")) mode else "daily"
+    prefs(context).edit().putString(KEY_MODE, safe).apply()
+    changed(context)
+  }
+
+  fun setSyncing(context: Context, syncing: Boolean) {
+    prefs(context).edit().putBoolean(KEY_SYNCING, syncing).apply()
+    // Only the live notification shows "Syncing…"; the widgets keep their figures.
+    LiveBudgetNotifier.update(context)
   }
 
   fun snapshot(context: Context): Map<String, Any?> = mapOf(
     "budget" to budget(context),
     "spent" to spentToday(context),
-    "date" to prefs(context).getString(KEY_DATE, null)
+    "date" to prefs(context).getString(KEY_DATE, null),
+    "monthlyBudget" to monthlyBudget(context),
+    "spentMonth" to spentThisMonth(context),
+    "liveMode" to liveMode(context)
   )
 
   fun isToday(epochMillis: Long): Boolean = dayOf(epochMillis) == today()
 
-  /**
-   * Adds an expense to today and redraws. Unlike the old live update this
-   * runs with or without a budget set: the figure is worth keeping either
-   * way, so the ring is right the moment a budget appears.
-   */
+  /** Adds an expense to today and this month, then redraws. */
   @Synchronized
   fun recordExpense(context: Context, amount: Double) {
     if (amount <= 0) return
-    setSpent(context, spentToday(context) + amount, today())
+    val p = prefs(context)
+    p.edit()
+      .putString(KEY_SPENT, (spentToday(context) + amount).toString())
+      .putString(KEY_DATE, today())
+      .putString(KEY_SPENT_MONTH, (spentThisMonth(context) + amount).toString())
+      .putString(KEY_MONTH, thisMonth())
+      .putBoolean(KEY_INITIALISED, true)
+      .apply()
+    changed(context)
+  }
+
+  /** Redraw everything that reads these figures. */
+  fun changed(context: Context) {
+    BudgetWidgetProvider.refresh(context)
+    MonthBudgetWidgetProvider.refresh(context)
+    LiveBudgetNotifier.update(context)
   }
 
   private fun today(): String = dayOf(System.currentTimeMillis())
+  private fun thisMonth(): String = today().substring(0, 7)
 
   // The app's `localYMD` — local calendar day, never UTC, or a payment before
   // 08:00 in Malaysia lands on yesterday.

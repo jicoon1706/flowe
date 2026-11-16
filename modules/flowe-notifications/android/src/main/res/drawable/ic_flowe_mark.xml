@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Flowe mark (stem curling into an "f", crossed by one wave). White; tinted where needed. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp" android:height="16dp" android:viewportWidth="64" android:viewportHeight="64">
+  <path android:pathData="M22,56V27c0,-10 6,-16 15,-16 5,0 9,2 12,5" android:strokeColor="@color/flowe_on_primary" android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="@android:color/transparent" />
+  <path android:pathData="M10,35c5,-5 10,-5 15,0s10,5 15,0 10,-5 15,0" android:strokeColor="@color/flowe_on_primary" android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="@android:color/transparent" />
+</vector>
