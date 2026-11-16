@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { fromSupabaseError, type Result, type SupabaseError } from '../utils/result';
 import type { Transaction, TransactionDetail, TransactionType } from '../types';
+import { assetsRepository } from './assets.repository';
+import { monthStart } from '../utils/monthStart';
 
 export interface CreateTransactionRequest {
   user_id: string;
@@ -136,6 +138,10 @@ function emitTransactionsChanged() {
  * asset's name in the category column (see add-transaction.tsx). The account
  * side is reversed by `applyBalanceEffect` like any other transfer; this is the
  * other half, so deleting one doesn't leave the asset permanently inflated.
+ *
+ * The value moves through `adjust_asset_value` (AUDIT #18): one atomic
+ * statement that also records this month's point on the trend chart, which
+ * the old read-modify-write here never did.
  */
 async function reverseInvestment(
   tx: Pick<Transaction, 'type' | 'amount' | 'category' | 'to_account_id'>,
@@ -144,19 +150,16 @@ async function reverseInvestment(
 
   const { data: asset } = await supabase
     .from('assets')
-    .select('id, current_value')
+    .select('id')
     .eq('name', tx.category)
     .eq('is_active', true)
     .maybeSingle();
   if (!asset) return;
 
-  await supabase
-    .from('assets')
-    .update({
-      current_value: Math.max(0, Number(asset.current_value) - Number(tx.amount)),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', asset.id);
+  const res = await assetsRepository.adjustValue(asset.id, -Number(tx.amount), monthStart(new Date()));
+  if (!res.ok) {
+    console.error('[investment] asset value was not reduced for a deleted investment:', res.error.message);
+  }
 }
 
 export const transactionsRepository = {

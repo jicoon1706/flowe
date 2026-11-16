@@ -505,20 +505,24 @@ export default function AddTransactionScreen() {
       // The new balance is recorded against the current month in the value
       // history: the delta is applied to the asset's present value, so that's
       // the month it describes, whatever date the transaction itself carries.
+      // Each change is a delta applied in the database (AUDIT #18): the value
+      // read when this screen loaded may already be stale.
       const thisMonth = monthStart(new Date());
+      const assetErrors: string[] = [];
       if (origAsset && origAsset.id !== investAsset?.id) {
-        await assetsRepository.update(origAsset.id, {
-          current_value: Math.max(0, Number(origAsset.current_value) - origAmount),
-        }, thisMonth);
+        const res = await assetsRepository.adjustValue(origAsset.id, -origAmount, thisMonth);
+        if (!res.ok) assetErrors.push(res.error.message);
       }
       if (investAsset) {
         const alreadyIn = origAsset && origAsset.id === investAsset.id ? origAmount : 0;
-        await assetsRepository.update(investAsset.id, {
-          current_value: Math.max(
-            0,
-            Number(investAsset.current_value) - alreadyIn + parseFloat(amount)
-          ),
-        }, thisMonth);
+        const res = await assetsRepository.adjustValue(investAsset.id, parseFloat(amount) - alreadyIn, thisMonth);
+        if (!res.ok) assetErrors.push(res.error.message);
+      }
+      if (assetErrors.length > 0) {
+        Alert.alert(
+          'Asset value not updated',
+          `The transaction was saved, but the asset's value wasn't: ${assetErrors[0]}. Edit the asset in Cash Flow to correct it.`
+        );
       }
 
       if (receiptImage) {

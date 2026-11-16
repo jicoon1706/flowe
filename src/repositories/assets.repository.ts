@@ -97,6 +97,24 @@ export const assetsRepository = {
   },
 
   /**
+   * Moves an asset's value by `delta` in one server-side statement and records
+   * the result as `month`'s value (AUDIT #18). This is how investments move
+   * money in and out of an asset: reading `current_value`, adding in JS and
+   * writing it back could lose one of two overlapping writes. The value never
+   * drops below 0. Resolves to the new value, or null if the asset isn't the
+   * caller's or no longer exists.
+   */
+  async adjustValue(id: string, delta: number, month: string): Promise<Result<number | null, SupabaseError>> {
+    const { data, error } = await supabase.rpc('adjust_asset_value', {
+      p_asset_id: id,
+      p_delta: delta,
+      p_month: month,
+    });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data === null || data === undefined ? null : Number(data) };
+  },
+
+  /**
    * Updates an asset. When `asOfMonth` is given and the patch carries a value,
    * that value is also recorded in the history for that month. The asset's own
    * `current_value` only follows when no later month has been recorded, so
