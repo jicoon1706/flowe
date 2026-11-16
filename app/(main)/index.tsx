@@ -81,41 +81,44 @@ export default function HomeScreen() {
     if (result.ok) setUnreadCount(result.data);
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
+  // Shared by the first load and pull-to-refresh, which used to carry two
+  // diverging copies of these queries.
+  async function loadAffirmations(userId: string) {
     const CATEGORY_EMOJI: Record<string, string> = {
       saving: '💰', investing: '📈', mindset: '🧠', awareness: '👁️',
     };
-    supabase
+    const { data, error } = await supabase
       .from('user_affirmations')
       .select('text, category')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          console.warn('[home] fetch user_affirmations failed:', error);
-          return;
-        }
-        const items = (data ?? []).map((row: any) => ({
-          emoji: CATEGORY_EMOJI[String(row.category).toLowerCase()] ?? '✨',
-          category: String(row.category).charAt(0).toUpperCase() + String(row.category).slice(1),
-          quote: `"${row.text}"`,
-        }));
-        setAffirmationItems(items);
-      });
-  }, [user]);
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.warn('[home] fetch user_affirmations failed:', error);
+      return;
+    }
+    const items = (data ?? []).map((row: any) => ({
+      emoji: CATEGORY_EMOJI[String(row.category).toLowerCase()] ?? '✨',
+      category: String(row.category).charAt(0).toUpperCase() + String(row.category).slice(1),
+      quote: `"${row.text}"`,
+    }));
+    setAffirmationItems(items);
+  }
+
+  async function loadDisplayName(userId: string) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', userId)
+      .maybeSingle();
+    if (data?.display_name) setDisplayName(data.display_name);
+  }
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }) => {
-        if (data?.display_name) setDisplayName(data.display_name);
-      });
+    loadAffirmations(user.id);
+    loadDisplayName(user.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const now = new Date();
@@ -138,32 +141,7 @@ export default function HomeScreen() {
   async function onRefresh() {
     if (!user) return;
     setRefreshing(true);
-    const profilePromise = supabase
-      .from('profiles')
-      .select('display_name')
-      .eq('id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.display_name) setDisplayName(data.display_name);
-      });
-    const affirmPromise = supabase
-      .from('user_affirmations')
-      .select('text, category')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        const CATEGORY_EMOJI: Record<string, string> = {
-          saving: '💰', investing: '📈', mindset: '🧠', awareness: '👁️',
-        };
-        const items = (data ?? []).map((row: any) => ({
-          emoji: CATEGORY_EMOJI[String(row.category).toLowerCase()] ?? '✨',
-          category: String(row.category).charAt(0).toUpperCase() + String(row.category).slice(1),
-          quote: `"${row.text}"`,
-        }));
-        setAffirmationItems(items);
-      });
-    await Promise.all([fetchAccounts(), fetchTransactions(), fetchPending(), fetchUnread(), fetchBudget(), profilePromise, affirmPromise]);
+    await Promise.all([fetchAccounts(), fetchTransactions(), fetchPending(), fetchUnread(), fetchBudget(), loadDisplayName(user.id), loadAffirmations(user.id)]);
     setRefreshing(false);
   }
 
