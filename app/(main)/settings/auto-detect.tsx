@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Check, Sparkle, AlertCircle, Plus, X } from '../../../components/ui/icons';
-import { Toggle } from '../../../src/components/ui/Toggle';
+import { Toggle } from '../../../components/ui/Toggle';
 import * as FloweNotifications from '../../../modules/flowe-notifications';
 import {
   NOTIFICATION_SOURCES,
