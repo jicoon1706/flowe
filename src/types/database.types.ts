@@ -111,6 +111,8 @@ export interface Transaction {
   receipt_url?: string;
   is_recurring: boolean;
   recurring_id?: string;
+  /** The asset an investment fed (a transfer with no destination account). Migration 20261116. */
+  asset_id?: string | null;
   created_at: string;
   updated_at: string;
 }
