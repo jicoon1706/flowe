@@ -17,6 +17,18 @@ export const flags = {
   async fingerprintEnabled(): Promise<boolean> {
     return (await SecureStore.getItemAsync(KEYS.fingerprintEnabled)) === '1';
   },
+  /** The device copy of the PIN hash, written by `setPin`. Null when absent. */
+  async pinHash(): Promise<string | null> {
+    return SecureStore.getItemAsync(KEYS.pinHash);
+  },
+  /** Refreshes the device copy of the PIN hash alone (same key and format as `setPin`). */
+  async storePinHash(hash: string): Promise<void> {
+    await SecureStore.setItemAsync(KEYS.pinHash, hash);
+  },
+  /** What the lock screen reads to decide whether to offer fingerprint. */
+  async setFingerprintEnabled(enabled: boolean): Promise<void> {
+    await SecureStore.setItemAsync(KEYS.fingerprintEnabled, enabled ? '1' : '0');
+  },
   async setPin(hash: string, fingerprintEnabled: boolean): Promise<void> {
     // Clear old values first to prevent stale data
     await SecureStore.deleteItemAsync(KEYS.pinHash);

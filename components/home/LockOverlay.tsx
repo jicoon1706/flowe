@@ -5,8 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { PinPad } from '../ui/PinPad';
 import { PinDots } from '../ui/PinDots';
-import { supabase } from '../../src/lib/supabase';
-import { hashPin } from '../../src/lib/pinCrypto';
+import { verifyPin } from '../../src/lib/pinVerify';
 import { flags } from '../../src/lib/secureStore';
 import { useAuth } from '../../context/AuthContext';
 
@@ -74,17 +73,11 @@ export function LockOverlay({ onUnlock, onCancel }: LockOverlayProps) {
     if (pin.length !== 6) return;
     let cancelled = false;
     (async () => {
-      if (!user) { fail(); return; }
-      const { data, error: fetchErr } = await supabase
-        .from('auth_config')
-        .select('pin_hash')
-        .eq('user_id', user.id)
-        .single();
+      // Device copy first, so a correct PIN unlocks offline and without a
+      // signed-in user; the server copy is the fallback (see verifyPin).
+      const ok = await verifyPin(pin, user?.id);
       if (cancelled) return;
-      if (fetchErr || !data) { fail(); return; }
-      const hashedInput = await hashPin(pin);
-      if (cancelled) return;
-      if (hashedInput === data.pin_hash) {
+      if (ok) {
         onUnlock();
       } else {
         fail();
