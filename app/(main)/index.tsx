@@ -209,7 +209,9 @@ export default function HomeScreen() {
     }
   };
 
-  if (accountsLoading) return <LoadingView />;
+  // Only the first load blanks the screen: every focus refetches, and swapping
+  // the whole page for a spinner each time lost the scroll position.
+  if (accountsLoading && accounts.length === 0) return <LoadingView />;
   if (accountsError) return <ErrorView error={accountsError} onRetry={fetchAccounts} />;
 
   const totalBalance = accounts.reduce((sum, acc) => {
