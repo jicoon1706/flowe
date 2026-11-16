@@ -25,7 +25,9 @@ export const storageService = {
     const path = `${userId}/${transactionId}.jpg`;
     const { error } = await supabase.storage
       .from('receipts')
-      .upload(path, decode(base64Image), { contentType: 'image/jpeg' });
+      // One receipt per transaction at a fixed path: re-attaching one while
+      // editing replaces it instead of failing with "already exists".
+      .upload(path, decode(base64Image), { contentType: 'image/jpeg', upsert: true });
     if (error) return { ok: false, error: { code: error.code, message: error.message } };
     const { data, error: urlError } = await supabase.storage.from('receipts').createSignedUrl(path, 60 * 60);
     if (urlError) return { ok: false, error: { code: urlError.code, message: urlError.message } };
