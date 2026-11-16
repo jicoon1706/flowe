@@ -116,6 +116,17 @@ export function useDetectedTransactions(userId: string | undefined, accounts: an
     };
   }, [refresh]);
 
+  // The first pass above runs while the account list is still loading, so on a
+  // cold start nothing could be matched to an account or filed. Go through the
+  // queue again the first time accounts arrive. Filing is guarded against
+  // double-runs in services/autoFile.ts, so the repeat is safe.
+  const accountsSeenRef = useRef(false);
+  useEffect(() => {
+    if (accountsSeenRef.current || accounts.length === 0) return;
+    accountsSeenRef.current = true;
+    refresh();
+  }, [accounts, refresh]);
+
   // The one detection the island should be hovering with right now: the oldest
   // unfiled one the user hasn't already waved away this visit.
   const prompt = pending.find((item) => !snoozedIds.has(item.id)) ?? null;
