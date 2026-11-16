@@ -16,7 +16,7 @@ This is the bar: nothing that passes now may fail, and the error/warning counts 
 
 | Check | Baseline | Now |
 |---|---|---|
-| `npx tsc --noEmit` | 159 errors (41 in app code) | **132 errors (14 in app code)**. The 14 left are all in unused files awaiting deletion (`src/components/ui/PinPad.tsx`, `hooks/use-theme-color.ts`, `components/ui/collapsible.tsx`). The rest are `prototype/` and Deno globals. Still exit 2. |
+| `npx tsc --noEmit` | 159 errors (41 in app code) | **118 errors, 0 in app code.** All 118 are in `prototype/` (107) and the Deno Edge Functions (11), which the app's tsconfig isn't set up for. Still exit 2 because of those. |
 | `npm run lint` | 0 errors, 48 warnings | 0 errors, 46 warnings |
 | `npm test` | 19 suites / 176 tests passing | **24 suites / 204 tests passing** (new: `updateWithBalance`, `shiftMonth`, `parserAuditCases`, `pinVerify`, `ruleFromTransaction`) |
 
@@ -46,7 +46,9 @@ No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest 
 - Unified the Toggle import path.
 - Home shares one profile/affirmations loader between load and refresh.
 
-**Cleanup not done:** deleting the 17 unused files listed below waits for your OK. `LockContext.suspend` is kept because removing it would change a public API.
+- Deleted the 17 unused files listed below (`cb624fe`, approved 2026-11-16). Before deleting, I checked relative, `@/` alias and `require` imports across app code, tests, `index.js` and the config files. `context/LearnContext.tsx` exported a `useLearn` with the same name as the hook, but every `useLearn` import goes to `src/hooks/useLearn`.
+
+**Cleanup not done:** `LockContext.suspend` is kept because removing it would change a public API.
 
 ## Findings
 
