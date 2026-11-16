@@ -12,6 +12,7 @@ import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
 import { SearchBar } from '../../../../components/ui/SearchBar';
 import { useAuth } from '../../../../context/AuthContext';
+import { localYMD } from '../../../../src/utils/date';
 
 const EDIT_ICONS = ['🐷', '💰', '🏠', '🎁', '🚗', '🚀', '🌴', '🏢', '🚂', '🎯', '💎', '⭐'];
 const EDIT_COLORS = ['#6bcf7f', '#ffd93d', '#00d4ff', '#C5FF00', '#f472b6', '#a78bfa', '#34d399', '#fb923c'];
@@ -108,7 +109,7 @@ export default function TabungDetailScreen() {
       name: 'Tabung Top Up',
       amount: amountNum,
       to_account_id: account.id,
-      date: new Date().toISOString().split('T')[0],
+      date: localYMD(new Date()),
       note: topUpNote || undefined,
     });
     setActionLoading(false);
@@ -139,7 +140,7 @@ export default function TabungDetailScreen() {
       name: 'Tabung Withdrawal',
       amount: withdrawNum,
       to_account_id: account.id,
-      date: new Date().toISOString().split('T')[0],
+      date: localYMD(new Date()),
       note: withdrawNote || undefined,
     });
     setActionLoading(false);
