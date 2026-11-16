@@ -55,7 +55,7 @@ ToastProvider, ConfirmSheet, InlineError, Skeleton, EmptyState, Money (integer +
 plus helpers used by several screens: ScreenHeader, AccountPill, SettingsRow/SettingsGroup,
 PhotoSlot, ErrorState.
 
-## 3. New data (one migration: `supabase/migrations/20261117_v2_tabung_budget.sql`)
+## 3. New data (one migration: `supabase/migrations/20261117_v2_budget_tabung_progress.sql`)
 
 - `settings.monthly_budget numeric null`
 - `settings.live_budget_mode text default 'daily'` (`daily | monthly | both`)
@@ -77,7 +77,7 @@ Pay-outs never reduce it. Balance (`saved_amount`) and paid-out total are shown 
 | A | `brand-icon-sizes` | brand/app-icon-sizes | (asset) | app.json adaptiveIcon foreground/background | — |
 | A | `brand-splash` | splash | app/_layout.tsx (gate overlay) | components/ui/LaunchScreen | secureStore flags |
 | A | `brand-design-system` | brand/design-system | — | theme/tokens.js + components/ui/* | design/tailwind.theme.json |
-| A | `brand-credits` | brand/credits | settings/data (Credits row) | components/ui/PhotoCredit | constants/photos.ts |
+| A | `brand-credits` | brand/credits | settings/data (Credits row) | components/ui/PhotoSlot (credit line) | constants/photos.ts |
 | B | `auth-welcome` | (auth)/welcome | (auth)/welcome | Hero, Button | — |
 | B | `auth-create-pin` | (auth)/create-pin | (auth)/create-pin | PinDots, Numpad(glass) | OnboardingContext |
 | B | `auth-confirm-pin` | (auth)/confirm-pin | (auth)/confirm-pin | PinDots, Numpad(glass) | OnboardingContext |
@@ -169,14 +169,14 @@ Pay-outs never reduce it. Balance (`saved_amount`) and paid-out total are shown 
 | K | `k-recurring-invalid-end` | settings/recurring · invalid end date | settings/recurring (sheet) | InlineError | — |
 | K | `k-recurring-transfer-unsupported` | settings/recurring · transfers not supported | settings/recurring (sheet) | InlineError | — |
 | K | `k-onb-missing-fields` | (onboarding)/accounts · missing fields | (onboarding)/accounts | InlineError + focus outline | — |
-| K | `k-toast-catalogue` | toast · catalogue | global | ToastProvider, Toast | src/lib/toastMessages.ts |
+| K | `k-toast-catalogue` | toast · catalogue | global | ToastProvider, Toast | copy inline at each call site |
 | K | `k-toast-saved` | home · toast saved | (main)/index | Toast(Undo) | transactionsRepository.delete (undo) |
 | K | `k-toast-save-failed` | add-transaction · save failed | add-transaction | Toast(Retry) | transactionsRepository.create |
 | K | `k-toast-topup-failed` | wallet/[id] · top up failed | home/wallet/[id] | Toast(Retry) | transactionsRepository.create |
 | K | `k-toast-file-too-large` | settings/data · file too large | settings/data | Toast(Pick another) | expo-document-picker |
 | K | `k-toast-pin-changed` | settings/security · PIN changed | settings/security | Toast | authConfigRepository |
-| K | `k-permission-notifications` | permission · notification access | settings/auto-detect | PermissionSheet | FloweNotifications.openSettings |
-| K | `k-permission-files` | permission · file access | settings/data | PermissionSheet | expo-document-picker |
+| K | `k-permission-notifications` | permission · notification access | settings/auto-detect | Sheet (permission-notifications) | FloweNotifications.openSettings |
+| K | `k-permission-files` | permission · file access | settings/data | NOT BUILT: the system file picker needs no runtime permission on Android | expo-document-picker |
 | L | `l-inapp-unread` | home/notifications · unread | home/notifications | NotificationRow (unread) | useNotifications |
 | L | `l-inapp-all-read` | home/notifications · all read | home/notifications | NotificationRow (read) | useNotifications |
 | L | `l-island-inapp` | in-app banner · DetectedTransactionIsland | (main)/_layout overlay | DetectedTransactionIsland | useDetected |
