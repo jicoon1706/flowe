@@ -19,7 +19,7 @@ import { useCashflow } from '../../../src/hooks/useCashflow';
 import { useAccounts } from '../../../src/hooks/useAccounts';
 import { transactionsRepository } from '../../../src/repositories/transactions.repository';
 import { accountColor } from '../../../src/utils/accountColor';
-import { localYMD } from '../../../src/utils/date';
+import { localYMD, shiftMonth } from '../../../src/utils/date';
 import { LoadingView } from '../../../components/ui/LoadingView';
 import { ErrorView } from '../../../components/ui/ErrorView';
 import { useAuth } from '../../../context/AuthContext';
@@ -164,11 +164,7 @@ export default function CashFlowScreen() {
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
   const navigateMonth = (delta: number) => {
-    setSelectedDate((prev) => {
-      const next = new Date(prev);
-      next.setMonth(next.getMonth() + delta);
-      return next;
-    });
+    setSelectedDate((prev) => shiftMonth(prev, delta));
   };
 
   const handleAddAsset = async (a: NewAsset) => {

@@ -14,6 +14,7 @@ import { useAuth } from '../../context/AuthContext';
 import { LoadingView } from '../../components/ui/LoadingView';
 import { ErrorView } from '../../components/ui/ErrorView';
 import { resolveCategory } from '../../src/utils/resolveCategory';
+import { shiftMonth } from '../../src/utils/date';
 import type { Transaction, CustomCategory } from '../../src/types/database.types';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -188,9 +189,7 @@ export default function CalendarScreen() {
   };
 
   const navigateMonth = (delta: number) => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(newDate.getMonth() + delta);
-    setSelectedDate(newDate);
+    setSelectedDate(shiftMonth(selectedDate, delta));
   };
 
   return (
