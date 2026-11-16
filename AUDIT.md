@@ -18,11 +18,11 @@ This is the bar: nothing that passes now may fail, and the error/warning counts 
 |---|---|---|
 | `npx tsc --noEmit` | 159 errors (41 in app code) | **118 errors, 0 in app code.** All 118 are in `prototype/` (107) and the Deno Edge Functions (11), which the app's tsconfig isn't set up for. Still exit 2 because of those. |
 | `npm run lint` | 0 errors, 48 warnings | 0 errors, 46 warnings |
-| `npm test` | 19 suites / 176 tests passing | **26 suites / 219 tests passing** (new: `updateWithBalance`, `shiftMonth`, `parserAuditCases`, `pinVerify`, `ruleFromTransaction`, `accountHistory`, `autoLock`) |
+| `npm test` | 19 suites / 176 tests passing | **28 suites / 229 tests passing** (new: `updateWithBalance`, `shiftMonth`, `parserAuditCases`, `pinVerify`, `ruleFromTransaction`, `accountHistory`, `autoLock`, `assetAdjustValue`, `investmentLink`; the approve specs in `recurring.test.ts` were rewritten for #21) |
 
 No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest before it was committed.
 
-**Summary:** 23 findings fixed, and #10 fixed on Home only. 2 closed without a code change (#20 not reachable, #29 by design). 3 deferred (#21, #28, and #10's Calendar part). 2 need your decision (#18, #30), both needing SQL.
+**Summary:** 26 findings fixed, and #10 fixed on Home only. #18, #21 and #30 need the 20261116 migration applied to take effect. 2 closed without a code change (#20 not reachable, #29 by design). 2 deferred (#28, and #10's Calendar part). No decisions left open.
 
 **Critical and High status:** all fixed — #1 (Critical), #2, #3, #4, #5, #6 and #7.
 
@@ -63,9 +63,9 @@ No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest 
 
 **Cleanup not done:** `LockContext.suspend` is kept because removing it would change a public API.
 
-## SQL plan for #18, #21 and #30 (proposed, not applied)
+## SQL fixes for #18, #21 and #30 (written, not applied)
 
-Nothing below is written to `supabase/migrations/` or run against a database yet. I'd add one migration file, `supabase/migrations/20261116_audit_sql.sql`, plus the client changes, after you approve. **You** apply the migration (Supabase CLI or dashboard); I won't deploy anything.
+Approved 2026-11-16 with option (a) for #30. The SQL below is now in `supabase/migrations/20261116_audit_sql.sql` (`2dcf28b`), and the client changes are committed (`50ed4b5`, `47e6842`, `9f58101`). **The migration has not been applied to any database.** You apply it (Supabase CLI or dashboard); I haven't deployed anything. The SQL also hasn't been executed anywhere yet, not even as a dry run, so the apply is its first real run.
 
 Every function follows the existing `adjust_account_balance` pattern: `security invoker`, so RLS still scopes every row to `auth.uid()`; `set search_path = public`; and `grant execute ... to authenticated, anon`.
 
@@ -240,11 +240,19 @@ I ran read-only queries against the live project (ref `txylaohgzlvhoqdyqmhy`): c
 | Active recurring rules | 4 | |
 | Rules with no next date | 0 | The guard `coalesce(next_date, start_date)` matches what the app shows |
 
-### Order of work, once approved
+### What was done, and what you need to do
 
-1. Write `20261116_audit_sql.sql` with all of the above, plus #30 in whichever form you pick. Each statement is `create or replace` / `if not exists`, so re-running it is safe.
-2. Client changes, one commit per finding (#18 part 1, #18 part 2, #21, #30 docs only), each with its spec, and tsc and Jest run after each.
-3. You apply the migration. The client changes depend on it: **merge them only after the migration is live**, or calls to the new functions will fail. I can add a fallback to the old client path if you'd rather not tie the two together.
+1. **Done:** `20261116_audit_sql.sql` holds everything above, with #30 as option (a). Every statement is `create or replace` / `if not exists`, and the backfill only fills empty values, so re-running it is safe.
+2. **Done:** client changes as three commits (#18 part 1, #18 part 2, #21), each with specs that fail without the change. tsc and Jest ran after each.
+3. **Your step: apply the migration before shipping the app.** Run `supabase db push` with the CLI, or paste the file into the dashboard's SQL editor.
+
+**What depends on the migration:**
+- **Investments (#18) and approving recurring payments (#21) need it.** Before it's applied, saving or deleting an investment shows or logs "asset value not updated", and approving a recurring payment fails with an error. In both cases nothing gets half-written.
+- **Everything else works either way.** The `asset_id` column is only written when it's set, and deletes read `*`, so ordinary transactions don't depend on the migration.
+
+**After applying, check (read-only):**
+- `select count(*) from transactions where type = 'transfer' and to_account_id is null and asset_id is null` should return 0. All 5 live investments matched one asset by name.
+- `select proname from pg_proc where proname in ('adjust_asset_value','approve_recurring_occurrence')` should return both names.
 
 ## Findings
 
@@ -283,7 +291,7 @@ Every row below was verified by reading the code path end to end; the parser row
 | 15 | Medium | `src/utils/parseTransactionNotification.ts:172-183` | Auto-detected transactions get names like **“KFC successful”** or **“TNB successful”** (reproduced). That name is saved and used for merchant-logo and category matching. | The merchant lookahead only stops at `on/for/via/using/with` or punctuation, so a trailing status word is captured. | Also stop the lookahead at `successful|berjaya|completed|approved|is|was|has`. Add spec cases. | Fixed (`de68779`) |
 | 16 | Medium | `app/(main)/home/tabung/[id].tsx:101-158` | Withdrawing with an empty amount tries to save `NaN`. If either top-up or withdrawal fails, the spinner just stops and no message is shown. | No `Number.isFinite(x) && x > 0` check on withdraw (`NaN > current` is false), and there's no `else` branch on `!result.ok`. | Validate the amount like top-up does, and set `withdrawError`/an Alert on failure. | Fixed (`d798221`) |
 | 17 | Medium | `src/services/storage.ts:47-51`, `app/(main)/add-transaction.tsx:493-498` | Attaching a new receipt while **editing** a transaction that already has one fails silently. The old receipt stays. | `uploadReceipt` uploads to the same `userId/txId.jpg` path without `upsert: true`, so storage rejects it, and the caller ignores `!upload.ok`. | Pass `upsert: true`. | Fixed (`9355cc9`) |
-| 18 | Medium | `src/repositories/transactions.repository.ts:140-160`, `add-transaction.tsx:476-490` | Deleting or editing an investment can leave the asset's value too high if two assets share a name, or if two writes overlap. | Assets are found by **name** with `.maybeSingle()`, which returns an error (ignored) when the name isn't unique. The value is also read, changed in JS and written back (the pattern CLAUDE.md bans for balances). | Short term: match on `id` where the screen has it, and surface the error. A proper fix needs an `adjust_asset_value` RPC (SQL). | Needs decision (SQL) |
+| 18 | Medium | `src/repositories/transactions.repository.ts:140-160`, `add-transaction.tsx:476-490` | Deleting or editing an investment can leave the asset's value too high if two assets share a name, or if two writes overlap. | Assets are found by **name** with `.maybeSingle()`, which returns an error (ignored) when the name isn't unique. The value is also read, changed in JS and written back (the pattern CLAUDE.md bans for balances). | Short term: match on `id` where the screen has it, and surface the error. A proper fix needs an `adjust_asset_value` RPC (SQL). | Fixed in code (`2dcf28b` migration, `50ed4b5` part 1, `47e6842` part 2); **live once you apply migration 20261116** |
 | 19 | Medium | `app/(main)/tabung/new/form.tsx:84, 289`, `components/onboarding/TabungForm.tsx:54-55` | A tabung's start or target date can be saved one day early. | Same UTC `toISOString()` pattern as #7, applied to picker dates. It's off by one whenever the picked `Date` has a local time before 08:00. **[unverified on device]**: depends on the time the picker returns. | Use `localYMD`. | Fixed (`07ba7ce`) |
 | 20 | Medium | `src/services/storage.ts:30-37` | **[unverified]** Profile avatars may not load. | CLAUDE.md says `avatars/` is a private bucket, but `uploadAvatar` returns `getPublicUrl`, which returns 400/403 on a private bucket. I can't see the bucket policy from the repo. | If the bucket is private, return a signed URL (like receipts). | Closed: not reachable (2026-11-16). Nothing calls `uploadAvatar`/`deleteAvatar` and no screen reads `avatar_url`, so users can't hit this. The docs also disagree on the bucket: `Flowe_Backend_DB_Docs.md` creates `avatars` with `public = false`, while `Flowe_Software_Architecture.md` calls it public-URL. **When avatars are built:** confirm the bucket's setting first. If it's private, store the path and sign it when displaying, as receipts do; don't store a public or signed URL in `profiles.avatar_url`. |
 
@@ -291,7 +299,7 @@ Every row below was verified by reading the code path end to end; the parser row
 
 | # | Severity | File:line | What breaks for the user | Root cause | Proposed fix | Status |
 |---|---|---|---|---|---|---|
-| 21 | Low | `src/services/recurring.ts:217` | If rolling a rule forward fails after approving it, the same occurrence is offered again and can be approved twice. | The result of `recurringRepository.advance` is ignored. | Return/log the advance error so the UI refetches and doesn't re-offer. | Deferred: the safe order (advance, then create, as one step) needs a server-side function (SQL). An existing spec requires that a failed create never advances the rule |
+| 21 | Low | `src/services/recurring.ts:217` | If rolling a rule forward fails after approving it, the same occurrence is offered again and can be approved twice. | The result of `recurringRepository.advance` is ignored. | Return/log the advance error so the UI refetches and doesn't re-offer. | Fixed in code (`2dcf28b` migration, `9f58101`); **live once you apply migration 20261116** |
 | 22 | Low | `app/(auth)/fingerprint.tsx:59` | The fingerprint setup screen shows a missing-glyph icon. | Feather has no `fingerprint` icon (also a tsc error). | Use the lucide `Fingerprint` icon (lucide is already a dependency). | Fixed (`e246866`) |
 | 23 | Low | `src/services/storage.ts` (12×), `src/repositories/auth.repository.ts` (7×) | Error `code` is `undefined` at runtime in these `Result`s (19 tsc errors). | `StorageError` has no `.code`, and `AuthError.code` is optional. | Use the existing `fromSupabaseError(error)`, which defaults the code to `'UNKNOWN'`. | Fixed (`5cad341`) |
 | 24 | Low | `app/(main)/add-transaction.tsx:406-410` (+ `index.tsx`, account pages via `as any`) | None at runtime; 3 tsc errors. | The `Account` row type has no joined `bank_accounts` / `wallet_accounts` / `tabung_accounts`. | Add an `AccountWithDetails` type in `database.types.ts` and return it from `fetchAllActive`. | Fixed (`bb44996`) |
@@ -300,7 +308,7 @@ Every row below was verified by reading the code path end to end; the parser row
 | 27 | Low | `app/_layout.tsx:24, 74-83` | None. The “Could not connect / Retry” screen can never appear. | Nothing ever sets the `'error'` state. | Remove the dead branch (cleanup). | Fixed (`e4c606b`) |
 | 28 | Low | `src/services/storage.ts`, `security.tsx`, `change-pin.tsx`, `settings/index.tsx`, `settings/account.tsx`, `settings/affirmations.tsx`, `settings/notifications.tsx`, `app/(main)/index.tsx`, `app/(onboarding)/accounts.tsx`, `LockOverlay.tsx`, `context/AuthContext.tsx`; screens calling repositories directly (e.g. `tabung/[id].tsx`) | None directly, but these bypass `Result` error handling (several ignore errors). | Layering violations of the CLAUDE.md rule “Screen → Hook → Repository”. | Fix only where another fix already touches the file (#1, #5, #11). A wholesale move is a refactor and out of scope for this pass. | Deferred: wholesale move is a refactor; handle alongside #1, #5 and #11 |
 | 29 | Low | `app/(main)/index.tsx:198-205` | **[unverified intent]** The Home “total balance” leaves out tabung savings. | It sums only `bank_accounts` and `wallet_accounts`. | Your call: should tabung count towards the total? | Won't fix — by design (decided 2026-11-16). Top-ups never take money out of a bank account (`home/tabung/[id].tsx:108` records no source account, even for a linked tabung), so the money is still in the bank balance. Adding tabung would count it twice. |
-| 30 | Low | `supabase/migrations/20260925_atomic_balance.sql:113` vs `:52` | After “Recalculate balances”, a tabung that had gone negative jumps to 0. | The repair clamps the tabung at 0 (`greatest(0, …)`); the incremental RPC doesn't. | Leave as is, or align them (SQL). | Needs decision (SQL) |
+| 30 | Low | `supabase/migrations/20260925_atomic_balance.sql:113` vs `:52` | After “Recalculate balances”, a tabung that had gone negative jumps to 0. | The repair clamps the tabung at 0 (`greatest(0, …)`); the incremental RPC doesn't. | Leave as is, or align them (SQL). | Fixed with option (a) in migration `2dcf28b`; **live once you apply migration 20261116**. No live tabung affected on 2026-11-16 |
 
 ## Cleanup candidates
 
