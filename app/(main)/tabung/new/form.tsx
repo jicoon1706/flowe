@@ -6,6 +6,7 @@ import { ChevronLeft, Check } from '../../../../components/ui/icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../../../../context/AuthContext';
+import { localYMD } from '../../../../src/utils/date';
 import { useAccounts } from '../../../../src/hooks/useAccounts';
 import { LoadingView } from '../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../components/ui/ErrorView';
@@ -81,7 +82,7 @@ export default function TabungFormScreen() {
     if (!canCreate || !user) return;
     setSubmitting(true);
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = localYMD(new Date());
     const result = await createTabungAccount({
       user_id: user.id,
       name: name.trim(),
@@ -286,7 +287,7 @@ export default function TabungFormScreen() {
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
             onChange={(_, selectedDate) => {
               if (selectedDate) {
-                setDate(selectedDate.toISOString().split('T')[0]);
+                setDate(localYMD(selectedDate));
               }
               if (Platform.OS === 'android') {
                 setShowDatePicker(false);

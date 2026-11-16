@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import type { DraftTabung } from '../../src/types/onboarding';
+import { localYMD } from '../../src/utils/date';
 import { TABUNG_ICONS, type TabungIcon } from '../../constants/banks';
 
 const ICON_EMOJI: Record<TabungIcon, string> = {
@@ -51,8 +52,8 @@ export function TabungForm({ onAdd, linkedBankIds = [] }: TabungFormProps) {
       name: name.trim(),
       icon: ICON_EMOJI[icon],
       target: parseFloat(target),
-      fromDate: fromDate.toISOString().split('T')[0],
-      toDate: toDate.toISOString().split('T')[0],
+      fromDate: localYMD(fromDate),
+      toDate: localYMD(toDate),
       linkedBankId: linkedBankId || undefined,
     });
     setName('');
