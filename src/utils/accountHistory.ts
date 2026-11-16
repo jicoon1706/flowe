@@ -25,3 +25,21 @@ export function monthTotals(
     expense: Math.round(expense * 100) / 100,
   };
 }
+
+/**
+ * Date shown on an account-history row: "16 Nov" for this year, "16 Nov 2025"
+ * for any other. With the full history listed (AUDIT #8), a day and month
+ * alone no longer say which year a row belongs to.
+ *
+ * Built from the stored 'YYYY-MM-DD' as a local date; `new Date('YYYY-MM-DD')`
+ * would be UTC midnight, the previous day west of Greenwich.
+ */
+export function historyDateLabel(ymd: string, todayYmd: string): string {
+  const [y, m, d] = ymd.slice(0, 10).split('-').map(Number);
+  const sameYear = ymd.slice(0, 4) === todayYmd.slice(0, 4);
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}

@@ -1,4 +1,4 @@
-import { monthTotals } from '../src/utils/accountHistory';
+import { monthTotals, historyDateLabel } from '../src/utils/accountHistory';
 
 // AUDIT #8: the account pages list full history, but the tiles stay monthly.
 const tx = (type: string, amount: number, date: string) => ({ type, amount, date }) as any;
@@ -31,5 +31,21 @@ describe('monthTotals', () => {
 
   it('accepts amounts that arrive as numeric strings', () => {
     expect(monthTotals([tx('income', '12.50' as any, '2026-11-01')], '2026-11').income).toBe(12.5);
+  });
+});
+
+describe('historyDateLabel', () => {
+  it('shows day and month for this year', () => {
+    expect(historyDateLabel('2026-11-16', '2026-11-16')).toBe('16 Nov');
+    expect(historyDateLabel('2026-01-01', '2026-11-16')).toBe('1 Jan');
+  });
+
+  it('adds the year for any other year', () => {
+    expect(historyDateLabel('2025-11-16', '2026-11-16')).toBe('16 Nov 2025');
+    expect(historyDateLabel('2025-12-31', '2026-01-01')).toBe('31 Dec 2025');
+  });
+
+  it('ignores a time part on the stored date', () => {
+    expect(historyDateLabel('2024-02-29T00:00:00', '2026-11-16')).toBe('29 Feb 2024');
   });
 });

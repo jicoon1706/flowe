@@ -5,7 +5,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, RefreshCw, Receipt, X, AlertCircle } from '../../../../components/ui/icons';
 import { useAccounts } from '../../../../src/hooks/useAccounts';
 import { useAccountTransactions } from '../../../../src/hooks/useAccountTransactions';
-import { monthTotals } from '../../../../src/utils/accountHistory';
+import { monthTotals, historyDateLabel } from '../../../../src/utils/accountHistory';
 import { localYMD } from '../../../../src/utils/date';
 import { accountsRepository } from '../../../../src/repositories/accounts.repository';
 import { LoadingView } from '../../../../components/ui/LoadingView';
@@ -251,7 +251,7 @@ export default function WalletDetailScreen() {
             ) : (
               visibleTransactions.map((tx) => {
                 const formattedAmount = `${tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}RM ${Math.abs(tx.amount).toFixed(2)}`;
-                const formattedDate = new Date(tx.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                const formattedDate = historyDateLabel(tx.date, localYMD(new Date()));
                 return (
                   <Pressable
                     key={tx.id}
