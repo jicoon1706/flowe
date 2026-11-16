@@ -17,6 +17,8 @@ export interface CreateTransactionRequest {
   receipt_url?: string;
   is_recurring?: boolean;
   recurring_id?: string;
+  /** The asset an investment feeds (transfer with no destination account). */
+  asset_id?: string | null;
 }
 
 /**
@@ -144,19 +146,26 @@ function emitTransactionsChanged() {
  * the old read-modify-write here never did.
  */
 async function reverseInvestment(
-  tx: Pick<Transaction, 'type' | 'amount' | 'category' | 'to_account_id'>,
+  tx: Pick<Transaction, 'type' | 'amount' | 'category' | 'to_account_id' | 'asset_id'>,
 ) {
-  if (tx.type !== 'transfer' || tx.to_account_id || !tx.category) return;
+  if (tx.type !== 'transfer' || tx.to_account_id) return;
 
-  const { data: asset } = await supabase
-    .from('assets')
-    .select('id')
-    .eq('name', tx.category)
-    .eq('is_active', true)
-    .maybeSingle();
-  if (!asset) return;
+  // The asset is linked by id since migration 20261116 (AUDIT #18 part 2).
+  // Rows the backfill couldn't place still carry only the name.
+  let assetId = tx.asset_id ?? null;
+  if (!assetId) {
+    if (!tx.category) return;
+    const { data: asset } = await supabase
+      .from('assets')
+      .select('id')
+      .eq('name', tx.category)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (!asset) return;
+    assetId = asset.id as string;
+  }
 
-  const res = await assetsRepository.adjustValue(asset.id, -Number(tx.amount), monthStart(new Date()));
+  const res = await assetsRepository.adjustValue(assetId, -Number(tx.amount), monthStart(new Date()));
   if (!res.ok) {
     console.error('[investment] asset value was not reduced for a deleted investment:', res.error.message);
   }
@@ -246,6 +255,9 @@ export const transactionsRepository = {
         receipt_url: req.receipt_url,
         is_recurring: req.is_recurring ?? false,
         recurring_id: req.recurring_id,
+        // Only sent when set, so ordinary transactions don't depend on the
+        // 20261116 migration having added the column.
+        ...(req.asset_id !== undefined ? { asset_id: req.asset_id } : {}),
       })
       .select()
       .single();
@@ -309,6 +321,7 @@ export const transactionsRepository = {
         to_account_id: req.to_account_id ?? null,
         date: req.date,
         note: req.note ?? null,
+        ...(req.asset_id !== undefined ? { asset_id: req.asset_id } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -341,7 +354,9 @@ export const transactionsRepository = {
     // Load the transaction first so we can reverse its balance impact.
     const { data: tx, error: fetchError } = await supabase
       .from('transactions')
-      .select('type, amount, category, from_account_id, to_account_id')
+      // '*' rather than naming asset_id: works before and after the 20261116
+      // migration adds that column.
+      .select('*')
       .eq('id', id)
       .single();
     if (fetchError) return { ok: false, error: fromSupabaseError(fetchError) };
@@ -354,7 +369,7 @@ export const transactionsRepository = {
       -1,
     );
     if (balanceError) reportBalanceFailure(balanceError);
-    await reverseInvestment(tx as Pick<Transaction, 'type' | 'amount' | 'category' | 'to_account_id'>);
+    await reverseInvestment(tx as Pick<Transaction, 'type' | 'amount' | 'category' | 'to_account_id' | 'asset_id'>);
 
     emitTransactionsChanged();
     return { ok: true, data: undefined };

@@ -73,6 +73,7 @@ export function RecentTransactions({ transactions, masked = false, onRequestUnlo
         category: tx.category ?? '',
         fromAccountId: tx.from_account_id ?? '',
         toAccountId: tx.to_account_id ?? '',
+        assetId: tx.asset_id ?? '',
         date: tx.date,
         note: tx.note ?? '',
         // Unique per tap so the edit screen re-prefills even when its instance

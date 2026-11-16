@@ -193,12 +193,15 @@ export default function AddTransactionScreen() {
   // Reopening an investment: it's a transfer with no destination account and
   // the asset's name in the category column, so match that asset back once
   // assets have loaded and select it as the destination.
+  // Since migration 20261116 the row also carries the asset's id, which
+  // survives a rename; the name is the fallback for rows without it.
   useEffect(() => {
     if (!isEdit || type !== 'transfer' || toAccount || assets.length === 0) return;
     if (searchParams.toAccountId) return;
-    const match = assets.find((a) => a.name === category);
+    const linkedId = (searchParams.assetId as string | undefined) || '';
+    const match = (linkedId && assets.find((a) => a.id === linkedId)) || assets.find((a) => a.name === category);
     if (match) setToAccount(match.id);
-  }, [isEdit, type, toAccount, assets, category, searchParams.toAccountId]);
+  }, [isEdit, type, toAccount, assets, category, searchParams.toAccountId, searchParams.assetId]);
 
   // In edit mode the category column stores a custom category's *name* (built-in
   // categories store their slug id). Once custom categories load, map that name
@@ -474,6 +477,16 @@ export default function AddTransactionScreen() {
     const customCat = customCategories.find((c) => c.id === category);
     const categoryValue = investAsset ? investAsset.name : customCat ? customCat.name : category;
 
+    // The asset this transaction fed before the edit, if it was an investment:
+    // by id where the row has one (AUDIT #18 part 2), else by the name kept in
+    // the category column.
+    const wasInvestment = isEdit && !searchParams.toAccountId && searchParams.type === 'transfer';
+    const origAssetId = (searchParams.assetId as string | undefined) || '';
+    const origAssetName = (searchParams.category as string | undefined) ?? '';
+    const origAsset = wasInvestment
+      ? (origAssetId && assets.find((a) => a.id === origAssetId)) || assets.find((a) => a.name === origAssetName)
+      : undefined;
+
     const payload = {
       user_id: user.id,
       type,
@@ -484,6 +497,10 @@ export default function AddTransactionScreen() {
       category: categoryValue,
       date: transactionDate,
       note: note || undefined,
+      // Link an investment to its asset by id; clear the link when an edit
+      // stops it being one. Left out otherwise, so ordinary transactions
+      // don't touch the column.
+      asset_id: investAsset ? investAsset.id : wasInvestment ? null : undefined,
     };
 
     const result = editId ? await update(editId, payload) : await create(payload);
@@ -492,13 +509,6 @@ export default function AddTransactionScreen() {
       // Move the money into the asset. On an edit the previous contribution is
       // taken back out first — including when the user switched assets — so the
       // asset's value always reflects the transaction as it now stands.
-      // The asset this transaction fed before the edit, if it fed one: an
-      // investment stores its asset's name in the category column.
-      const origAssetName = (searchParams.category as string | undefined) ?? '';
-      const origAsset =
-        isEdit && !searchParams.toAccountId && searchParams.type === 'transfer'
-          ? assets.find((a) => a.name === origAssetName)
-          : undefined;
       // Take the old contribution back out whenever it no longer belongs there
       // — the user switched assets, or turned the investment into an ordinary
       // transfer/expense — so the asset isn't left permanently inflated.

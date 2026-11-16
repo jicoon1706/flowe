@@ -182,6 +182,7 @@ export default function CalendarScreen() {
         category: tx.category ?? '',
         fromAccountId: tx.from_account_id ?? '',
         toAccountId: tx.to_account_id ?? '',
+        assetId: tx.asset_id ?? '',
         date: tx.date,
         note: tx.note ?? '',
         nonce: String(Date.now()),
