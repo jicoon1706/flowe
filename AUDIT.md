@@ -22,7 +22,7 @@ This is the bar: nothing that passes now may fail, and the error/warning counts 
 
 No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest before it was committed.
 
-**Summary:** 23 findings fixed, and #10 fixed on Home only. 1 closed as by design (#29). 3 deferred (#21, #28, and #10's Calendar part). 3 need your decision (#18, #20, #30).
+**Summary:** 23 findings fixed, and #10 fixed on Home only. 2 closed without a code change (#20 not reachable, #29 by design). 3 deferred (#21, #28, and #10's Calendar part). 2 need your decision (#18, #30), both needing SQL.
 
 **Critical and High status:** all fixed — #1 (Critical), #2, #3, #4, #5, #6 and #7.
 
@@ -102,7 +102,7 @@ Every row below was verified by reading the code path end to end; the parser row
 | 17 | Medium | `src/services/storage.ts:47-51`, `app/(main)/add-transaction.tsx:493-498` | Attaching a new receipt while **editing** a transaction that already has one fails silently. The old receipt stays. | `uploadReceipt` uploads to the same `userId/txId.jpg` path without `upsert: true`, so storage rejects it, and the caller ignores `!upload.ok`. | Pass `upsert: true`. | Fixed (`9355cc9`) |
 | 18 | Medium | `src/repositories/transactions.repository.ts:140-160`, `add-transaction.tsx:476-490` | Deleting or editing an investment can leave the asset's value too high if two assets share a name, or if two writes overlap. | Assets are found by **name** with `.maybeSingle()`, which returns an error (ignored) when the name isn't unique. The value is also read, changed in JS and written back (the pattern CLAUDE.md bans for balances). | Short term: match on `id` where the screen has it, and surface the error. A proper fix needs an `adjust_asset_value` RPC (SQL). | Needs decision (SQL) |
 | 19 | Medium | `app/(main)/tabung/new/form.tsx:84, 289`, `components/onboarding/TabungForm.tsx:54-55` | A tabung's start or target date can be saved one day early. | Same UTC `toISOString()` pattern as #7, applied to picker dates. It's off by one whenever the picked `Date` has a local time before 08:00. **[unverified on device]**: depends on the time the picker returns. | Use `localYMD`. | Fixed (`07ba7ce`) |
-| 20 | Medium | `src/services/storage.ts:30-37` | **[unverified]** Profile avatars may not load. | CLAUDE.md says `avatars/` is a private bucket, but `uploadAvatar` returns `getPublicUrl`, which returns 400/403 on a private bucket. I can't see the bucket policy from the repo. | If the bucket is private, return a signed URL (like receipts). | Needs decision (check bucket) |
+| 20 | Medium | `src/services/storage.ts:30-37` | **[unverified]** Profile avatars may not load. | CLAUDE.md says `avatars/` is a private bucket, but `uploadAvatar` returns `getPublicUrl`, which returns 400/403 on a private bucket. I can't see the bucket policy from the repo. | If the bucket is private, return a signed URL (like receipts). | Closed: not reachable (2026-11-16). Nothing calls `uploadAvatar`/`deleteAvatar` and no screen reads `avatar_url`, so users can't hit this. The docs also disagree on the bucket: `Flowe_Backend_DB_Docs.md` creates `avatars` with `public = false`, while `Flowe_Software_Architecture.md` calls it public-URL. **When avatars are built:** confirm the bucket's setting first. If it's private, store the path and sign it when displaying, as receipts do; don't store a public or signed URL in `profiles.avatar_url`. |
 
 ### Low
 
