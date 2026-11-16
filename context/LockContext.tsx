@@ -1,5 +1,9 @@
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { LockOverlay } from '../components/home/LockOverlay';
+import { useAuth } from './AuthContext';
+import { authConfigRepository } from '../src/repositories/authConfig.repository';
+import { autoLockMinutesFrom, shouldRelock, DEFAULT_AUTO_LOCK_MINUTES } from '../src/utils/autoLock';
 
 interface LockContextValue {
   /**
@@ -18,8 +22,9 @@ interface LockContextValue {
    */
   requireUnlock: () => Promise<boolean>;
   /**
-   * No-op kept for backward compatibility. The app no longer re-locks when
-   * returning from the background, so there's nothing to suspend.
+   * Skips the auto-lock check for the next return to the app. Call before
+   * deliberately leaving it, e.g. opening the camera or image picker, so
+   * coming back with a photo never asks for the PIN.
    */
   suspend: () => void;
 }
@@ -37,8 +42,8 @@ export function useLock(): LockContextValue {
 
 export function LockProvider({ children }: { children: React.ReactNode }) {
   // Start locked on a fresh app launch (cold start). Returning from the
-  // background does NOT re-lock — that only happens when the app process is
-  // killed and relaunched, which remounts this provider.
+  // background re-locks only after the Settings → Security "Auto-lock Timer"
+  // has elapsed (see the AppState effect below; "Never" turns it off).
   //
   // Locked no longer means blocked: the overlay is only raised when something
   // that needs the PIN is opened, or a caller asks for it. Until then the user
@@ -69,7 +74,47 @@ export function LockProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const lock = useCallback(() => setLocked(true), []);
-  const suspend = () => {};
+
+  // ── Auto-lock Timer (AUDIT #12) ─────────────────────────────────────────
+  // The setting used to be saved and never read. The timer is re-read
+  // whenever the app goes to or comes back from the background, so a change
+  // made in Settings applies to the very next time the user leaves.
+  const { user } = useAuth();
+  const autoLockMinutesRef = useRef<number | null>(DEFAULT_AUTO_LOCK_MINUTES);
+  const backgroundedAtRef = useRef<number | null>(null);
+  const skipNextCheckRef = useRef(false);
+
+  const refreshAutoLock = useCallback(async () => {
+    if (!user) return;
+    const res = await authConfigRepository.fetch(user.id);
+    // Offline: keep the last known value rather than guessing.
+    if (res.ok) autoLockMinutesRef.current = autoLockMinutesFrom(res.data);
+  }, [user]);
+
+  useEffect(() => { refreshAutoLock(); }, [refreshAutoLock]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      // 'background' only: 'inactive' also fires for system sheets such as
+      // the fingerprint prompt, which isn't leaving the app.
+      if (next === 'background') {
+        if (backgroundedAtRef.current === null) backgroundedAtRef.current = Date.now();
+        refreshAutoLock();
+        return;
+      }
+      if (next !== 'active') return;
+      const leftAt = backgroundedAtRef.current;
+      backgroundedAtRef.current = null;
+      if (skipNextCheckRef.current) {
+        skipNextCheckRef.current = false;
+        return;
+      }
+      if (shouldRelock(leftAt, Date.now(), autoLockMinutesRef.current)) setLocked(true);
+    });
+    return () => sub.remove();
+  }, [refreshAutoLock]);
+
+  const suspend = useCallback(() => { skipNextCheckRef.current = true; }, []);
 
   return (
     <LockContext.Provider value={{ locked, lock, requireUnlock, suspend }}>

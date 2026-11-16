@@ -159,6 +159,7 @@ export default function AddEntryScreen() {
 
   const handleOpenPdf = async (file: FormFile) => {
     if (!file.uri) return;
+    suspendLock();
     await Linking.openURL(file.uri).catch(() => {
       Alert.alert('Could not open', 'No app on this device can open the PDF.');
     });

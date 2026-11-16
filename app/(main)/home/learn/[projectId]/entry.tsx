@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { ChevronLeft, Pencil, Trash2, X } from '../../../../../components/ui/icons';
 import { useAuth } from '../../../../../context/AuthContext';
+import { useLock } from '../../../../../context/LockContext';
 import { useLearn } from '../../../../../src/hooks/useLearn';
 import { LoadingView } from '../../../../../components/ui/LoadingView';
 import { ErrorView } from '../../../../../components/ui/ErrorView';
@@ -14,6 +15,8 @@ import { isPdfPath, pdfLabel } from '../../../../../src/utils/attachments';
 
 export default function EntryDetailScreen() {
   const router = useRouter();
+  // Opening a PDF leaves the app; don't ask for the PIN on the way back.
+  const { suspend: suspendLock } = useLock();
   const { projectId, entryId } = useLocalSearchParams<{ projectId: string; entryId: string }>();
   const { entries, loading, error, fetchEntries } = useLearn();
   const [showMenu, setShowMenu] = useState(false);
@@ -106,6 +109,7 @@ export default function EntryDetailScreen() {
                 onPress={() => {
                   const url = imageUrls[pdf.storage_path];
                   if (!url) return;
+                  suspendLock();
                   Linking.openURL(url).catch(() =>
                     Alert.alert('Could not open', 'No app on this device can open the PDF.')
                   );

@@ -5,6 +5,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Check, Sparkle, AlertCircle, Plus, X } from '../../../components/ui/icons';
 import { Toggle } from '../../../components/ui/Toggle';
+import { useLock } from '../../../context/LockContext';
 import * as FloweNotifications from '../../../modules/flowe-notifications';
 import {
   NOTIFICATION_SOURCES,
@@ -80,6 +81,9 @@ const DEV_SAMPLES: { label: string; hint: string; raw: FloweNotifications.DevCap
 
 export default function AutoDetectScreen() {
   const router = useRouter();
+  // The notification-access screen is outside Flowe; coming back from it
+  // shouldn't ask for the PIN.
+  const { suspend: suspendLock } = useLock();
   const [enabled, setEnabled] = useState(false);
   const [granted, setGranted] = useState(false);
   // Granted and connected are different things: Android drops the listener
@@ -189,6 +193,7 @@ export default function AutoDetectScreen() {
     FloweNotifications.setEnabled(value);
     setEnabled(value);
     if (value && !FloweNotifications.isPermissionGranted()) {
+      suspendLock();
       FloweNotifications.openSettings();
     }
   };
@@ -399,7 +404,7 @@ export default function AutoDetectScreen() {
             an update — the app has already asked for a rebind by the time this
             renders, and toggling access off and on in settings forces it. */}
         <Pressable
-          onPress={() => FloweNotifications.openSettings()}
+          onPress={() => { suspendLock(); FloweNotifications.openSettings(); }}
           className={`bg-card border rounded-2xl p-5 mb-4 flex-row items-center ${
             granted && !connected ? 'border-[#ffd93d]/40' : 'border-border'
           }`}
