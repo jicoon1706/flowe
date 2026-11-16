@@ -258,19 +258,23 @@ I ran read-only queries against the live project (ref `txylaohgzlvhoqdyqmhy`): c
 | `adjust_account_balance` | Unchanged |
 | Supabase security advisor | Nothing about the new functions or column. Its warnings are all pre-existing; see below |
 
-**Supabase security advisor warnings, all pre-existing and not touched by this migration:**
-- **`handle_new_user`** has no fixed `search_path`, and as a `security definer` function, `anon` and `authenticated` can call it directly through `/rest/v1/rpc/handle_new_user`. This is worth fixing separately: probably revoke `EXECUTE` from those roles, since it's meant to run only as a trigger. It isn't in this audit's scope, and the change would be SQL.
+**Supabase security advisor warnings that were already there before this migration:**
+- **`handle_new_user` (3 warnings), fixed 2026-11-16.** This is the trigger on `auth.users` that creates each new user's profile, anonymous sign-ins included. It had no fixed `search_path`, and `anon` and `authenticated` could call it directly through `/rest/v1/rpc/handle_new_user`.
+  - **Change:** migration `20261116b_handle_new_user_hardening.sql` (`71cab80`), applied as `20261116055724 handle_new_user_hardening_20261116`. It pins `search_path = ''`, which is safe because the body names `public.profiles` in full. It revokes `EXECUTE` from `public`, `anon` and `authenticated`, and grants it explicitly to `supabase_auth_admin` and `service_role`.
+  - **Unchanged:** the function body and the trigger.
+  - **Checked afterwards:** `anon` and `authenticated` can no longer execute it, while `supabase_auth_admin` and `service_role` can. The trigger `on_auth_user_created` is still enabled. On a re-run, the advisor no longer reports any of the three warnings.
 - **"Anonymous access" on every user table:** this is expected, because Flowe signs users in anonymously by design. Every policy still scopes rows to `auth.uid()`.
 - **Leaked password protection is off:** not relevant today, since the app doesn't use passwords.
 
 **The local repo vs the live migration history:**
-- The live history now lists only this migration. The earlier ones in `supabase/migrations/` were applied by hand.
-- So if you later run `supabase db push`, the CLI may try to re-run the older files. They and this one were written to be re-runnable, but check the CLI's plan before confirming.
-- This file in the repo is named `20261116_audit_sql`, while the live database recorded it as `20261116055506`. Use `supabase migration repair` if you want the CLI to treat them as the same migration.
+- The live history now lists only these two migrations: `20261116055506 audit_sql_20261116` and `20261116055724 handle_new_user_hardening_20261116`. The earlier ones in `supabase/migrations/` were applied by hand.
+- So if you later run `supabase db push`, the CLI may try to re-run the older files. They and these two were written to be re-runnable, but check the CLI's plan before confirming.
+- These files in the repo are named `20261116_audit_sql` and `20261116b_handle_new_user_hardening`, while the live database recorded them under different versions. Use `supabase migration repair` if you want the CLI to treat them as the same migrations.
 
 **Still to check on a device:**
 - **Investments:** save, edit and delete one; the asset value and this month's trend point should follow.
 - **Recurring payments:** approve one twice quickly; only one transaction should appear.
+- **New user sign-up (after the `handle_new_user` change):** on a fresh install (or after clearing app data), the anonymous sign-in should still create the profile, so the name you enter in onboarding saves and shows on Home. Postgres doesn't check `EXECUTE` when it fires a trigger, so this should work, but I didn't test it by creating a user in the live database.
 
 ## Findings
 
