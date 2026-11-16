@@ -18,15 +18,20 @@ This is the bar: nothing that passes now may fail, and the error/warning counts 
 |---|---|---|
 | `npx tsc --noEmit` | 159 errors (41 in app code) | **132 errors (14 in app code)**. The 14 left are all in unused files awaiting deletion (`src/components/ui/PinPad.tsx`, `hooks/use-theme-color.ts`, `components/ui/collapsible.tsx`). The rest are `prototype/` and Deno globals. Still exit 2. |
 | `npm run lint` | 0 errors, 48 warnings | 0 errors, 46 warnings |
-| `npm test` | 19 suites / 176 tests passing | **23 suites / 196 tests passing** (new: `updateWithBalance`, `shiftMonth`, `parserAuditCases`, `pinVerify`) |
+| `npm test` | 19 suites / 176 tests passing | **24 suites / 204 tests passing** (new: `updateWithBalance`, `shiftMonth`, `parserAuditCases`, `pinVerify`, `ruleFromTransaction`) |
 
 No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest before it was committed.
 
-**Summary:** 20 findings fixed, and #10 fixed on Home only. 3 deferred (#21, #28, and #10's Calendar part). 7 need your decision (#4, #8, #12, #18, #20, #29, #30).
+**Summary:** 21 findings fixed, and #10 fixed on Home only. 3 deferred (#21, #28, and #10's Calendar part). 6 need your decision (#8, #12, #18, #20, #29, #30).
 
-**Critical and High status:**
-- Fixed: #1 (Critical), #2, #3, #5, #6 and #7.
-- Waiting on your decision: #4 (visible behaviour).
+**Critical and High status:** all fixed — #1 (Critical), #2, #3, #4, #5, #6 and #7.
+
+**Recurring from Add Transaction (#4), approved 2026-11-16.**
+- **What happens:** switching Recurring on now saves a rule alongside the transaction.
+- **When it starts:** the rule's next date is the first occurrence *after* the transaction being saved, so the same payment isn't offered for approval again. With a start date earlier than the transaction, the occurrences in between are skipped, not back-filled.
+- **What's refused:** Recurring on a transfer, and an end date before the start date, are refused before anything is saved. `recurring_rules` only supports expenses and income.
+- **If the rule fails:** when the transaction saves but the rule doesn't, the user gets an alert pointing them to Settings → Recurring.
+- **Edits:** turning Recurring on while editing a transaction also creates a rule.
 
 **PIN fixes (#1, #5, #11), approved 2026-11-16.**
 - **New helpers:** `src/lib/pinVerify.ts` (`verifyPin`). On the secure-store side, `flags.pinHash`, `flags.storePinHash` and `flags.setFingerprintEnabled` use the existing keys, and **the stored format is unchanged**.
@@ -61,7 +66,7 @@ Every row below was verified by reading the code path end to end; the parser row
 |---|---|---|---|---|---|---|
 | 2 | High | `app/(main)/add-transaction.tsx:1024-1030`, `:370` | Double-tapping Submit (easy on a slow network) saves the transaction twice and moves the balance twice. | `handleSubmit` awaits create → month refetch → notify before it navigates away, and nothing guards it: the `Button` is never disabled and `txLoading` is never used. | Add a `submitting` ref that returns early while a save is in flight, and pass `disabled`/`loading` to the Button. | Fixed (`4e097ba`) |
 | 3 | High | `src/repositories/transactions.repository.ts:283-332` | Editing a transaction while the network drops can leave the account balance wrong: the old amount is reversed but the row keeps its old values. | `updateWithBalance` reverses the old balance effect **before** the row UPDATE. If the UPDATE then fails, it returns an error without re-applying the reversal. | Do the UPDATE first, then reverse the old effect and apply the new one. Add a Jest spec with a mocked Supabase client. | Fixed (`d3ea1e5`) |
-| 4 | High | `app/(main)/add-transaction.tsx:112-118, 833-1000` vs `handleSubmit` `:370-520` | Turning on **Recurring** (frequency, start/end date, reminder) on the Add Transaction form does nothing. No rule is created and no error is shown. | The recurring state is collected in the UI, but `handleSubmit` never reads `recurring`, `recurringFreq`, `startDate`, `endDate` or `reminder`, and never calls `recurringRepository`. | After a successful create (not on edit), create a `recurring_rules` row through `useRecurring`, using the same shape as Settings → Recurring. Otherwise hide the toggle. | Needs decision (visible behaviour) |
+| 4 | High | `app/(main)/add-transaction.tsx:112-118, 833-1000` vs `handleSubmit` `:370-520` | Turning on **Recurring** (frequency, start/end date, reminder) on the Add Transaction form does nothing. No rule is created and no error is shown. | The recurring state is collected in the UI, but `handleSubmit` never reads `recurring`, `recurringFreq`, `startDate`, `endDate` or `reminder`, and never calls `recurringRepository`. | After a successful create (not on edit), create a `recurring_rules` row through `useRecurring`, using the same shape as Settings → Recurring. Otherwise hide the toggle. | Fixed (`0547f06`) |
 | 5 | High | `app/(main)/settings/security.tsx:60-63` vs `LockOverlay.tsx:20,40` | Settings → Security → Fingerprint has no effect. Switching it off doesn't stop fingerprint unlock; switching it on doesn't enable it. | The toggle writes only `auth_config.fingerprint_enabled` in Supabase. The lock screen reads only the secure-store flag `flowe.fingerprint_enabled`, which is set once at PIN setup and never again. | When the toggle changes, also write the secure-store flag (new `flags.setFingerprintEnabled`, same key and format), and initialise the toggle from that flag. Move the Supabase calls into `authConfigRepository`. | Fixed (`cce0f7b`) |
 | 6 | High | `app/(main)/calendar.tsx:190-194`, `app/(main)/cashflow/index.tsx:166-172` | On the 29th, 30th or 31st, the month arrows skip short months: from Jan 31, “next” jumps to **March**; from Mar 31, “previous” stays on March. February can't be reached. | `date.setMonth(m ± 1)` on a day the target month doesn't have overflows into the following month. (`analysis.tsx:47-49` does this correctly by pinning the day to 1.) | Add a pure `shiftMonth(date, delta)` helper in `src/utils/date.ts` that pins the day to 1 (or clamps it), use it on both screens, and add a spec. | Fixed (`d796d1a`) |
 | 7 | High | `app/(main)/home/tabung/[id].tsx:111, 142` | A tabung top-up or withdrawal made between 00:00 and 07:59 Malaysia time is dated the **previous day**. On the 1st of a month it lands in last month's totals. | The date is built with `new Date().toISOString().split('T')[0]`, which is UTC. `src/utils/date.ts` documents this exact pitfall. | Use `localYMD(new Date())`. | Fixed (`0d14f9b`) |
