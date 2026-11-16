@@ -22,7 +22,7 @@ This is the bar: nothing that passes now may fail, and the error/warning counts 
 
 No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest before it was committed.
 
-**Summary:** 23 findings fixed, and #10 fixed on Home only. 3 deferred (#21, #28, and #10's Calendar part). 4 need your decision (#18, #20, #29, #30).
+**Summary:** 23 findings fixed, and #10 fixed on Home only. 1 closed as by design (#29). 3 deferred (#21, #28, and #10's Calendar part). 3 need your decision (#18, #20, #30).
 
 **Critical and High status:** all fixed — #1 (Critical), #2, #3, #4, #5, #6 and #7.
 
@@ -116,7 +116,7 @@ Every row below was verified by reading the code path end to end; the parser row
 | 26 | Low | `app/(main)/calendar.tsx:75` | Transactions land on the wrong calendar day in negative-UTC-offset timezones. This doesn't happen in Malaysia. | `new Date('YYYY-MM-DD')` is parsed as UTC. | Split the string instead of parsing it into a `Date`. | Fixed (`ae3a2df`) |
 | 27 | Low | `app/_layout.tsx:24, 74-83` | None. The “Could not connect / Retry” screen can never appear. | Nothing ever sets the `'error'` state. | Remove the dead branch (cleanup). | Fixed (`e4c606b`) |
 | 28 | Low | `src/services/storage.ts`, `security.tsx`, `change-pin.tsx`, `settings/index.tsx`, `settings/account.tsx`, `settings/affirmations.tsx`, `settings/notifications.tsx`, `app/(main)/index.tsx`, `app/(onboarding)/accounts.tsx`, `LockOverlay.tsx`, `context/AuthContext.tsx`; screens calling repositories directly (e.g. `tabung/[id].tsx`) | None directly, but these bypass `Result` error handling (several ignore errors). | Layering violations of the CLAUDE.md rule “Screen → Hook → Repository”. | Fix only where another fix already touches the file (#1, #5, #11). A wholesale move is a refactor and out of scope for this pass. | Deferred: wholesale move is a refactor; handle alongside #1, #5 and #11 |
-| 29 | Low | `app/(main)/index.tsx:198-205` | **[unverified intent]** The Home “total balance” leaves out tabung savings. | It sums only `bank_accounts` and `wallet_accounts`. | Your call: should tabung count towards the total? | Needs decision |
+| 29 | Low | `app/(main)/index.tsx:198-205` | **[unverified intent]** The Home “total balance” leaves out tabung savings. | It sums only `bank_accounts` and `wallet_accounts`. | Your call: should tabung count towards the total? | Won't fix — by design (decided 2026-11-16). Top-ups never take money out of a bank account (`home/tabung/[id].tsx:108` records no source account, even for a linked tabung), so the money is still in the bank balance. Adding tabung would count it twice. |
 | 30 | Low | `supabase/migrations/20260925_atomic_balance.sql:113` vs `:52` | After “Recalculate balances”, a tabung that had gone negative jumps to 0. | The repair clamps the tabung at 0 (`greatest(0, …)`); the incremental RPC doesn't. | Leave as is, or align them (SQL). | Needs decision (SQL) |
 
 ## Cleanup candidates
