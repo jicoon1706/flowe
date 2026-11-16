@@ -118,7 +118,6 @@ export default function HomeScreen() {
     if (!user) return;
     loadAffirmations(user.id);
     loadDisplayName(user.id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const now = new Date();
