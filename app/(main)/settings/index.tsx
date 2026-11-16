@@ -3,6 +3,7 @@ import { useSettings } from '@/context/SettingsContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../../../src/lib/supabase';
+import { flags } from '../../../src/lib/secureStore';
 
 function autoLockLabel(min: number | null | undefined): string {
   if (min === null || min === undefined) return 'Never';
@@ -57,17 +58,16 @@ export default function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // Same source as the lock screen and the Security switch (AUDIT #5).
+      flags.fingerprintEnabled().then(setFingerprintEnabled).catch(() => {});
       if (!user) return;
       supabase
         .from('auth_config')
-        .select('fingerprint_enabled, auto_lock_minutes')
+        .select('auto_lock_minutes')
         .eq('user_id', user.id)
         .maybeSingle()
         .then(({ data }) => {
-          if (data) {
-            setFingerprintEnabled(!!data.fingerprint_enabled);
-            setAutoLockMin(data.auto_lock_minutes);
-          }
+          if (data) setAutoLockMin(data.auto_lock_minutes);
         });
       supabase
         .from('settings')

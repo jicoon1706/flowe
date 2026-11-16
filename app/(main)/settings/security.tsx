@@ -7,7 +7,8 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { Toggle } from '../../../components/ui/Toggle';
 import { Chip } from '../../../components/ui/Chip';
 import { useAuth } from '../../../context/AuthContext';
-import { supabase } from '../../../src/lib/supabase';
+import { authConfigRepository } from '../../../src/repositories/authConfig.repository';
+import { flags } from '../../../src/lib/secureStore';
 import { LoadingView } from '../../../components/ui/LoadingView';
 
 const AUTO_LOCK_OPTIONS = [
@@ -30,35 +31,43 @@ export default function SecurityScreen() {
   const [autoLockLabel, setAutoLockLabel] = useState<string>('5 min');
 
   useEffect(() => {
-    if (!user) return;
-    supabase
-      .from('auth_config')
-      .select('fingerprint_enabled, auto_lock_minutes')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) console.warn('[security] fetch auth_config failed:', error);
-        if (data) {
-          setFingerprint(!!data.fingerprint_enabled);
-          setAutoLockLabel(minutesToLabel(data.auto_lock_minutes));
-        }
-        setLoading(false);
-      });
+    let cancelled = false;
+    (async () => {
+      // The fingerprint switch shows the device flag, because that is what the
+      // lock screen reads (AUDIT #5). The server copy only mirrors it.
+      const deviceFingerprint = await flags.fingerprintEnabled().catch(() => false);
+      if (cancelled) return;
+      setFingerprint(deviceFingerprint);
+      if (user) {
+        const res = await authConfigRepository.fetch(user.id);
+        if (cancelled) return;
+        if (!res.ok) console.warn('[security] fetch auth_config failed:', res.error);
+        else if (res.data) setAutoLockLabel(minutesToLabel(res.data.auto_lock_minutes));
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, [user]);
 
   if (loading) return <LoadingView />;
 
   const persist = async (patch: { fingerprint_enabled?: boolean; auto_lock_minutes?: number | null }) => {
     if (!user) return;
-    const { error } = await supabase
-      .from('auth_config')
-      .update({ ...patch, updated_at: new Date().toISOString() })
-      .eq('user_id', user.id);
-    if (error) Alert.alert('Save failed', error.message);
+    const res = await authConfigRepository.update(user.id, patch);
+    if (!res.ok) Alert.alert('Save failed', res.error.message);
   };
 
   const toggleFingerprint = async (val: boolean) => {
     setFingerprint(val);
+    // The device flag is the one that changes how the app unlocks; writing
+    // only the server column left the switch with no effect.
+    try {
+      await flags.setFingerprintEnabled(val);
+    } catch {
+      setFingerprint(!val);
+      Alert.alert('Save failed', 'Could not update fingerprint unlock on this device.');
+      return;
+    }
     await persist({ fingerprint_enabled: val });
   };
 
