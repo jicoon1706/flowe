@@ -69,7 +69,7 @@ Nothing below is written to `supabase/migrations/` or run against a database yet
 
 Every function follows the existing `adjust_account_balance` pattern: `security invoker`, so RLS still scopes every row to `auth.uid()`; `set search_path = public`; and `grant execute ... to authenticated, anon`.
 
-Schema facts below come from `docs/Flowe_Backend_DB_Docs.md` and the repo migrations, **not the live database**. Check them before applying (see the last subsection).
+The schema facts below were confirmed against the live database on 2026-11-16 (see "Live database check"). The one difference from the docs is reflected in the #21 SQL.
 
 ### #18: investments change asset values unsafely
 
@@ -167,6 +167,12 @@ begin
      and coalesce(next_date, start_date) = p_occurrence           -- the idempotency guard
   returning * into r;
   if r.id is null then return null; end if;
+  -- The live enum also allows transfer / tabung types on recurring_rules; only
+  -- expense and income have a defined balance effect here. Raising rolls back
+  -- the advance above too.
+  if r.type not in ('expense', 'income') then
+    raise exception 'approve_recurring_occurrence: unsupported rule type %', r.type;
+  end if;
 
   insert into transactions (user_id, type, name, amount, category,
                             from_account_id, to_account_id, date, is_recurring, recurring_id)
@@ -203,21 +209,36 @@ end $$;
 
 (a) is a single changed line in a `create or replace` of `recalculate_account_balances`; the rest of that function stays as it is.
 
-### Before applying: check against the live database
+### Live database check (2026-11-16, Supabase project `flowe`)
 
-Run these on the live project. I can run them read-only through the Supabase connection if you'd like:
+I ran read-only queries against the live project (ref `txylaohgzlvhoqdyqmhy`): catalog lookups and counts only, no row contents read and nothing changed.
 
-```sql
--- assets.current_value has the documented >= 0 check, and nothing already named the new column/functions
-select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.assets'::regclass;
-select column_name from information_schema.columns where table_name = 'transactions' and column_name = 'asset_id';
-select proname from pg_proc where proname in ('adjust_asset_value', 'approve_recurring_occurrence');
--- tabung_accounts.saved_amount has no check that would reject a negative (documented as none)
-select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.tabung_accounts'::regclass;
--- how many investments the backfill could not place (would keep using the name fallback)
-select count(*) from transactions t where t.type = 'transfer' and t.to_account_id is null
-  and (select count(*) from assets a where a.user_id = t.user_id and a.name = t.category) <> 1;
-```
+**The plan's assumptions:**
+
+| Check | Live result | Effect on the plan |
+|---|---|---|
+| `assets.current_value` constraint | `CHECK (current_value >= 0)` present | Confirms the 0 floor in `adjust_asset_value` is needed |
+| `asset_values` constraints | `UNIQUE (asset_id, month)`, month must be the 1st, `value >= 0` | The upsert `on conflict (asset_id, month)` works as written |
+| `transactions.asset_id` | Doesn't exist | Safe to add |
+| `adjust_asset_value`, `approve_recurring_occurrence` | Don't exist | No name clash |
+| `adjust_account_balance`, `recalculate_account_balances` | Exist, `security invoker`, matching the repo migration: the recalculation clamps tabung at 0, the adjustment doesn't | #30 is accurately described |
+| `tabung_accounts.saved_amount` | `numeric default 0.00`, no check constraint | Option (a) won't hit a constraint |
+| Triggers on `transactions`, `assets`, `recurring_rules`, `tabung_accounts` | None | Nothing else fires on these writes |
+| RLS | `transactions`, `recurring_rules` and `assets` restrict SELECT/UPDATE/DELETE to `auth.uid() = user_id` and check INSERT the same way; `asset_values` has one ALL policy | `security invoker` functions stay scoped to the caller's own rows |
+| Type of `recurring_rules.type` | The same list as transactions: `expense, income, transfer, tabung_topup, tabung_withdraw` | **Plan changed:** `approve_recurring_occurrence` now refuses any type except expense and income (guard added above). The app only ever creates expense and income rules. |
+
+**What the data says** (counts across all users):
+
+| Check | Count | Meaning |
+|---|---|---|
+| Investments (transfers with no destination account) | 5 | |
+| …that the `asset_id` backfill can match to exactly one asset | **5** | None would fall back to the name; part 2 links every existing investment |
+| …that it can't match | 0 | |
+| Users with two assets of the same name | 0 | The name collision in #18 hasn't happened in live data yet |
+| Tabungs that are negative now | 0 | |
+| Tabungs the recalculation would clamp (history adds up to less than 0) | 0 | #30 changes nothing for existing data, whichever option you pick; it's about future cases |
+| Active recurring rules | 4 | |
+| Rules with no next date | 0 | The guard `coalesce(next_date, start_date)` matches what the app shows |
 
 ### Order of work, once approved
 
