@@ -57,6 +57,9 @@ const CREDIT_HINTS = [
   'diterima', 'masuk',
 ];
 
+/** Card names, removed before the direction words are matched. */
+const CARD_NAMES = /\b(?:credit|debit)\s+card\b|\bkad\s+(?:kredit|debit)\b/g;
+
 /**
  * Words that say a transaction happened without saying which way the money
  * went — "Transaction Alert: RM 20.00 at ZUS COFFEE", "DuitNow QR successful",
@@ -213,8 +216,11 @@ export function parseTransactionNotification(raw: RawNotification): ParsedNotifi
   const amount = findAmount(stripBalances(combined));
   if (amount === undefined) return null;
 
-  const isDebit = matchesAny(lower, DEBIT_HINTS);
-  const isCredit = matchesAny(lower, CREDIT_HINTS);
+  // "credit card" / "debit card" name the card, not the direction: matched as
+  // hints they made every card alert look like both a debit and a credit.
+  const directionText = lower.replace(CARD_NAMES, ' ');
+  const isDebit = matchesAny(directionText, DEBIT_HINTS);
+  const isCredit = matchesAny(directionText, CREDIT_HINTS);
   const isMovement = MOVEMENT_PATTERNS.some((pattern) => pattern.test(combined));
 
   // No word for money actually moving means this isn't a transaction alert,
