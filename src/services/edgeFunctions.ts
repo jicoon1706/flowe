@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { localYMD } from '../utils/date';
 import type { Result, EdgeFunctionError } from '../utils/result';
 import type { CashflowSummary, AnalysisMonthly, ReceiptData } from '../types';
 
@@ -10,8 +11,7 @@ export const edgeFunctionsService = {
     // The model can't know what day it is, so ambiguous years (a smudged or
     // 2-digit year) used to come back hallucinated. Sending the device's local
     // date lets the function anchor every date rule to the user's today.
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const today = localYMD(new Date());
     const { data, error } = await supabase.functions.invoke('receipt-ocr', {
       body: { image: base64Image, today },
     });
