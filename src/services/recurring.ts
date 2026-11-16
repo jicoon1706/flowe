@@ -1,5 +1,5 @@
 import { localYMD } from '../utils/date';
-import { recurringRepository } from '../repositories/recurring.repository';
+import { recurringRepository, type CreateRecurringRuleRequest } from '../repositories/recurring.repository';
 import { transactionsRepository } from '../repositories/transactions.repository';
 import {
   notify,
@@ -7,7 +7,7 @@ import {
   scheduleLocalNotificationAt,
   cancelScheduledWithPrefix,
 } from './notifications';
-import type { RecurringFrequency, RecurringRule } from '../types';
+import type { RecurringFrequency, RecurringRule, ReminderOffset, TransactionType } from '../types';
 import type { Result, SupabaseError } from '../utils/result';
 
 /**
@@ -94,6 +94,68 @@ export function addInterval(dateStr: string, frequency: RecurringFrequency, anch
   const monthIndex = m % 12;
   const lastDay = new Date(year, monthIndex + 1, 0).getDate();
   return localYMD(new Date(year, monthIndex, Math.min(anchorDay, lastDay)));
+}
+
+const REMINDER_OFFSETS: ReminderOffset[] = ['none', 'same_day', '1_day', '3_days', '1_week'];
+
+export interface RuleFromTransactionInput {
+  userId: string;
+  type: TransactionType;
+  name: string;
+  amount: number;
+  category?: string;
+  /** The account the payment leaves (expense) or lands in (income). */
+  accountId: string;
+  /** 'YYYY-MM-DD' of the transaction being saved alongside the rule. */
+  transactionDate: string;
+  frequency: RecurringFrequency;
+  /** 'YYYY-MM-DD' the user picked as the rule's start. */
+  startDate: string;
+  endDate?: string | null;
+  /** Reminder option id from the form ('none', 'same_day', '1_day', ...). */
+  reminder: string;
+}
+
+/**
+ * The recurring rule to save when "Recurring" is switched on while adding a
+ * transaction (AUDIT #4: the form collected these fields and dropped them).
+ *
+ * The transaction being saved is the occurrence the user just recorded, so the
+ * rule's `next_date` is the first occurrence *after* it. Starting it on the
+ * same day would put the same payment straight back in front of the user for
+ * approval. Returns null for types a rule can't hold (only expense and income
+ * are supported by `recurring_rules`).
+ */
+export function ruleFromTransaction(input: RuleFromTransactionInput): CreateRecurringRuleRequest | null {
+  if (input.type !== 'expense' && input.type !== 'income') return null;
+
+  const anchorDay = Number(input.startDate.split('-')[2]) || 1;
+  let next = input.startDate;
+  let guard = 0;
+  while (next <= input.transactionDate && guard < 1000) {
+    next = addInterval(next, input.frequency, anchorDay);
+    guard++;
+  }
+
+  const offset = (REMINDER_OFFSETS as string[]).includes(input.reminder)
+    ? (input.reminder as ReminderOffset)
+    : 'none';
+
+  return {
+    user_id: input.userId,
+    type: input.type,
+    name: input.name,
+    amount: input.amount,
+    category: input.category,
+    from_account_id: input.type === 'expense' ? input.accountId : undefined,
+    to_account_id: input.type === 'income' ? input.accountId : undefined,
+    frequency: input.frequency,
+    start_date: input.startDate,
+    end_date: input.endDate ?? undefined,
+    next_date: next,
+    reminder_enabled: offset !== 'none',
+    reminder_offset: offset,
+  };
 }
 
 /** The occurrence date currently awaiting the user's decision. */

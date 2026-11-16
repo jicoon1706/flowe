@@ -16,6 +16,8 @@ import { LoadingView } from '../../components/ui/LoadingView';
 import { ErrorView } from '../../components/ui/ErrorView';
 import { useAccounts } from '../../src/hooks/useAccounts';
 import { useTransactions } from '../../src/hooks/useTransactions';
+import { useRecurring } from '../../src/hooks/useRecurring';
+import { ruleFromTransaction, scheduleRecurringReminders } from '../../src/services/recurring';
 import { useCustomCategories } from '../../src/hooks/useCustomCategories';
 import { useReceiptScan } from '../../src/hooks/useReceiptScan';
 import { useAssets } from '../../src/hooks/useAssets';
@@ -136,6 +138,7 @@ export default function AddTransactionScreen() {
   const { categories: customCategories, loading: catLoading, error: catError, fetchCategories: fetchCustomCategories } = useCustomCategories();
   const { scan, loading: scanning } = useReceiptScan();
   const { assets, fetchAssets } = useAssets();
+  const { createRecurring } = useRecurring();
 
   // Merge built-in categories with the user's custom ones for the active type.
   // Custom categories only exist for expense/income; transfer falls back to the
@@ -415,6 +418,17 @@ export default function AddTransactionScreen() {
       return;
     }
 
+    // Checked before anything is written, so a rule that can't be saved never
+    // leaves a transaction behind without it.
+    if (recurring && type === 'transfer') {
+      Alert.alert('Recurring transfers not supported', 'Only expenses and income can repeat. Turn off Recurring to save this transfer.');
+      return;
+    }
+    if (recurring && hasEndDate && endDate && localYMD(endDate) < localYMD(startDate)) {
+      Alert.alert('Invalid end date', 'The end date must be on or after the start date.');
+      return;
+    }
+
     // Balance check for every type where money leaves the source account.
     if (type === 'expense' || type === 'transfer') {
       const src = accounts.find((a) => a.id === account) as AccountWithDetails | undefined;
@@ -511,6 +525,36 @@ export default function AddTransactionScreen() {
         const upload = await storageService.uploadReceipt(user.id, result.data.id, receiptImage.base64);
         if (upload.ok) {
           await transactionsRepository.update(result.data.id, { receipt_url: `${user.id}/${result.data.id}.jpg` });
+        }
+      }
+
+      // The Recurring section used to be collected and then dropped (AUDIT #4).
+      // The transaction just saved is this period's payment; the rule picks up
+      // from the next one.
+      if (recurring) {
+        const rule = ruleFromTransaction({
+          userId: user.id,
+          type,
+          name,
+          amount: parseFloat(amount),
+          category: categoryValue,
+          accountId: account,
+          transactionDate,
+          frequency: recurringFreq as 'weekly' | 'monthly' | 'yearly',
+          startDate: localYMD(startDate),
+          endDate: hasEndDate && endDate ? localYMD(endDate) : null,
+          reminder,
+        });
+        if (rule) {
+          const ruleResult = await createRecurring(rule);
+          if (ruleResult.ok) {
+            scheduleRecurringReminders();
+          } else {
+            Alert.alert(
+              'Recurring rule not saved',
+              `The transaction was saved, but its recurring rule wasn't: ${ruleResult.error.message}. You can add it in Settings → Recurring.`
+            );
+          }
         }
       }
 
