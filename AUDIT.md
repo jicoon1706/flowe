@@ -63,6 +63,168 @@ No fix regressed the baseline, so none were reverted. Each fix ran tsc and Jest 
 
 **Cleanup not done:** `LockContext.suspend` is kept because removing it would change a public API.
 
+## SQL plan for #18, #21 and #30 (proposed, not applied)
+
+Nothing below is written to `supabase/migrations/` or run against a database yet. I'd add one migration file, `supabase/migrations/20261116_audit_sql.sql`, plus the client changes, after you approve. **You** apply the migration (Supabase CLI or dashboard); I won't deploy anything.
+
+Every function follows the existing `adjust_account_balance` pattern: `security invoker`, so RLS still scopes every row to `auth.uid()`; `set search_path = public`; and `grant execute ... to authenticated, anon`.
+
+Schema facts below come from `docs/Flowe_Backend_DB_Docs.md` and the repo migrations, **not the live database**. Check them before applying (see the last subsection).
+
+### #18: investments change asset values unsafely
+
+**Today:**
+- An investment is a transfer with no destination account. The asset is identified only by its **name**, stored in `transactions.category`.
+- Saving, editing or deleting one reads `assets.current_value`, adds or subtracts in JS, and writes it back. That's the read-modify-write pattern CLAUDE.md bans for balances.
+- Three places do this: `add-transaction.tsx:510-521`, and `transactions.repository.ts:140-160` (`reverseInvestment`), which also doesn't update `asset_values`.
+
+**What breaks:**
+- Two overlapping writes can lose an amount.
+- Renaming an asset, or having two assets with the same name, means edits and deletes stop finding it (`.maybeSingle()` errors and the error is ignored).
+- Deleting an investment doesn't update this month's point on the trend chart.
+
+**Proposal, in two parts.** Part 2 depends on part 1, but part 1 is useful on its own.
+
+**1. Atomic adjustment.** A new function that moves the value in one statement and records it on this month's trend point:
+
+```sql
+create or replace function public.adjust_asset_value(
+  p_asset_id uuid,
+  p_delta    numeric,
+  p_month    date            -- 1st of the month the change belongs to
+)
+returns numeric               -- the new current_value
+language plpgsql security invoker set search_path = public
+as $$
+declare v_value numeric; v_user uuid; v_qty numeric;
+begin
+  if p_asset_id is null or p_delta is null or p_delta = 0 then
+    select current_value into v_value from assets where id = p_asset_id;
+    return v_value;
+  end if;
+  update assets
+     set current_value = greatest(0, current_value + p_delta),   -- keeps the >= 0 check true
+         updated_at    = now()
+   where id = p_asset_id
+  returning current_value, user_id, quantity into v_value, v_user, v_qty;
+  if v_user is null then return null; end if;                    -- RLS hid it, or gone
+  insert into asset_values (asset_id, user_id, month, value, quantity)
+  values (p_asset_id, v_user, date_trunc('month', p_month)::date, v_value, v_qty)
+  on conflict (asset_id, month)
+  do update set value = excluded.value, quantity = excluded.quantity, updated_at = now();
+  return v_value;
+end $$;
+```
+
+- **Client:** a new `assetsRepository.adjustValue(id, delta, month)` returning `Result<number>`. It replaces both writes in `add-transaction.tsx` and the read-modify-write in `reverseInvestment`.
+- **Behaviour change:** deleting an investment now also updates this month's trend point, which it didn't before.
+- **The 0 floor:** the floor already exists in today's JS (`Math.max(0, …)`). Keeping it means subtracting more than an asset holds still stops at 0 rather than going negative. The column's `check (current_value >= 0)` would reject a negative value anyway.
+
+**2. Link investments by id, not name.** A new nullable column, with a backfill only where the match is unambiguous:
+
+```sql
+alter table public.transactions
+  add column if not exists asset_id uuid references public.assets(id) on delete set null;
+
+update public.transactions t
+   set asset_id = a.id
+  from public.assets a
+ where t.asset_id is null
+   and t.type = 'transfer' and t.to_account_id is null
+   and a.user_id = t.user_id and a.name = t.category
+   and (select count(*) from public.assets a2
+         where a2.user_id = t.user_id and a2.name = t.category) = 1;
+```
+
+- **Client:**
+  - add `asset_id` to the `Transaction` type and `CreateTransactionRequest`;
+  - have `add-transaction` write it;
+  - when reopening and reversing an investment, prefer `asset_id`, and fall back to the name match only for old rows the backfill couldn't place.
+- **Category column:** it keeps the asset's name, so lists and totals look exactly as they do now.
+
+**Tests:** a spec for `adjustValue` with a mocked Supabase client (RPC arguments, error turned into a `Result`), and a spec that reversing an investment uses `asset_id` before the name.
+
+### #21: approving a recurring payment can duplicate it
+
+**Today:** `approveRecurring` creates the transaction, then advances the rule in a second request. If the second request fails, the same occurrence is offered again and can be approved twice. An existing spec requires that a failed create never advances the rule, so this can't be fixed safely in the client alone.
+
+**Proposal:** one function that does all three steps, and only if the occurrence is still the one awaiting approval. That makes a repeat approval a harmless no-op:
+
+```sql
+create or replace function public.approve_recurring_occurrence(
+  p_rule_id    uuid,
+  p_occurrence date,     -- the next_date the user approved
+  p_next_date  date      -- computed by the app's existing, tested addInterval
+)
+returns uuid             -- new transaction id; null if already approved or gone
+language plpgsql security invoker set search_path = public
+as $$
+declare r recurring_rules%rowtype; v_tx uuid;
+begin
+  update recurring_rules
+     set next_date = p_next_date, last_applied_at = now(), updated_at = now()
+   where id = p_rule_id
+     and coalesce(next_date, start_date) = p_occurrence           -- the idempotency guard
+  returning * into r;
+  if r.id is null then return null; end if;
+
+  insert into transactions (user_id, type, name, amount, category,
+                            from_account_id, to_account_id, date, is_recurring, recurring_id)
+  values (r.user_id, r.type, r.name, r.amount,
+          coalesce(r.category, case when r.type = 'expense' then 'bills' else 'others' end),
+          case when r.type = 'expense' then r.from_account_id end,
+          case when r.type = 'income'  then r.to_account_id   end,
+          p_occurrence, true, r.id)
+  returning id into v_tx;
+
+  perform adjust_account_balance(
+    case when r.type = 'expense' then r.from_account_id else r.to_account_id end,
+    case when r.type = 'expense' then -r.amount else r.amount end);
+
+  return v_tx;
+end $$;
+```
+
+- **One transaction:** the rule advance, the transaction row and the balance move commit together or not at all.
+- **Next date:** it's still computed in TypeScript (`addInterval`), so the month-end anchoring logic isn't duplicated in SQL.
+- **Client:** `approveRecurring` calls the function through `recurringRepository`. A `null` result is treated as "already approved", and the pending item is dropped without an error. The repository then emits `onTransactionsChanged` so the budget widget updates, and `notify` runs as before.
+- **Specs:** the existing ones in `tests/recurring.test.ts` are kept or adapted. They'll now assert on the single RPC call: it's called with the occurrence and the next date, and a `null` result is still a success that creates no notification.
+
+### #30: tabung balance after “Recalculate balances”
+
+**Today:**
+- `recalculate_account_balances` sets a tabung to `greatest(0, …)`.
+- `adjust_account_balance` doesn't clamp, so a jar can go negative: for example, deleting a top-up after a withdrawal.
+- After a recalculation, that jar silently jumps to 0, and the history no longer adds up.
+
+**Options (your call):**
+- **(a) Recommended: let the repair tell the truth.** Remove the `greatest(0, …)` in `recalculate_account_balances`, so the repair and the everyday path agree. A negative jar then shows up, and the user can fix the transaction behind it. Bank and wallet accounts already work this way.
+- **(b) Floor both at 0.** Add `greatest(0, …)` to the tabung branch of `adjust_account_balance` too. They agree, but money silently disappears whenever a jar would go negative.
+
+(a) is a single changed line in a `create or replace` of `recalculate_account_balances`; the rest of that function stays as it is.
+
+### Before applying: check against the live database
+
+Run these on the live project. I can run them read-only through the Supabase connection if you'd like:
+
+```sql
+-- assets.current_value has the documented >= 0 check, and nothing already named the new column/functions
+select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.assets'::regclass;
+select column_name from information_schema.columns where table_name = 'transactions' and column_name = 'asset_id';
+select proname from pg_proc where proname in ('adjust_asset_value', 'approve_recurring_occurrence');
+-- tabung_accounts.saved_amount has no check that would reject a negative (documented as none)
+select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.tabung_accounts'::regclass;
+-- how many investments the backfill could not place (would keep using the name fallback)
+select count(*) from transactions t where t.type = 'transfer' and t.to_account_id is null
+  and (select count(*) from assets a where a.user_id = t.user_id and a.name = t.category) <> 1;
+```
+
+### Order of work, once approved
+
+1. Write `20261116_audit_sql.sql` with all of the above, plus #30 in whichever form you pick. Each statement is `create or replace` / `if not exists`, so re-running it is safe.
+2. Client changes, one commit per finding (#18 part 1, #18 part 2, #21, #30 docs only), each with its spec, and tsc and Jest run after each.
+3. You apply the migration. The client changes depend on it: **merge them only after the migration is live**, or calls to the new functions will fail. I can add a fallback to the old client path if you'd rather not tie the two together.
+
 ## Findings
 
 Every row below was verified by reading the code path end to end; the parser rows were also reproduced by running `parseTransactionNotification` on the quoted text. Rows marked **[unverified]** depend on server state I can't see from the repo.
