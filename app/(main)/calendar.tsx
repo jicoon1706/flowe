@@ -73,9 +73,10 @@ export default function CalendarScreen() {
   // Group transactions by day
   const transactionsByDay: Record<number, typeof transactions> = {};
   transactions.forEach(tx => {
-    const txDate = new Date(tx.date);
-    if (txDate.getFullYear() === year && txDate.getMonth() === month - 1) {
-      const day = txDate.getDate();
+    // Read the calendar day straight from the string: `new Date('YYYY-MM-DD')`
+    // is UTC midnight, which is the previous day in negative-offset timezones.
+    const [txYear, txMonth, day] = tx.date.slice(0, 10).split('-').map(Number);
+    if (txYear === year && txMonth === month) {
       if (!transactionsByDay[day]) transactionsByDay[day] = [];
       transactionsByDay[day].push(tx);
     }
