@@ -1,6 +1,6 @@
 import { localYMD } from '../utils/date';
 import { recurringRepository, type CreateRecurringRuleRequest } from '../repositories/recurring.repository';
-import { transactionsRepository } from '../repositories/transactions.repository';
+import { notifyTransactionsChanged } from '../repositories/transactions.repository';
 import {
   notify,
   formatRM,
@@ -171,26 +171,26 @@ function rolledNextDate(rule: RecurringRule): string {
 
 /**
  * Approve one due occurrence: materialize it into a real dated transaction and
- * roll the rule's next_date forward one interval. Returns the create Result so
+ * roll the rule's next_date forward one interval. Returns the Result so
  * callers can surface failures (and refresh balances/transactions on success).
+ *
+ * All three writes (rule advance, transaction, balance) happen in one
+ * database transaction via `approve_recurring_occurrence` (AUDIT #21). Doing
+ * them as separate requests could create the transaction and then fail to
+ * advance the rule, so the same occurrence was offered and approved again.
+ * The next date is still computed here by the tested `addInterval`.
  */
 export async function approveRecurring(rule: RecurringRule): Promise<Result<unknown, SupabaseError>> {
   const occurrence = occurrenceDate(rule);
-  const res = await transactionsRepository.create({
-    user_id: rule.user_id,
-    type: rule.type,
-    name: rule.name,
-    amount: Number(rule.amount),
-    category: rule.category ?? (rule.type === 'expense' ? 'bills' : 'others'),
-    from_account_id: rule.type === 'expense' ? rule.from_account_id : undefined,
-    to_account_id: rule.type === 'income' ? rule.to_account_id : undefined,
-    date: occurrence,
-    is_recurring: true,
-    recurring_id: rule.id,
-  });
+  const res = await recurringRepository.approveOccurrence(rule.id, occurrence, rolledNextDate(rule));
   if (!res.ok) return res;
 
-  await recurringRepository.advance(rule.id, rolledNextDate(rule));
+  // null: this occurrence was already approved or skipped (e.g. a second tap,
+  // or another device). Nothing was written, which is the point; the caller
+  // still drops it from the pending list.
+  if (res.data === null) return res;
+
+  notifyTransactionsChanged();
   await notify({
     type: 'recurring',
     emoji: '🔁',

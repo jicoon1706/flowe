@@ -134,6 +134,15 @@ function emitTransactionsChanged() {
 }
 
 /**
+ * For writes that insert transactions outside this repository, i.e. inside a
+ * database function (`approve_recurring_occurrence`). Listeners such as the
+ * daily-budget widget still need to hear about them.
+ */
+export function notifyTransactionsChanged(): void {
+  emitTransactionsChanged();
+}
+
+/**
  * Takes a deleted investment back out of the asset it fed.
  *
  * An investment is stored as a transfer with no destination account, with the

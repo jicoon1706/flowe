@@ -26,6 +26,7 @@ jest.mock('@/src/lib/supabase', () => ({
 jest.mock('@/src/repositories/recurring.repository', () => ({
   recurringRepository: {
     advance: jest.fn(() => Promise.resolve({ ok: true, data: undefined })),
+    approveOccurrence: jest.fn(() => Promise.resolve({ ok: true, data: 'tx-1' })),
     fetchDue: jest.fn(() => Promise.resolve({ ok: true, data: [] })),
   },
 }));
@@ -34,6 +35,7 @@ jest.mock('@/src/repositories/transactions.repository', () => ({
   transactionsRepository: {
     create: jest.fn(() => Promise.resolve({ ok: true, data: { id: 'tx-1' } })),
   },
+  notifyTransactionsChanged: jest.fn(),
 }));
 
 jest.mock('@/src/services/notifications', () => ({
@@ -52,7 +54,7 @@ import {
 import type { RecurringRule } from '@/src/types';
 
 const { recurringRepository } = require('@/src/repositories/recurring.repository');
-const { transactionsRepository } = require('@/src/repositories/transactions.repository');
+const { transactionsRepository, notifyTransactionsChanged } = require('@/src/repositories/transactions.repository');
 const { notify } = require('@/src/services/notifications');
 
 // --- Fixtures ---------------------------------------------------------------
@@ -85,6 +87,7 @@ function rule(overrides: Partial<RecurringRule> = {}): RecurringRule {
 beforeEach(() => {
   jest.clearAllMocks();
   recurringRepository.advance.mockResolvedValue({ ok: true, data: undefined });
+  recurringRepository.approveOccurrence.mockResolvedValue({ ok: true, data: 'tx-1' });
   transactionsRepository.create.mockResolvedValue({ ok: true, data: { id: 'tx-1' } });
   notify.mockResolvedValue(undefined);
 });
@@ -135,33 +138,40 @@ describe('occurrenceDate()', () => {
 });
 
 // --- approveRecurring -------------------------------------------------------
+//
+// Since AUDIT #21 the transaction row, its category/account routing and the
+// balance move are done inside the approve_recurring_occurrence SQL function
+// (supabase/migrations/20261116_audit_sql.sql), which Jest can't run. These
+// specs cover the app side: which occurrence and next date it asks for, and
+// what it does with each answer.
 
 describe('approveRecurring()', () => {
-  it('creates a dated transaction for the current occurrence', async () => {
-    await approveRecurring(rule());
-    expect(transactionsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: 'user-123',
-        type: 'expense',
-        name: 'Netflix',
-        amount: 55,
-        category: 'entertainment',
-        from_account_id: 'acc-from',
-        to_account_id: undefined,
-        date: '2026-03-15',
-        is_recurring: true,
-        recurring_id: 'rule-1',
-      }),
-    );
-  });
-
-  it('rolls next_date forward one interval after a successful create', async () => {
+  it('approves the current occurrence and asks for the next one in one call', async () => {
     await approveRecurring(rule({ frequency: 'monthly', next_date: '2026-03-15', start_date: '2026-01-15' }));
-    expect(recurringRepository.advance).toHaveBeenCalledWith('rule-1', '2026-04-15');
+    expect(recurringRepository.approveOccurrence).toHaveBeenCalledTimes(1);
+    expect(recurringRepository.approveOccurrence).toHaveBeenCalledWith('rule-1', '2026-03-15', '2026-04-15');
   });
 
-  it('fires a "charged" recurring notification', async () => {
+  it('never creates the transaction or advances the rule as separate requests', async () => {
     await approveRecurring(rule());
+    expect(transactionsRepository.create).not.toHaveBeenCalled();
+    expect(recurringRepository.advance).not.toHaveBeenCalled();
+  });
+
+  it('uses start_date as the occurrence when next_date is absent', async () => {
+    await approveRecurring(rule({ next_date: undefined, start_date: '2026-01-15' }));
+    expect(recurringRepository.approveOccurrence).toHaveBeenCalledWith('rule-1', '2026-01-15', '2026-02-15');
+  });
+
+  it('keeps month-end anchoring for the next date', async () => {
+    await approveRecurring(rule({ frequency: 'monthly', start_date: '2026-01-31', next_date: '2026-02-28' }));
+    expect(recurringRepository.approveOccurrence).toHaveBeenCalledWith('rule-1', '2026-02-28', '2026-03-31');
+  });
+
+  it('fires a "charged" notification and tells listeners on success', async () => {
+    const res = await approveRecurring(rule());
+    expect(res).toEqual({ ok: true, data: 'tx-1' });
+    expect(notifyTransactionsChanged).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'recurring',
@@ -172,42 +182,21 @@ describe('approveRecurring()', () => {
     );
   });
 
-  it('routes an income rule through to_account_id (not from)', async () => {
-    await approveRecurring(
-      rule({ type: 'income', from_account_id: 'acc-from', to_account_id: 'acc-to' }),
-    );
-    expect(transactionsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'income', from_account_id: undefined, to_account_id: 'acc-to' }),
-    );
+  it('treats an already-approved occurrence as success without a notification', async () => {
+    recurringRepository.approveOccurrence.mockResolvedValue({ ok: true, data: null });
+    const res = await approveRecurring(rule());
+    expect(res).toEqual({ ok: true, data: null });
+    expect(notify).not.toHaveBeenCalled();
+    expect(notifyTransactionsChanged).not.toHaveBeenCalled();
   });
 
-  it('defaults the category by type when the rule has none', async () => {
-    await approveRecurring(rule({ category: undefined, type: 'expense' }));
-    expect(transactionsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ category: 'bills' }),
-    );
-    jest.clearAllMocks();
-    await approveRecurring(rule({ category: undefined, type: 'income', to_account_id: 'acc-to' }));
-    expect(transactionsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ category: 'others' }),
-    );
-  });
-
-  it('does not advance or notify when the create fails, and returns the failure', async () => {
-    const failure = { ok: false as const, error: { code: 'X', message: 'insert failed' } };
-    transactionsRepository.create.mockResolvedValue(failure);
+  it('returns a failure unchanged and does not notify', async () => {
+    const failure = { ok: false as const, error: { code: 'X', message: 'rpc failed' } };
+    recurringRepository.approveOccurrence.mockResolvedValue(failure);
     const res = await approveRecurring(rule());
     expect(res).toBe(failure);
-    expect(recurringRepository.advance).not.toHaveBeenCalled();
     expect(notify).not.toHaveBeenCalled();
-  });
-
-  it('uses start_date as the occurrence when next_date is absent', async () => {
-    await approveRecurring(rule({ next_date: undefined, start_date: '2026-01-15' }));
-    expect(transactionsRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ date: '2026-01-15' }),
-    );
-    expect(recurringRepository.advance).toHaveBeenCalledWith('rule-1', '2026-02-15');
+    expect(notifyTransactionsChanged).not.toHaveBeenCalled();
   });
 });
 

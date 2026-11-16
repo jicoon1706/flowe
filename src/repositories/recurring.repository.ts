@@ -70,6 +70,28 @@ export const recurringRepository = {
     return { ok: true, data: data as RecurringRule[] };
   },
 
+  /**
+   * Approves one occurrence in a single database transaction (AUDIT #21):
+   * advances the rule to `nextDate`, inserts the dated transaction and moves
+   * the account balance, all or nothing. Only acts while `occurrence` is
+   * still the rule's pending date, so a repeat approval does nothing.
+   * Resolves to the new transaction's id, or null when there was nothing to
+   * approve (already approved or skipped, or the rule is gone).
+   */
+  async approveOccurrence(
+    ruleId: string,
+    occurrence: string,
+    nextDate: string,
+  ): Promise<Result<string | null, SupabaseError>> {
+    const { data, error } = await supabase.rpc('approve_recurring_occurrence', {
+      p_rule_id: ruleId,
+      p_occurrence: occurrence,
+      p_next_date: nextDate,
+    });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: (data as string | null) ?? null };
+  },
+
   /** Move a rule's next occurrence forward and stamp when it was last applied. */
   async advance(id: string, nextDate: string): Promise<Result<void, SupabaseError>> {
     const now = new Date().toISOString();
