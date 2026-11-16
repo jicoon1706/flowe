@@ -24,7 +24,6 @@ import { refreshGate } from '../_layout';
 import { useAuth } from '../../context/AuthContext';
 import { useAccounts } from '../../src/hooks/useAccounts';
 import { useTransactions } from '../../src/hooks/useTransactions';
-import { useCashflow } from '../../src/hooks/useCashflow';
 import { LoadingView } from '../../components/ui/LoadingView';
 import { ErrorView } from '../../components/ui/ErrorView';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -122,7 +121,6 @@ export default function HomeScreen() {
   const now = new Date();
   const { accounts, loading: accountsLoading, error: accountsError, fetchAccounts } = useAccounts();
   const { transactions, loading: txLoading, error: txError, refetch: fetchTransactions } = useTransactions(now.getFullYear(), now.getMonth() + 1);
-  const { summary: cashflow, loading: cfLoading, error: cfError } = useCashflow('2026-05');
   const { budget: dailyBudget, loaded: budgetLoaded, fetchBudget } = useDailyBudget(user?.id);
 
   // The native side draws the budget widget on its own, with Flowe closed, so
@@ -211,7 +209,7 @@ export default function HomeScreen() {
     }
   };
 
-  if (accountsLoading || cfLoading) return <LoadingView />;
+  if (accountsLoading) return <LoadingView />;
   if (accountsError) return <ErrorView error={accountsError} onRetry={fetchAccounts} />;
 
   const totalBalance = accounts.reduce((sum, acc) => {
