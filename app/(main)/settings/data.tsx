@@ -1,353 +1,131 @@
-import { useState, useCallback } from 'react';
-import { View, Text, Pressable, TextInput, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { Download, AlertTriangle, Database, FileText, Check, Trash2, Scale } from 'lucide-react-native';
-import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { useAssets } from '../../../src/hooks/useAssets';
-import { useLiabilities } from '../../../src/hooks/useLiabilities';
-import { useTransactions } from '../../../src/hooks/useTransactions';
-import { LoadingView } from '../../../components/ui/LoadingView';
-import { ErrorView } from '../../../components/ui/ErrorView';
-import { flags } from '../../../src/lib/secureStore';
-import { accountsRepository, assetsRepository, liabilitiesRepository, authRepository, transactionsRepository } from '../../../src/repositories';
+import { useCallback, useState } from 'react';
+import { Share, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
+import { Download, Scale, Trash2, Upload } from 'lucide-react-native';
+import { SettingsScreen } from '@/components/settings/SettingsScreen';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { SettingsRow } from '@/components/ui/SettingsRow';
+import { Text } from '@/components/ui/Text';
+import { TextInput } from '@/components/ui/TextInput';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useAuth } from '@/context/AuthContext';
+import { useLock } from '@/context/LockContext';
+import { useAccounts } from '@/src/hooks/useAccounts';
+import { accountsRepository, assetsRepository, authRepository, liabilitiesRepository, transactionsRepository } from '@/src/repositories';
+import { exportTransactionsCsv, importTransactionsCsv } from '@/src/services/dataTransfer';
+import { MAX_IMPORT_BYTES } from '@/src/lib/csv';
+import { verifyPin } from '@/src/lib/pinVerify';
+import { flags } from '@/src/lib/secureStore';
 import { refreshGate } from '../../_layout';
 
-type ExportFormat = 'csv' | 'pdf';
-type DateRange = '1m' | '3m' | '1y' | 'all';
-
-const DATE_RANGE_LABELS: Record<DateRange, string> = {
-  '1m': 'This Month',
-  '3m': 'Last 3 Months',
-  '1y': 'Last Year',
-  'all': 'All Time',
-};
-
+/** settings/data — export, import, recalculate, reset (typed RESET + PIN). */
 export default function DataScreen() {
   const router = useRouter();
-  const now = new Date();
-  const { assets, loading: assetsLoading, error: assetsError, fetchAssets } = useAssets();
-  const { liabilities, loading: liabLoading, error: liabError, fetchLiabilities } = useLiabilities();
-  const { transactions, loading: txLoading, error: txError, refetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const toast = useToast();
+  const { user } = useAuth();
+  const { suspend } = useLock();
+  const { accounts, fetchAccounts } = useAccounts();
+  const [busy, setBusy] = useState<'export' | 'import' | 'recalc' | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [txCount, setTxCount] = useState(0);
 
   useFocusEffect(useCallback(() => {
-    fetchAssets();
-    fetchLiabilities();
-    refetch();
-  }, []));
+    fetchAccounts();
+    transactionsRepository.countAll().then((r) => { if (r.ok) setTxCount(r.data); });
+  }, [fetchAccounts]));
 
-  // Rebuilding balances from the transactions behind them. The arithmetic used
-  // to run on the client as read-modify-write, so two auto-detected payments
-  // landing together could lose one of the two adjustments — leaving the
-  // transactions right and the balance short. It is atomic now; this is how an
-  // account that already drifted is put back.
-  const [recalcState, setRecalcState] = useState<'idle' | 'running' | 'done' | 'failed'>('idle');
-  const [recalcCount, setRecalcCount] = useState(0);
-
-  async function handleRecalculate() {
-    setRecalcState('running');
-    const result = await transactionsRepository.recalculateBalances();
-    if (result.ok) {
-      setRecalcCount(result.data);
-      setRecalcState('done');
-    } else {
-      setRecalcState('failed');
+  const exportCsv = async () => {
+    setBusy('export');
+    const res = await exportTransactionsCsv();
+    setBusy(null);
+    if (!res.ok) { toast.failure('Couldn’t export', { label: 'Retry', onPress: exportCsv }); return; }
+    suspend();
+    try {
+      const shared = await Share.share({ title: 'Flowe transactions.csv', message: res.data.csv });
+      if (shared.action === Share.sharedAction) toast.success(`Exported ${res.data.count} transaction${res.data.count === 1 ? '' : 's'}`);
+    } catch {
+      toast.failure('Couldn’t open the export', { label: 'Retry', onPress: exportCsv });
     }
-  }
-
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
-  const [dateRange, setDateRange] = useState<DateRange>('1m');
-  const [exporting, setExporting] = useState(false);
-  const [exported, setExported] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [resetInput, setResetInput] = useState('');
-  const [resetting, setResetting] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
-
-  const handleExport = () => {
-    setExporting(true);
-    setTimeout(() => {
-      setExporting(false);
-      setExported(true);
-      setTimeout(() => setExported(false), 3000);
-    }, 1500);
   };
 
-  const handleReset = async () => {
-    if (resetInput.toLowerCase() !== 'reset') return;
-    setResetting(true);
-    setResetError(null);
-
-    // Soft-delete the user's data on the server (is_active = false).
-    const results = await Promise.all([
-      accountsRepository.softDeleteAllAccounts(),
-      assetsRepository.softDeleteAll(),
-      liabilitiesRepository.softDeleteAll(),
-    ]);
-    const failed = results.find((r) => !r.ok);
-    if (failed && !failed.ok) {
-      setResetError(failed.error.message);
-      setResetting(false);
+  const importCsv = async () => {
+    if (!user) return;
+    suspend();
+    const picked = await DocumentPicker.getDocumentAsync({ type: ['text/csv', 'text/comma-separated-values', 'text/plain'], copyToCacheDirectory: true });
+    if (picked.canceled) return;
+    const asset = picked.assets[0];
+    if (asset.size != null && asset.size > MAX_IMPORT_BYTES) { toast.failure('File too large · max 5 MB', { label: 'Pick another', onPress: importCsv }); return; }
+    setBusy('import');
+    let text: string;
+    try {
+      text = await new File(asset.uri).text();
+    } catch {
+      setBusy(null);
+      toast.failure('Couldn’t read that file', { label: 'Pick another', onPress: importCsv });
       return;
     }
+    const res = await importTransactionsCsv(user.id, text, accounts);
+    setBusy(null);
+    if (!res.ok) { toast.failure('Couldn’t read that file', { label: 'Pick another', onPress: importCsv }); return; }
+    const { imported, skipped } = res.data;
+    toast.success(`Imported ${imported} transaction${imported === 1 ? '' : 's'}${skipped ? ` · ${skipped} skipped` : ''}`);
+    fetchAccounts();
+  };
 
-    // Wipe device: end the Supabase session, then clear local PIN/onboarding flags.
+  const recalc = async () => {
+    setBusy('recalc');
+    const res = await transactionsRepository.recalculateBalances();
+    setBusy(null);
+    if (!res.ok) { toast.failure('Couldn’t recalculate', { label: 'Retry', onPress: recalc }); return; }
+    toast.success(`Balances rebuilt for ${res.data} account${res.data === 1 ? '' : 's'}`);
+  };
+
+  const reset = async () => {
+    if (!(await verifyPin(pin, user?.id))) { setPinError('Wrong PIN. Try again.'); setPin(''); return; }
+    const results = await Promise.all([accountsRepository.softDeleteAllAccounts(), assetsRepository.softDeleteAll(), liabilitiesRepository.softDeleteAll()]);
+    if (results.some((r) => !r.ok)) { toast.failure('Reset failed', { label: 'Retry', onPress: reset }); return; }
     await authRepository.signOut();
     await flags.unsetPin();
-
-    setShowResetConfirm(false);
-    setResetInput('');
     setResetting(false);
     refreshGate();
     router.replace('/(auth)/welcome');
   };
 
+  const banks = accounts.filter((a) => a.type !== 'tabung').length;
+  const tabung = accounts.length - banks;
+
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScreenHeader title="Data & Storage" onBack={() => router.back()} />
-
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="px-4 py-6"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Storage Summary Card */}
-        <View className="bg-card border border-border rounded-2xl p-5 mb-6">
-          <View className="flex-row items-center gap-3 mb-5">
-            <View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
-              <Database size={20} color="#C5FF00" />
-            </View>
-            <Text className="text-lg font-semibold text-foreground">Storage Summary</Text>
-          </View>
-
-          <View className="flex-row">
-            <View className="flex-1 bg-muted rounded-xl py-4 items-center">
-              <Text className="text-2xl font-bold text-primary">{transactions.length}</Text>
-              <Text className="text-xs text-muted-foreground mt-1">Transactions</Text>
-            </View>
-            <View className="w-3" />
-            <View className="flex-1 bg-muted rounded-xl py-4 items-center">
-              <Text className="text-2xl font-bold text-primary">{assets.length}</Text>
-              <Text className="text-xs text-muted-foreground mt-1">Assets</Text>
-            </View>
-            <View className="w-3" />
-            <View className="flex-1 bg-muted rounded-xl py-4 items-center">
-              <Text className="text-2xl font-bold text-primary">{liabilities.length}</Text>
-              <Text className="text-xs text-muted-foreground mt-1">Liabilities</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Recalculate Balances */}
-        <View className="bg-card border border-border rounded-2xl p-5 mb-6">
-          <View className="flex-row items-center gap-3 mb-3">
-            <View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
-              <Scale size={20} color="#C5FF00" />
-            </View>
-            <Text className="text-lg font-semibold text-foreground">Recalculate Balances</Text>
-          </View>
-          <Text className="text-xs text-muted-foreground leading-5 mb-4">
-            Rebuilds every account from its opening balance plus every transaction
-            recorded against it. Use this if an account’s balance no longer matches
-            your bank while the transactions themselves are correct. A balance you
-            typed in by hand on an account screen will be replaced.
-          </Text>
-          <Pressable
-            onPress={handleRecalculate}
-            disabled={recalcState === 'running'}
-            className="bg-primary rounded-2xl py-4 active:opacity-80"
-          >
-            {recalcState === 'done' ? (
-              <View className="flex-row items-center justify-center gap-2">
-                <Check size={18} color="#000000" />
-                <Text className="text-black font-bold">
-                  {recalcCount} account{recalcCount === 1 ? '' : 's'} recalculated
-                </Text>
-              </View>
-            ) : (
-              <Text className="text-black font-bold text-center">
-                {recalcState === 'running' ? 'Recalculating…' : 'Recalculate Balances'}
-              </Text>
-            )}
-          </Pressable>
-          {recalcState === 'failed' && (
-            <Text className="text-xs text-destructive text-center mt-3">
-              Could not recalculate. Check your connection and try again.
-            </Text>
-          )}
-        </View>
-
-        {/* Export Data Card */}
-        <View className="bg-card border border-border rounded-2xl p-5 mb-6">
-          <View className="flex-row items-center gap-3 mb-5">
-            <View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
-              <Download size={20} color="#C5FF00" />
-            </View>
-            <Text className="text-lg font-semibold text-foreground">Export Data</Text>
-          </View>
-
-          {/* Format Selection */}
-          <Text className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            Format
-          </Text>
-          <View className="flex flex-row gap-3 mb-5">
-            {(['csv', 'pdf'] as ExportFormat[]).map((fmt) => (
-              <Pressable
-                key={fmt}
-                onPress={() => setExportFormat(fmt)}
-                className={`flex-1 flex flex-row items-center justify-center gap-2 py-4 rounded-2xl border ${
-                  exportFormat === fmt
-                    ? 'bg-primary border-primary'
-                    : 'bg-muted border-border'
-                }`}
-              >
-                <FileText size={18} color={exportFormat === fmt ? '#000' : '#a0a0a0'} />
-                <Text className={`font-semibold text-sm ${exportFormat === fmt ? 'text-black' : 'text-muted-foreground'}`}>
-                  {fmt.toUpperCase()}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Date Range Selection */}
-          <Text className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            Date Range
-          </Text>
-          <View className="grid grid-cols-2 gap-3 mb-6">
-            {(Object.keys(DATE_RANGE_LABELS) as DateRange[]).map((range) => (
-              <Pressable
-                key={range}
-                onPress={() => setDateRange(range)}
-                className={`py-3 px-4 rounded-xl text-sm border ${
-                  dateRange === range
-                    ? 'bg-primary/15 border-primary'
-                    : 'bg-muted border-border'
-                }`}
-              >
-                <Text className={`text-center font-medium ${dateRange === range ? 'text-primary' : 'text-muted-foreground'}`}>
-                  {DATE_RANGE_LABELS[range]}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Export Button */}
-          <Pressable
-            onPress={handleExport}
-            disabled={exporting}
-            className={`py-4 rounded-2xl font-bold text-base flex flex-row items-center justify-center gap-2 ${
-              exporting || exported ? 'bg-primary/70' : 'bg-primary'
-            }`}
-          >
-            {exported ? (
-              <>
-                <Check size={22} color="#000" />
-                <Text className="text-black font-bold">Exported!</Text>
-              </>
-            ) : exporting ? (
-              <>
-                <View className="w-5 h-5 border-2 border-black/40 border-t-black rounded-full animate-spin" />
-                <Text className="text-black font-bold">Exporting...</Text>
-              </>
-            ) : (
-              <>
-                <Download size={22} color="#000" />
-                <Text className="text-black font-bold">Export {exportFormat.toUpperCase()}</Text>
-              </>
-            )}
-          </Pressable>
-        </View>
-
-        {/* Danger Zone Card */}
-        <View className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5 mb-6">
-          <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-10 h-10 rounded-xl bg-red-500/10 items-center justify-center">
-              <Trash2 size={20} color="#ff4444" />
-            </View>
-            <View>
-              <Text className="text-base font-semibold text-red-400">Danger Zone</Text>
-              <Text className="text-xs text-muted-foreground">Irreversible actions</Text>
-            </View>
-          </View>
-
-          <View className="bg-red-500/10 rounded-xl p-4 mb-4">
-            <View className="flex-row items-start gap-3">
-              <AlertTriangle size={18} color="#ff4444" className="mt-0.5" />
-              <View className="flex-1">
-                <Text className="text-sm font-semibold text-red-400 mb-1">Reset App</Text>
-                <Text className="text-xs text-muted-foreground leading-5">
-                  This will permanently delete all your transactions, categories, settings and data. This action cannot be undone.
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <Pressable
-            onPress={() => setShowResetConfirm(true)}
-            className="py-3.5 bg-red-500/15 border border-red-500/30 rounded-xl"
-          >
-            <Text className="text-red-400 font-semibold text-sm text-center">Reset All Data</Text>
-          </Pressable>
-        </View>
-
-        {/* Footer spacing */}
-        <View className="h-4" />
-      </ScrollView>
-
-      {/* Reset Confirmation Modal */}
-      {showResetConfirm && (
-        <View className="absolute inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
-          <View className="bg-card border border-border rounded-3xl p-6 w-full max-w-sm">
-            {/* Icon */}
-            <View className="w-20 h-20 bg-red-500/10 rounded-full items-center justify-center mx-auto mb-5">
-              <AlertTriangle size={40} color="#ff4444" />
-            </View>
-
-            {/* Title & Description */}
-            <View className="text-center mb-6">
-              <Text className="text-xl font-bold text-foreground mb-2">Reset App?</Text>
-              <Text className="text-sm text-muted-foreground leading-6">
-                All data will be permanently deleted. Type <Text className="text-red-400 font-bold">{'"reset"'}</Text> to confirm.
-              </Text>
-            </View>
-
-            {/* Input */}
-            <TextInput
-              value={resetInput}
-              onChangeText={setResetInput}
-              placeholder={'Type "reset"'}
-              placeholderTextColor="#606060"
-              className="w-full bg-background border border-border rounded-2xl px-4 py-4 text-center text-foreground font-mono text-base mb-5"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            {resetError && (
-              <Text className="text-xs text-red-400 text-center mb-3">{resetError}</Text>
-            )}
-
-            {/* Buttons */}
-            <View className="flex flex-row gap-3">
-              <Pressable
-                onPress={() => { setShowResetConfirm(false); setResetInput(''); setResetError(null); }}
-                disabled={resetting}
-                className="flex-1 py-3.5 bg-muted border border-border rounded-2xl"
-              >
-                <Text className="text-foreground font-semibold text-sm text-center">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleReset}
-                disabled={resetInput.toLowerCase() !== 'reset' || resetting}
-                className={`flex-1 py-3.5 rounded-2xl ${resetInput.toLowerCase() === 'reset' && !resetting ? 'bg-red-500' : 'bg-red-500/30'}`}
-              >
-                <Text className="text-white font-semibold text-sm text-center">
-                  {resetting ? 'Resetting...' : 'Reset'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      )}
-    </SafeAreaView>
+    <SettingsScreen
+      title="Data"
+      overlay={
+        <ConfirmSheet
+          visible={resetting}
+          icon={Trash2}
+          title="Reset all data?"
+          message={`This removes ${banks} account${banks === 1 ? '' : 's'}, ${txCount} transaction${txCount === 1 ? '' : 's'} and ${tabung} Tabung, and signs this phone out. It can’t be undone.`}
+          confirmLabel="Reset everything"
+          loadingLabel="Resetting…"
+          cancelLabel="Export first"
+          confirmDisabled={typed.trim().toUpperCase() !== 'RESET' || pin.length !== 6}
+          onConfirm={reset}
+          onCancel={() => { setResetting(false); exportCsv(); }}
+        >
+          <TextInput label="Type RESET to confirm" value={typed} onChangeText={setTyped} autoCapitalize="characters" autoCorrect={false} />
+          <TextInput label="PIN" value={pin} onChangeText={(v) => { setPin(v.replace(/\D/g, '').slice(0, 6)); setPinError(null); }} keyboardType="number-pad" secureTextEntry maxLength={6} error={pinError} />
+        </ConfirmSheet>
+      }
+    >
+      <SettingsRow label="Export" value={busy === 'export' ? 'Preparing…' : 'CSV of all transactions'} icon={Upload} onPress={exportCsv} disabled={!!busy} />
+      <SettingsRow label="Import" value={busy === 'import' ? 'Importing…' : 'From a Flowe CSV'} icon={Download} onPress={importCsv} disabled={!!busy} />
+      <SettingsRow label="Recalculate balances" value={busy === 'recalc' ? 'Working…' : 'Rebuild account balances from transactions'} icon={Scale} onPress={recalc} disabled={!!busy} />
+      <SettingsRow label="Reset all data" value="Deletes accounts, transactions and Tabung" icon={Trash2} onPress={() => { setTyped(''); setPin(''); setPinError(null); setResetting(true); }} />
+      <View style={{ height: 4 }} />
+      <Text variant="label-sm" weight={400} tone="muted">Your data is stored in your Flowe account. Export regularly if you switch devices.</Text>
+    </SettingsScreen>
   );
 }

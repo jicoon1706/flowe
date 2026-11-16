@@ -1,297 +1,157 @@
-import { useEffect, useState } from 'react';
-import { View, Text, Pressable, TextInput, Alert, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { expenseCategories, incomeCategories } from '../../../constants/categories';
-import { Plus, X, Pencil, Trash2 } from '../../../components/ui/icons';
-import { useAuth } from '../../../context/AuthContext';
-import { useCustomCategories } from '../../../src/hooks/useCustomCategories';
-import { LoadingView } from '../../../components/ui/LoadingView';
-import { ErrorView } from '../../../components/ui/ErrorView';
-import { useKeyboardHeight } from '../../../src/hooks/useKeyboardHeight';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { Pen, Plus, Tag } from 'lucide-react-native';
+import { colors } from '@/theme/tokens';
+import { expenseCategories, incomeCategories } from '@/constants/categories';
+import { CUSTOM_ICONS, CUSTOM_ICON_KEYS, categoryIcon, categoryOptions } from '@/constants/categoryIcons';
+import { SettingsScreen } from '@/components/settings/SettingsScreen';
+import { Button } from '@/components/ui/Button';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
+import { SettingsRow } from '@/components/ui/SettingsRow';
+import { Sheet } from '@/components/ui/Sheet';
+import { Text } from '@/components/ui/Text';
+import { TextInput } from '@/components/ui/TextInput';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useAuth } from '@/context/AuthContext';
+import { useCustomCategories } from '@/src/hooks/useCustomCategories';
+import { useTransactions } from '@/src/hooks/useTransactions';
+import type { CustomCategory } from '@/src/types';
 
-const PRESET_COLORS = [
-  '#F97316', '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444',
-  '#F59E0B', '#6B7280', '#22C55E', '#6366F1', '#14B8A6',
-];
+type Kind = 'expense' | 'income';
 
-const PRESET_EMOJIS = ['🍔', '🚗', '🧾', '🛍️', '💊', '🎬', '📦', '💼', '💻', '🎁', '💰', '📈', '🏠'];
-
-// A row in the list: built-in categories are read-only, custom ones can be
-// edited and removed. `customId` being set is what makes a row editable.
-interface CategoryRow {
-  key: string;
-  name: string;
-  emoji: string;
-  color?: string;
-  customId?: string;
-}
-
+/**
+ * settings/categories — ordered by most used this month (drives the 6 chips on
+ * Add). Built-ins are fixed; your own can be edited (monochrome line icons only).
+ */
 export default function CategoriesScreen() {
-  const keyboardHeight = useKeyboardHeight();
-  const router = useRouter();
+  const toast = useToast();
   const { user } = useAuth();
-  const {
-    categories: customCats,
-    loading,
-    error,
-    fetchCategories,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-  } = useCustomCategories();
-  const [tab, setTab] = useState<'expense' | 'income'>('expense');
-  // null = closed, 'new' = add, otherwise the custom category being edited.
-  const [editing, setEditing] = useState<'new' | CategoryRow | null>(null);
-  const [formEmoji, setFormEmoji] = useState('📦');
-  const [formName, setFormName] = useState('');
-  const [formColor, setFormColor] = useState('#6B7280');
+  const now = new Date();
+  const { transactions, refetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { categories: custom, fetchCategories, createCategory, updateCategory, deleteCategory } = useCustomCategories();
+  const [kind, setKind] = useState<Kind>('expense');
+  const [editing, setEditing] = useState<{ row: CustomCategory | null } | null>(null);
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('tag');
+  const [formKind, setFormKind] = useState<Kind>('expense');
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<CustomCategory | null>(null);
 
-  useEffect(() => {
-    if (user) fetchCategories(user.id);
-  }, [user, fetchCategories]);
+  const load = useCallback(() => { if (user) fetchCategories(user.id); refetch(); }, [user, fetchCategories, refetch]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) return <LoadingView />;
-  if (error) return <ErrorView error={error} onRetry={() => user && fetchCategories(user.id)} />;
+  const usage = useMemo(() => {
+    const u: Record<string, number> = {};
+    for (const t of transactions) if (t.category && t.type === kind) u[t.category] = (u[t.category] ?? 0) + 1;
+    return u;
+  }, [transactions, kind]);
+  const options = categoryOptions(kind === 'expense' ? expenseCategories : incomeCategories, custom, kind, usage);
 
-  const builtIn: CategoryRow[] = (tab === 'expense' ? expenseCategories : incomeCategories).map((c: any) => ({
-    key: c.id,
-    name: c.name,
-    emoji: c.emoji,
-    color: c.color,
-  }));
-  const customForTab: CategoryRow[] = customCats
-    .filter((c: any) => c.transaction_type === tab)
-    .map((c: any) => ({ key: c.id, customId: c.id, name: c.name, emoji: c.icon, color: c.color }));
-  const categories = [...builtIn, ...customForTab];
-
-  const openAdd = () => {
-    setFormEmoji('📦');
-    setFormName('');
-    setFormColor('#6B7280');
-    setEditing('new');
+  const open = (row: CustomCategory | null) => {
+    setName(row?.name ?? '');
+    setIcon(row?.icon && CUSTOM_ICONS[row.icon] ? row.icon : 'tag');
+    setFormKind(row?.transaction_type ?? kind);
+    setNameError(null);
+    setEditing({ row });
   };
 
-  const openEdit = (row: CategoryRow) => {
-    setFormEmoji(row.emoji || '📦');
-    setFormName(row.name);
-    setFormColor(row.color ?? '#6B7280');
-    setEditing(row);
+  const save = async () => {
+    if (!user) return;
+    const n = name.trim();
+    if (!n) { setNameError('Give the category a name'); return; }
+    const clash = options.some((o) => o.label.toLowerCase() === n.toLowerCase() && o.value !== editing?.row?.name);
+    if (clash) { setNameError('You already have a category with that name'); return; }
+    setSaving(true);
+    const res = editing?.row
+      ? await updateCategory(editing.row.id, { name: n, icon })
+      : await createCategory({ user_id: user.id, name: n, icon, transaction_type: formKind });
+    setSaving(false);
+    if (!res.ok) { toast.failure('Couldn’t save category', { label: 'Retry', onPress: save }); return; }
+    setEditing(null);
+    toast.success(editing?.row ? 'Category updated' : `Category added · ${n}`);
+    load();
   };
 
-  const handleSave = async () => {
-    const name = formName.trim();
-    if (!name || !user || !editing) return;
-
-    const result = editing === 'new'
-      ? await createCategory({
-          user_id: user.id,
-          name,
-          icon: formEmoji,
-          color: formColor,
-          transaction_type: tab,
-        } as any)
-      : await updateCategory(editing.customId!, { name, icon: formEmoji, color: formColor });
-
-    if (result.ok) {
-      setEditing(null);
-      await fetchCategories(user.id);
-    } else {
-      Alert.alert('Could not save', result.error.message ?? 'Please try again.');
-    }
+  const remove = async () => {
+    if (!deleting) return;
+    const res = await deleteCategory(deleting.id);
+    if (!res.ok) { toast.failure('Delete failed', { label: 'Retry', onPress: remove }); return; }
+    toast.success(`${deleting.name} deleted`);
+    setDeleting(null);
+    load();
   };
 
-  const handleDelete = (row: CategoryRow) => {
-    Alert.alert(
-      `Delete "${row.name}"?`,
-      'Transactions already using this category keep it — it just stops appearing when you add new ones.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await deleteCategory(row.customId!);
-            if (result.ok) {
-              setEditing(null);
-              if (user) await fetchCategories(user.id);
-            } else {
-              Alert.alert('Could not delete', result.error.message ?? 'Please try again.');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const isNew = editing === 'new';
-  const editingRow = editing && editing !== 'new' ? editing : null;
-
-  const renderFormModal = () => (
-    editing ? (
-    <View className="absolute inset-0 z-50" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-      <Pressable className="flex-1 bg-black/50 justify-end" onPress={() => setEditing(null)}>
-        <Pressable
-            className="bg-card rounded-t-3xl p-6 pb-8"
-            onPress={(e) => e.stopPropagation()}
-            // Lifts the sheet clear of the keyboard: a modal window is not
-            // resized by the manifest's adjustResize, so without this the
-            // field being typed into can sit underneath it.
-            style={{ paddingBottom: keyboardHeight ? keyboardHeight + 16 : undefined }}
-          >
-          <View className="w-12 h-1 bg-border rounded-full mx-auto mb-6" />
-
-          <View className="flex-row items-center justify-between mb-6">
-            <Text className="text-lg font-semibold text-foreground">
-              {isNew
-                ? `Add ${tab === 'expense' ? 'Expense' : 'Income'} Category`
-                : 'Edit Category'}
-            </Text>
-            <Pressable onPress={() => setEditing(null)} className="p-2">
-              <X size={20} color="#a0a0a0" />
-            </Pressable>
-          </View>
-
-          <Text className="text-sm text-muted-foreground mb-2">Icon</Text>
-          <View className="flex-row flex-wrap gap-2 mb-5">
-            {PRESET_EMOJIS.map((emoji) => (
-              <Pressable
-                key={emoji}
-                onPress={() => setFormEmoji(emoji)}
-                className={`w-12 h-12 rounded-xl items-center justify-center ${
-                  formEmoji === emoji ? 'bg-primary' : 'bg-background border border-border'
-                }`}
-              >
-                <Text className="text-xl">{emoji}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Text className="text-sm text-muted-foreground mb-2">Name</Text>
-          <TextInput
-            value={formName}
-            onChangeText={setFormName}
-            placeholder="Category name"
-            placeholderTextColor="#6b7280"
-            className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mb-5"
-          />
-
-          <Text className="text-sm text-muted-foreground mb-2">Color</Text>
-          <View className="flex-row flex-wrap gap-3 mb-6">
-            {PRESET_COLORS.map((color) => {
-              const isSelected = formColor === color;
-              return (
-                <Pressable
-                  key={color}
-                  onPress={() => setFormColor(color)}
-                  className="w-10 h-10 rounded-full items-center justify-center"
-                  style={{
-                    borderWidth: isSelected ? 2 : 0,
-                    borderColor: '#C5FF00',
-                    padding: isSelected ? 2 : 0,
-                  }}
-                >
-                  <View className="w-8 h-8 rounded-full" style={{ backgroundColor: color }} />
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {editingRow && (
-            <Pressable
-              onPress={() => handleDelete(editingRow)}
-              className="flex-row items-center justify-center gap-2 py-3.5 rounded-xl bg-background border border-border mb-3"
-            >
-              <Trash2 size={16} color="#ff4444" />
-              <Text className="text-expense font-medium">Delete category</Text>
-            </Pressable>
-          )}
-
-          <View className="flex-row gap-3">
-            <Pressable
-              onPress={() => setEditing(null)}
-              className="flex-1 py-3.5 rounded-xl bg-background border border-border items-center"
-            >
-              <Text className="text-foreground font-medium">Cancel</Text>
-            </Pressable>
-            <Pressable
-              onPress={handleSave}
-              disabled={!formName.trim()}
-              className="flex-1 py-3.5 rounded-xl bg-primary items-center disabled:opacity-50"
-            >
-              <Text className="text-black font-semibold">Save</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </View>
-    ) : null
-  );
+  const deletingCount = deleting ? usage[deleting.name] ?? 0 : 0;
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScreenHeader
-        title="Categories"
-        onBack={() => router.back()}
-        rightAction={
-          <Pressable
-            onPress={openAdd}
-            className="w-10 h-10 rounded-full bg-primary items-center justify-center"
-          >
-            <Plus size={20} color="#000" />
-          </Pressable>
-        }
-      />
-      <ScrollView className="flex-1 px-4 pt-4" showsVerticalScrollIndicator={false}>
-        {/* Tab bar */}
-        <View className="flex-row gap-3 mb-6">
-          {(['expense', 'income'] as const).map(t => (
-            <Pressable
-              key={t}
-              onPress={() => setTab(t)}
-              className={`flex-1 py-3 rounded-2xl items-center ${
-                tab === t ? 'bg-primary' : 'bg-card border border-border'
-              }`}
-            >
-              <Text className={`text-sm font-semibold ${tab === t ? 'text-black' : 'text-foreground'}`}>
-                {t === 'expense' ? 'Expense' : 'Income'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Category list */}
-        <View className="bg-card border border-border rounded-2xl p-4 mb-4">
-          {categories.map((cat, i) => (
-            <View key={cat.key}>
-              {i > 0 && <View className="border-t border-border" />}
-              <Pressable
-                onPress={() => cat.customId && openEdit(cat)}
-                disabled={!cat.customId}
-                className="flex-row items-center gap-3 py-3"
-              >
-                <Text className="text-lg">{cat.emoji}</Text>
-                <View className="flex-1">
-                  <Text className="text-foreground text-sm">{cat.name}</Text>
+    <SettingsScreen
+      title="Categories"
+      overlay={
+        <>
+          <Sheet visible={!!editing} onClose={() => setEditing(null)} title={editing?.row ? 'Edit category' : 'New category'} scroll dismissible={!saving}>
+            <View style={{ gap: 16 }}>
+              <TextInput label="Name" value={name} onChangeText={(t) => { setName(t); setNameError(null); }} error={nameError} autoCapitalize="words" />
+              <View style={{ gap: 8 }}>
+                <Text variant="label-sm" tone="muted">Icon</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {CUSTOM_ICON_KEYS.map((k) => {
+                    const Icon = CUSTOM_ICONS[k];
+                    const sel = k === icon;
+                    return (
+                      <Pressable key={k} onPress={() => setIcon(k)} accessibilityRole="radio" accessibilityLabel={k.replace(/-/g, ' ')} accessibilityState={{ checked: sel }}
+                        style={{ width: '14.9%', height: 52, borderRadius: 9999, backgroundColor: sel ? colors.secondary : colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon size={20} color={sel ? colors['on-secondary'] : colors['on-surface']} strokeWidth={1.75} />
+                      </Pressable>
+                    );
+                  })}
                 </View>
-                {cat.customId ? (
-                  <Pencil size={16} color="#a0a0a0" />
-                ) : (
-                  <Text className="text-[10px] text-muted-foreground uppercase tracking-wider">Built-in</Text>
-                )}
-                <View className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-              </Pressable>
+              </View>
+              {!editing?.row ? (
+                <SegmentedToggle options={[{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }]} value={formKind} onChange={setFormKind} accessibilityLabel="Category type" />
+              ) : null}
+              <View style={{ gap: 4 }}>
+                <Button label="Save category" onPress={save} loading={saving} loadingLabel="Saving…" fullWidth />
+                {editing?.row ? <Button label="Delete category" variant="text" muted disabled={saving} onPress={() => { const r = editing.row; setEditing(null); setDeleting(r); }} style={{ alignSelf: 'center' }} /> : null}
+              </View>
             </View>
-          ))}
-        </View>
-
-        <Text className="text-center text-xs text-muted-foreground mb-8">
-          Tap a category you created to rename it, change its icon or colour, or remove it.
-          Built-in categories can&apos;t be changed.
-        </Text>
-      </ScrollView>
-      {renderFormModal()}
-    </SafeAreaView>
+          </Sheet>
+          <ConfirmSheet
+            visible={!!deleting}
+            icon={categoryIcon(deleting?.icon ?? 'tag')}
+            title={`Delete ${deleting?.name ?? 'category'}?`}
+            message={deletingCount
+              ? `${deletingCount} transaction${deletingCount === 1 ? '' : 's'} this month keep the label “${deleting?.name}”. It won’t be offered for new ones.`
+              : 'It won’t be offered for new transactions.'}
+            confirmLabel="Delete category"
+            loadingLabel="Deleting…"
+            onConfirm={remove}
+            onCancel={() => setDeleting(null)}
+          />
+        </>
+      }
+    >
+      <SegmentedToggle options={[{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }]} value={kind} onChange={setKind} accessibilityLabel="Category type" />
+      <View>
+        {options.map((o) => {
+          const row = o.custom ? custom.find((c) => c.name === o.value && c.transaction_type === kind) ?? null : null;
+          const n = usage[o.value] ?? 0;
+          return (
+            <SettingsRow
+              key={o.value}
+              label={o.label}
+              value={`${n} this month`}
+              icon={o.icon ?? Tag}
+              onPress={row ? () => open(row) : undefined}
+              right={row ? <Pen size={18} color={colors['on-surface-variant']} strokeWidth={1.75} /> : undefined}
+              accessibilityLabel={row ? `Edit ${o.label}` : undefined}
+            />
+          );
+        })}
+      </View>
+      <Button label="Add category" icon={Plus} onPress={() => open(null)} fullWidth />
+    </SettingsScreen>
   );
 }

@@ -37,7 +37,9 @@ export function SettingsRow({ label, value, onPress, icon: Icon, domain, right, 
       {right ?? (onPress ? <ChevronRight size={18} color={colors['on-surface-variant']} strokeWidth={1.75} /> : null)}
     </View>
   );
-  if (!onPress || right) return body;
+  // A trailing control (Toggle, pill) handles its own taps; a trailing glyph
+  // passed with onPress keeps the whole row pressable.
+  if (!onPress) return body;
   return (
     <Pressable onPress={disabled ? undefined : onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
       {body}

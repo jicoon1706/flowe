@@ -36,9 +36,10 @@ export default function NotificationSettingsScreen() {
   const { user } = useAuth();
   const { settings, loading, fetchSettings, updateSettings } = useSettings();
   const budget = useBudgetSettings(user?.id);
+  const fetchBudget = budget.fetch;
   const [local, setLocal] = useState<Partial<Record<Col, boolean>>>({});
 
-  useFocusEffect(useCallback(() => { if (user) { fetchSettings(user.id); budget.fetch(); } }, [user, fetchSettings, budget.fetch]));
+  useFocusEffect(useCallback(() => { if (user) { fetchSettings(user.id); fetchBudget(); } }, [user, fetchSettings, fetchBudget]));
   useEffect(() => { if (settings) setLocal(Object.fromEntries(ROWS.flatMap((r) => r.cols).map((c) => [c, !!settings[c]]))); }, [settings]);
 
   const toggle = async (cols: Col[], on: boolean) => {

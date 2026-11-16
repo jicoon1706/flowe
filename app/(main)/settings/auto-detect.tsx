@@ -1,125 +1,57 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Platform, AppState, Alert, Modal, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { ScreenHeader } from '../../../components/ui/ScreenHeader';
-import { Check, Sparkle, AlertCircle, Plus, X } from '../../../components/ui/icons';
-import { Toggle } from '../../../components/ui/Toggle';
-import { useLock } from '../../../context/LockContext';
-import * as FloweNotifications from '../../../modules/flowe-notifications';
-import {
-  NOTIFICATION_SOURCES,
-  type NotificationSource,
-} from '../../../constants/notificationSources';
-import { useAccounts } from '../../../src/hooks/useAccounts';
-import { accountsRepository } from '../../../src/repositories/accounts.repository';
-import { accountLast4, accountsForSource } from '../../../src/utils/accountMatching';
-import { sourceAccounts } from '../../../src/lib/detectPreferences';
+import { AppState, Platform, Pressable, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { BellRing, Check, Landmark, Plus, Shield, Smartphone, Wallet } from 'lucide-react-native';
+import { colors, radius } from '@/theme/tokens';
+import { NOTIFICATION_SOURCES, type NotificationSource } from '@/constants/notificationSources';
+import { institutionDomain } from '@/constants/institutionDomains';
+import { SettingsScreen } from '@/components/settings/SettingsScreen';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { GradientFill } from '@/components/ui/GradientFill';
+import { SettingsRow } from '@/components/ui/SettingsRow';
+import { Sheet } from '@/components/ui/Sheet';
+import { Text } from '@/components/ui/Text';
+import { TextInput } from '@/components/ui/TextInput';
+import { Toggle } from '@/components/ui/Toggle';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useLock } from '@/context/LockContext';
+import { useAccounts } from '@/src/hooks/useAccounts';
+import { accountsRepository } from '@/src/repositories/accounts.repository';
+import { accountLast4, accountsForSource } from '@/src/utils/accountMatching';
+import { sourceAccounts } from '@/src/lib/detectPreferences';
+import type { AnyAccount } from '@/src/utils/accountDisplay';
+import * as FloweNotifications from '@/modules/flowe-notifications';
 
 /**
- * Fake alerts for exercising the detection flow without waiting for a real
- * payment — Expo Go has no native listener at all, so this is the only way to
- * see the island there. Worded the way the banks actually word them, so they
- * test the parser rather than a shape that happens to suit it.
+ * settings/auto-detect — master switch + per-source toggles with real logos.
+ * Defaults: on for every app that maps to an account the user added. Toggling
+ * on without notification access opens the permission sheet first.
  */
-const DEV_SAMPLES: { label: string; hint: string; raw: FloweNotifications.DevCaptureInput }[] = [
-  {
-    label: 'Maybank · ZUS COFFEE RM45.90 ••1234',
-    hint: 'files itself, if you hold that account',
-    raw: {
-      packageName: 'com.maybank2u.life',
-      title: 'Transaction Alert',
-      text: 'RM 45.90 has been debited from your account ending 1234 at ZUS COFFEE',
-    },
-  },
-  {
-    label: 'Grab · RM50.00',
-    hint: 'asks until a wallet is pinned for Grab — then it files itself',
-    raw: {
-      packageName: 'com.grabtaxi.passenger',
-      title: 'Payment successful',
-      text: 'You paid RM50.00 at MCDONALDS Rawang',
-    },
-  },
-  {
-    label: 'Setel · PETRONAS RM60.00',
-    hint: 'same: an e-wallet alert names no account, so it asks',
-    raw: {
-      packageName: 'com.setel.mobile',
-      title: 'Payment successful',
-      text: 'You paid RM60.00 at PETRONAS Jalan Ampang',
-    },
-  },
-  {
-    label: 'CIMB · MYR 3,200.00 credited',
-    hint: 'income, but no merchant is named — asks',
-    raw: {
-      packageName: 'com.cimb.octo',
-      title: 'Credit Alert',
-      text: 'MYR 3,200.00 has been credited to your account ending 9090',
-    },
-  },
-  {
-    label: 'Maybank · worded both ways',
-    hint: 'direction is a guess, so it always asks',
-    raw: {
-      packageName: 'com.maybank2u.life',
-      title: 'Transaction Alert',
-      text: 'RM 20.00 debited, payment received by KEDAI RUNCIT',
-    },
-  },
-  {
-    label: 'Maybank · promo',
-    hint: 'should vanish — never a transaction',
-    raw: {
-      packageName: 'com.maybank2u.life',
-      title: 'Deal of the day',
-      text: 'Get up to RM50 cashback when you spend RM200 this weekend',
-    },
-  },
-];
-
 export default function AutoDetectScreen() {
   const router = useRouter();
-  // The notification-access screen is outside Flowe; coming back from it
-  // shouldn't ask for the PIN.
-  const { suspend: suspendLock } = useLock();
+  const toast = useToast();
+  const { suspend } = useLock();
+  const { accounts, fetchAccounts } = useAccounts();
   const [enabled, setEnabled] = useState(false);
   const [granted, setGranted] = useState(false);
-  // Granted and connected are different things: Android drops the listener
-  // binding after an update or force-stop and the permission stays on, which
-  // is the case where "it stopped reading my notifications" comes from.
   const [connected, setConnected] = useState(false);
   const [watched, setWatched] = useState<string[]>([]);
-  /** Package id → the account its payments always belong to. */
   const [pins, setPins] = useState<Record<string, string>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [permission, setPermission] = useState(false);
+  const [digitsFor, setDigitsFor] = useState<NotificationSource | null>(null);
+  const [digits, setDigits] = useState<Record<string, string>>({});
+  const [defaultFor, setDefaultFor] = useState<NotificationSource | null>(null);
+  const [savingDigits, setSavingDigits] = useState(false);
+  const [needAccount, setNeedAccount] = useState<string | null>(null);
 
-  const { accounts, fetchAccounts } = useAccounts();
-  // Nothing may be decided from an empty account list until it's actually been
-  // read — at first render it's empty because nothing has loaded, which looks
-  // exactly like a user with no accounts.
-  const [accountsLoaded, setAccountsLoaded] = useState(false);
-
-  /** Which of the user's accounts each app's alerts could be filed into. */
-  const matchesBySource = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    NOTIFICATION_SOURCES.forEach((source) => {
-      map[source.packageId] = accountsForSource(source, accounts);
-    });
-    return map;
-  }, [accounts]);
-
-  const usableSources = useMemo(
-    () => NOTIFICATION_SOURCES.filter((s) => matchesBySource[s.packageId].length > 0),
-    [matchesBySource]
-  );
-
-  const hasAnyAccount = usableSources.length > 0;
+  const list = accounts as AnyAccount[];
+  const matches = useMemo(() => Object.fromEntries(NOTIFICATION_SOURCES.map((s) => [s.packageId, accountsForSource(s, list) as AnyAccount[]])), [list]);
+  const usable = useMemo(() => NOTIFICATION_SOURCES.filter((s) => matches[s.packageId].length > 0), [matches]);
 
   const sync = useCallback(() => {
     if (!FloweNotifications.isAvailable) return;
-    // Reclaim a dropped binding before reading its state, so the common case
-    // shows as connected rather than flashing a warning that fixes itself.
     FloweNotifications.ensureListenerBound();
     setGranted(FloweNotifications.isPermissionGranted());
     setConnected(FloweNotifications.isListenerConnected());
@@ -127,503 +59,196 @@ export default function AutoDetectScreen() {
     setWatched(FloweNotifications.getWatchedPackages());
   }, []);
 
-  // Granting access happens in system settings, so the state is re-read both on
-  // focus and when the app comes back to the foreground.
   useFocusEffect(useCallback(() => {
     sync();
-    fetchAccounts().then(() => setAccountsLoaded(true));
+    fetchAccounts().then(() => setLoaded(true));
     sourceAccounts.all().then(setPins);
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') sync();
-    });
-    // A rebind requested by sync() lands a moment later; read it once more so
-    // the status row settles on "connected" without the user leaving the screen.
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') sync(); });
     const settle = setTimeout(sync, 2000);
-    return () => {
-      sub.remove();
-      clearTimeout(settle);
-    };
+    return () => { sub.remove(); clearTimeout(settle); };
   }, [sync, fetchAccounts]));
 
-  const seededRef = useRef(false);
-
-  // Watching an app the user holds no account with can only ever produce a
-  // detection they cannot file, so the watch list is kept to the apps that map
-  // to a real account: seeded from them on first run, and pruned back to them
-  // whenever an account goes away.
+  // Watch list defaults to every app that maps to one of the user's accounts.
+  const seeded = useRef(false);
   useEffect(() => {
-    if (!FloweNotifications.isAvailable || !accountsLoaded) return;
-    const usableIds = usableSources.map((s) => s.packageId);
+    if (!FloweNotifications.isAvailable || !loaded) return;
+    const ids = usable.map((s) => s.packageId);
     const current = FloweNotifications.getWatchedPackages();
-    const next = current.length === 0 && !seededRef.current
-      ? usableIds
-      : current.filter((p) => usableIds.includes(p));
-    seededRef.current = true;
-
-    if (next.length !== current.length || next.some((p, i) => p !== current[i])) {
-      FloweNotifications.setWatchedPackages(next);
-    }
+    const next = current.length === 0 && !seeded.current ? ids : current.filter((p) => ids.includes(p));
+    seeded.current = true;
+    if (next.join() !== current.join()) FloweNotifications.setWatchedPackages(next);
     setWatched(next);
+    if (!ids.length && FloweNotifications.isEnabled()) { FloweNotifications.setEnabled(false); setEnabled(false); }
+  }, [loaded, usable]);
 
-    // Detection with nothing to detect into is just noise in the shade.
-    if (usableIds.length === 0 && FloweNotifications.isEnabled()) {
-      FloweNotifications.setEnabled(false);
-      setEnabled(false);
-    }
-  }, [accountsLoaded, usableSources]);
+  const openSystemSettings = () => { setPermission(false); suspend(); FloweNotifications.openSettings(); };
 
-  const goToAccounts = () => router.push('/home/accounts');
-
-  const promptForAccount = (what: string) => {
-    Alert.alert(
-      'Add an account first',
-      `Flowe files a detected payment into one of your accounts, so it needs ${what} before it can watch for them.`,
-      [
-        { text: 'Not now', style: 'cancel' },
-        { text: 'Add account', onPress: goToAccounts },
-      ]
-    );
+  const toggleEnabled = (on: boolean) => {
+    if (on && !usable.length) { setNeedAccount('at least one bank or e-wallet account'); return; }
+    FloweNotifications.setEnabled(on);
+    setEnabled(on);
+    if (on && !FloweNotifications.isPermissionGranted()) setPermission(true);
   };
 
-  const toggleEnabled = (value: boolean) => {
-    if (value && !hasAnyAccount) {
-      promptForAccount('at least one bank or e-wallet account');
-      return;
-    }
-    FloweNotifications.setEnabled(value);
-    setEnabled(value);
-    if (value && !FloweNotifications.isPermissionGranted()) {
-      suspendLock();
-      FloweNotifications.openSettings();
-    }
-  };
-
-  const toggleSource = (source: NotificationSource) => {
-    const isOn = watched.includes(source.packageId);
-    if (!isOn && matchesBySource[source.packageId].length === 0) {
-      promptForAccount(
-        source.wallet ? 'an e-wallet account' : `a ${source.label.split(' ')[0]} account`
-      );
-      return;
-    }
-    const next = isOn
-      ? watched.filter((p) => p !== source.packageId)
-      : [...watched, source.packageId];
+  const toggleSource = (s: NotificationSource) => {
+    const on = watched.includes(s.packageId);
+    if (!on && !matches[s.packageId].length) { setNeedAccount(s.wallet ? 'an e-wallet account' : `a ${s.label.split(' ')[0]} account`); return; }
+    const next = on ? watched.filter((p) => p !== s.packageId) : [...watched, s.packageId];
     FloweNotifications.setWatchedPackages(next);
     setWatched(next);
   };
 
-  // --- Default account per app ---------------------------------------------
-  // Nothing in an e-wallet alert names an account, so with more than one wallet
-  // every Grab or TNG payment asks the same question forever. Answering it once
-  // here is what lets those payments file themselves.
-  const [defaultFor, setDefaultFor] = useState<NotificationSource | null>(null);
-
-  const applyDefault = async (source: NotificationSource, accountId: string | null) => {
-    const next = accountId
-      ? await sourceAccounts.set(source.packageId, accountId)
-      : await sourceAccounts.clear(source.packageId);
-    setPins(next);
-    // Saying where an app's payments go implies wanting them caught at all.
-    if (accountId && !watched.includes(source.packageId)) toggleSource(source);
-  };
-
-  const onRowPress = (source: NotificationSource) => {
-    const matches = matchesBySource[source.packageId];
-    if (matches.length === 0) {
-      promptForAccount(
-        source.wallet ? 'an e-wallet account' : `a ${source.label.split(' ')[0]} account`
-      );
-      return;
-    }
-    // One wallet needs no default — it is the only answer there is.
-    if (source.wallet) {
-      if (matches.length === 1) toggleSource(source);
-      else setDefaultFor(source);
-      return;
-    }
-    openDigits(source);
-  };
-
-  // --- Last 4 digits -------------------------------------------------------
-  // The only thing in a payment alert that tells two accounts at the same bank
-  // apart, so it's editable right here rather than only where accounts live.
-  const [digitsFor, setDigitsFor] = useState<NotificationSource | null>(null);
-  const [digitsDraft, setDigitsDraft] = useState<Record<string, string>>({});
-  const [savingDigits, setSavingDigits] = useState(false);
-
-  const openDigits = (source: NotificationSource) => {
-    const draft: Record<string, string> = {};
-    matchesBySource[source.packageId].forEach((a) => {
-      draft[a.id] = accountLast4(a) ?? '';
-    });
-    setDigitsDraft(draft);
-    setDigitsFor(source);
+  const openSource = (s: NotificationSource) => {
+    const m = matches[s.packageId];
+    if (!m.length) { setNeedAccount(s.wallet ? 'an e-wallet account' : `a ${s.label.split(' ')[0]} account`); return; }
+    if (s.wallet) { if (m.length > 1) setDefaultFor(s); else toggleSource(s); return; }
+    setDigits(Object.fromEntries(m.map((a) => [a.id, accountLast4(a) ?? ''])));
+    setDigitsFor(s);
   };
 
   const saveDigits = async () => {
     if (!digitsFor) return;
     setSavingDigits(true);
-    for (const account of matchesBySource[digitsFor.packageId]) {
-      const value = digitsDraft[account.id] ?? '';
-      if (value === (accountLast4(account) ?? '')) continue;
-      await accountsRepository.updateBankAccountNumber(account.id, value);
+    let failed = false;
+    for (const a of matches[digitsFor.packageId]) {
+      const v = digits[a.id] ?? '';
+      if (v === (accountLast4(a) ?? '')) continue;
+      const res = await accountsRepository.updateBankAccountNumber(a.id, v);
+      if (!res.ok) failed = true;
     }
     await fetchAccounts();
     setSavingDigits(false);
+    if (failed) { toast.failure('Couldn’t save the digits', { label: 'Retry', onPress: saveDigits }); return; }
     setDigitsFor(null);
+    toast.success('Saved');
   };
 
-  /** The line under an app's name: what its alerts would be filed into. */
-  const describeSource = (source: NotificationSource): string => {
-    const matches = matchesBySource[source.packageId];
-    const kind = source.wallet ? 'E-wallet' : 'Bank';
-    if (!accountsLoaded) return kind;
-    if (matches.length === 0) return `${kind} — no account yet, tap to add one`;
-
-    // A pinned account is the whole answer for this app, so it outranks
-    // anything else this line could say.
-    const pinned = matches.find((a) => a.id === pins[source.packageId]);
-    if (pinned && matches.length > 1) return `${kind} · always ${pinned.name}`;
-
-    if (source.wallet) {
-      return matches.length === 1
-        ? `${kind} · ${matches[0].name}`
-        : `${kind} · ${matches.length} wallets — tap to pick a default`;
-    }
-    if (matches.length === 1) {
-      const last4 = accountLast4(matches[0]);
-      return last4
-        ? `${kind} · ${matches[0].name} ••${last4}`
-        : `${kind} · ${matches[0].name} — add last 4 digits`;
-    }
-    const missing = matches.filter((a) => !accountLast4(a)).length;
-    return missing > 0
-      ? `${kind} · ${matches.length} accounts — add last 4 digits to tell them apart`
-      : `${kind} · ${matches.length} accounts matched by last 4 digits`;
+  const pickDefault = async (s: NotificationSource, accountId: string | null) => {
+    const next = accountId ? await sourceAccounts.set(s.packageId, accountId) : await sourceAccounts.clear(s.packageId);
+    setPins(next);
+    setDefaultFor(null);
+    if (accountId && !watched.includes(s.packageId)) toggleSource(s);
   };
 
-  // Development only: injecting a sample runs the real pipeline end to end, so
-  // anything confident enough to file itself writes a real transaction.
-  const devPanel = !__DEV__ ? null : (
-    <View className="mt-2 mb-10">
-      <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2 px-1">
-        Simulate a detection (dev)
-      </Text>
-      <View className="bg-card border border-border rounded-2xl px-4">
-        {DEV_SAMPLES.map((sample, i) => (
-          <View key={sample.label}>
-            {i > 0 && <View className="border-t border-border" />}
-            <Pressable
-              onPress={() => FloweNotifications.injectDevCapture(sample.raw)}
-              className="py-3.5"
-            >
-              <Text className="text-foreground text-sm">{sample.label}</Text>
-              <Text className="text-muted-foreground text-[11px] mt-0.5">{sample.hint}</Text>
-            </Pressable>
-          </View>
-        ))}
-      </View>
-      <Pressable
-        onPress={() => FloweNotifications.clearDevCaptures()}
-        className="mt-3 rounded-2xl border border-border py-3 items-center"
-      >
-        <Text className="text-muted-foreground text-xs">Clear simulated captures</Text>
-      </Pressable>
-      <Text className="text-[11px] text-muted-foreground text-center px-4 mt-3">
-        These go through the real flow — a sample confident enough to file itself writes a
-        transaction to Supabase. Go back to Home to see the island.
-      </Text>
-    </View>
-  );
+  const describe = (s: NotificationSource): string => {
+    const m = matches[s.packageId];
+    const kind = s.wallet ? 'E-wallet' : 'Bank';
+    if (!loaded) return kind;
+    if (!m.length) return `${kind} · no account yet`;
+    const pinned = m.find((a) => a.id === pins[s.packageId]);
+    if (pinned && m.length > 1) return `Always ${pinned.name}`;
+    if (s.wallet) return m.length === 1 ? m[0].name : `${m.length} wallets · tap to pick a default`;
+    if (m.length === 1) { const l4 = accountLast4(m[0]); return l4 ? `${m[0].name} ••${l4}` : `${m[0].name} · add last 4 digits`; }
+    const missing = m.filter((a) => !accountLast4(a)).length;
+    return missing ? `${m.length} accounts · add last 4 digits` : `${m.length} accounts matched by last 4 digits`;
+  };
 
   if (!FloweNotifications.isAvailable) {
     return (
-      <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-        <ScreenHeader title="Auto-detect" onBack={() => router.back()} />
-        <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-          <View className="items-center px-4 pt-16 pb-6">
-            <Sparkle size={44} color="#404040" />
-            <Text className="text-foreground font-medium mt-4 text-center">
-              Not available on this device
-            </Text>
-            <Text className="text-muted-foreground text-sm mt-2 text-center">
-              {Platform.OS === 'ios'
-                ? 'iOS does not let any app read another app’s notifications, so transactions can’t be detected automatically.'
-                : 'Auto-detect needs a development build of Flowe — it isn’t available in Expo Go.'}
-            </Text>
-          </View>
-          {devPanel}
-        </ScrollView>
-      </SafeAreaView>
+      <SettingsScreen title="Auto-detect">
+        <EmptyState
+          icon={Smartphone}
+          title="Not available on this device"
+          body={Platform.OS === 'ios' ? 'iOS doesn’t let any app read another app’s notifications, so payments can’t be detected automatically.' : 'Auto-detect needs a development build of Flowe.'}
+        />
+      </SettingsScreen>
     );
   }
 
-  const digitsAccounts = digitsFor ? matchesBySource[digitsFor.packageId] : [];
-  const defaultAccounts = defaultFor ? matchesBySource[defaultFor.packageId] : [];
+  const sources = [...usable, ...NOTIFICATION_SOURCES.filter((s) => !usable.includes(s))];
+  const status = !granted ? 'Notification access not granted' : !connected ? 'Access granted · reconnecting' : 'Notification access granted';
+  const permSources = usable.map((s) => s.label.split(' ')[0]).filter((v, i, a) => a.indexOf(v) === i).slice(0, 4).join(', ');
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-      <ScreenHeader title="Auto-detect" onBack={() => router.back()} />
-
-      <ScrollView className="flex-1 px-4 pt-4" showsVerticalScrollIndicator={false}>
-        <View className="bg-card border border-border rounded-2xl p-5 mb-4">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1 mr-4">
-              <Text className="text-foreground font-semibold">Detect transactions</Text>
-              <Text className="text-muted-foreground text-xs mt-1">
-                Flowe reads payment alerts from the apps below and offers to log them for you.
-              </Text>
-            </View>
-            <Toggle value={enabled} onValueChange={toggleEnabled} disabled={!hasAnyAccount} />
-          </View>
-        </View>
-
-        {/* Without an account there is nowhere to file a detection, so this is
-            the first thing to fix rather than a footnote further down. */}
-        {accountsLoaded && !hasAnyAccount && (
-          <Pressable
-            onPress={goToAccounts}
-            className="bg-card border border-primary/40 rounded-2xl p-5 mb-4 flex-row items-center"
-          >
-            <View className="w-9 h-9 rounded-full items-center justify-center mr-3 bg-primary/15">
-              <Plus size={18} color="#C5FF00" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-foreground font-medium">Add an account first</Text>
-              <Text className="text-muted-foreground text-xs mt-0.5">
-                Auto-detect needs somewhere to put a detected payment. Tap to add your bank or
-                e-wallet.
-              </Text>
-            </View>
-          </Pressable>
-        )}
-
-        {/* Notification access can only be granted from system settings. Granted
-            but not connected is the state Android leaves the listener in after
-            an update — the app has already asked for a rebind by the time this
-            renders, and toggling access off and on in settings forces it. */}
-        <Pressable
-          onPress={() => { suspendLock(); FloweNotifications.openSettings(); }}
-          className={`bg-card border rounded-2xl p-5 mb-4 flex-row items-center ${
-            granted && !connected ? 'border-[#ffd93d]/40' : 'border-border'
-          }`}
-        >
-          <View
-            className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${
-              granted && connected ? 'bg-primary/15' : 'bg-muted'
-            }`}
-          >
-            {granted && !connected ? (
-              <AlertCircle size={18} color="#ffd93d" />
-            ) : (
-              <Check size={18} color={granted ? '#C5FF00' : '#a0a0a0'} />
-            )}
-          </View>
-          <View className="flex-1">
-            <Text className="text-foreground font-medium">
-              {!granted
-                ? 'Grant notification access'
-                : connected
-                  ? 'Notification access granted'
-                  : 'Access granted, but not connected'}
-            </Text>
-            <Text className="text-muted-foreground text-xs mt-0.5">
-              {!granted
-                ? 'Required — Android only lets you turn this on in system settings'
-                : connected
-                  ? 'Tap to review it in Android settings'
-                  : 'Android dropped the connection. Reconnecting — if this stays, tap here and switch Flowe off and on.'}
-            </Text>
-          </View>
-        </Pressable>
-
-        <Text className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2 px-1">
-          Apps to watch
-        </Text>
-        <View className="bg-card border border-border rounded-2xl px-4 mb-4">
-          {NOTIFICATION_SOURCES.map((source, i) => {
-            const matches = matchesBySource[source.packageId];
-            const linked = matches.length > 0;
-            const needsDigits = !source.wallet && linked && matches.some((a) => !accountLast4(a));
-            return (
-              <View key={source.packageId}>
-                {i > 0 && <View className="border-t border-border" />}
-                <Pressable
-                  onPress={() => onRowPress(source)}
-                  className="flex-row items-center justify-between py-3.5"
-                >
-                  <View className="flex-1 mr-4">
-                    <Text className={`text-sm ${linked ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {source.label}
-                    </Text>
-                    <View className="flex-row items-center mt-0.5">
-                      {needsDigits && (
-                        <View className="mr-1">
-                          <AlertCircle size={12} color="#ffd93d" />
-                        </View>
-                      )}
-                      <Text className="text-muted-foreground text-[11px]">
-                        {describeSource(source)}
-                      </Text>
-                    </View>
+    <SettingsScreen
+      title="Auto-detect"
+      overlay={
+        <>
+          <Sheet visible={permission} onClose={() => setPermission(false)} testID="permission-notifications">
+            <View style={{ gap: 12 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 9999, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                <GradientFill />
+                <BellRing size={32} color={colors['on-primary']} strokeWidth={1.5} />
+              </View>
+              <Text variant="headline-md" accessibilityRole="header">Allow notification access</Text>
+              {[
+                { icon: BellRing, text: `Flowe reads alerts only from ${permSources || 'the banks and wallets you added'}.` },
+                { icon: Shield, text: 'Read on your phone. Nothing is sent anywhere.' },
+                { icon: Smartphone, text: 'Android opens its settings; switch Flowe on and come back.' },
+              ].map((p) => (
+                <View key={p.text} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+                    <p.icon size={17} color={colors['on-surface']} strokeWidth={1.75} />
                   </View>
-                  <Toggle
-                    value={watched.includes(source.packageId)}
-                    onValueChange={() => toggleSource(source)}
-                    disabled={!linked}
-                  />
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
-
-        <Text className="text-xs text-muted-foreground text-center px-4 mb-10">
-          Flowe only reads notifications from the apps you tick here, and only to pull out the
-          amount and merchant — promotions, OTPs and balance reminders are skipped. Nothing else is
-          stored, and detections stay on your phone until you confirm them.
-        </Text>
-
-        {devPanel}
-      </ScrollView>
-
-      {/* Last 4 digits, per account, for the tapped bank. */}
-      <Modal visible={digitsFor !== null} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/70">
-          <View className="bg-card rounded-t-3xl p-6 pb-10">
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-lg font-bold text-foreground">Last 4 digits</Text>
-              <Pressable onPress={() => setDigitsFor(null)} className="p-1">
-                <X size={20} color="#a0a0a0" />
-              </Pressable>
-            </View>
-            <Text className="text-muted-foreground text-xs mb-5">
-              {digitsFor?.label} alerts usually print the last 4 digits of the account. Fill them in
-              and Flowe can file a payment into the right account without asking.
-            </Text>
-
-            {digitsAccounts.map((account) => (
-              <View key={account.id} className="mb-4">
-                <Text className="text-foreground text-sm mb-1.5">{account.name}</Text>
-                <TextInput
-                  className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
-                  placeholder="1234"
-                  placeholderTextColor="#606060"
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  value={digitsDraft[account.id] ?? ''}
-                  onChangeText={(text) =>
-                    setDigitsDraft((prev) => ({ ...prev, [account.id]: text.replace(/\D/g, '') }))
-                  }
-                />
-              </View>
-            ))}
-
-            {digitsAccounts.length > 1 && (
-              <View className="mb-5">
-                <Text className="text-muted-foreground text-xs mb-2">
-                  When an alert prints no digits at all, file it into
-                </Text>
-                <View className="flex-row flex-wrap">
-                  {digitsAccounts.map((account) => {
-                    const selected = pins[digitsFor!.packageId] === account.id;
-                    return (
-                      <Pressable
-                        key={account.id}
-                        onPress={() => applyDefault(digitsFor!, account.id)}
-                        className={`rounded-full px-4 py-2 mr-2 mb-2 border ${
-                          selected ? 'bg-primary/15 border-primary' : 'bg-background border-border'
-                        }`}
-                      >
-                        <Text className={`text-xs ${selected ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-                          {account.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                  <Pressable
-                    onPress={() => applyDefault(digitsFor!, null)}
-                    className={`rounded-full px-4 py-2 mr-2 mb-2 border ${
-                      digitsFor && !pins[digitsFor.packageId]
-                        ? 'bg-primary/15 border-primary'
-                        : 'bg-background border-border'
-                    }`}
-                  >
-                    <Text
-                      className={`text-xs ${
-                        digitsFor && !pins[digitsFor.packageId]
-                          ? 'text-primary font-semibold'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      Ask me
-                    </Text>
-                  </Pressable>
+                  <Text variant="body-md" style={{ flex: 1 }}>{p.text}</Text>
                 </View>
+              ))}
+              <View style={{ gap: 4, marginTop: 8 }}>
+                <Button label="Allow" onPress={openSystemSettings} fullWidth />
+                <Button label="Later" variant="text" onPress={() => setPermission(false)} style={{ alignSelf: 'center' }} />
               </View>
-            )}
-
-            <Pressable
-              onPress={saveDigits}
-              disabled={savingDigits}
-              className="bg-primary rounded-2xl py-4 items-center mt-1"
-            >
-              <Text className="text-sm font-bold text-black">
-                {savingDigits ? 'Saving...' : 'Save'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Which account an app's payments belong to, when the alert can't say. */}
-      <Modal visible={defaultFor !== null} transparent animationType="slide">
-        <View className="flex-1 justify-end bg-black/70">
-          <View className="bg-card rounded-t-3xl p-6 pb-10">
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-lg font-bold text-foreground">Default account</Text>
-              <Pressable onPress={() => setDefaultFor(null)} className="p-1">
-                <X size={20} color="#a0a0a0" />
-              </Pressable>
             </View>
-            <Text className="text-muted-foreground text-xs mb-5">
-              Nothing in a {defaultFor?.label} alert says which wallet paid. Pick one and Flowe
-              files every {defaultFor?.label} payment there without asking.
-            </Text>
-
-            {defaultAccounts.map((account) => {
-              const selected = pins[defaultFor!.packageId] === account.id;
-              return (
-                <Pressable
-                  key={account.id}
-                  onPress={async () => {
-                    await applyDefault(defaultFor!, account.id);
-                    setDefaultFor(null);
-                  }}
-                  className={`rounded-2xl px-4 py-3.5 mb-2 border ${
-                    selected ? 'bg-primary/15 border-primary' : 'bg-background border-border'
-                  }`}
-                >
-                  <Text className={`text-sm ${selected ? 'text-primary font-semibold' : 'text-foreground'}`}>
-                    {account.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-
-            <Pressable
-              onPress={async () => {
-                await applyDefault(defaultFor!, null);
-                setDefaultFor(null);
-              }}
-              className="rounded-2xl px-4 py-3.5 border border-border"
-            >
-              <Text className="text-muted-foreground text-sm">Ask me each time</Text>
-            </Pressable>
-          </View>
+          </Sheet>
+          <Sheet visible={!!digitsFor} onClose={() => setDigitsFor(null)} title={digitsFor ? `${digitsFor.label} accounts` : undefined} scroll dismissible={!savingDigits}>
+            <View style={{ gap: 14 }}>
+              <Text variant="body-md" tone="muted">Alerts print the last 4 digits of the account. Add them so Flowe files each payment into the right one.</Text>
+              {digitsFor ? matches[digitsFor.packageId].map((a) => (
+                <TextInput key={a.id} label={a.name} value={digits[a.id] ?? ''} onChangeText={(v) => setDigits((d) => ({ ...d, [a.id]: v.replace(/\D/g, '').slice(0, 4) }))} keyboardType="number-pad" maxLength={4} placeholder="Last 4 digits" />
+              )) : null}
+              <Button label="Save" onPress={saveDigits} loading={savingDigits} loadingLabel="Saving…" fullWidth />
+            </View>
+          </Sheet>
+          <Sheet visible={!!defaultFor} onClose={() => setDefaultFor(null)} title={defaultFor ? `${defaultFor.label} pays from` : undefined}>
+            {defaultFor ? (
+              <View>
+                {[...matches[defaultFor.packageId], null].map((a) => {
+                  const selected = a ? pins[defaultFor.packageId] === a.id : !pins[defaultFor.packageId];
+                  return (
+                    <Pressable key={a?.id ?? 'ask'} onPress={() => pickDefault(defaultFor, a?.id ?? null)} accessibilityRole="radio" accessibilityState={{ checked: selected }}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 }}>
+                      <Text variant="body-lg">{a ? a.name : 'Ask me every time'}</Text>
+                      {selected ? <Check size={18} color={colors['on-surface']} strokeWidth={2} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+          </Sheet>
+          <Sheet visible={!!needAccount} onClose={() => setNeedAccount(null)} title="Add an account first">
+            <View style={{ gap: 14 }}>
+              <Text variant="body-md" tone="muted">Flowe files a detected payment into one of your accounts, so it needs {needAccount} before it can watch for them.</Text>
+              <Button label="Add account" icon={Plus} onPress={() => { setNeedAccount(null); router.push({ pathname: '/home/accounts', params: { add: '1' } }); }} fullWidth />
+              <Button label="Not now" variant="text" onPress={() => setNeedAccount(null)} style={{ alignSelf: 'center' }} />
+            </View>
+          </Sheet>
+        </>
+      }
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.md, backgroundColor: colors['surface-container'] }}>
+        <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+          <BellRing size={19} color={colors['on-surface']} strokeWidth={1.75} />
         </View>
-      </Modal>
-    </SafeAreaView>
+        <Pressable style={{ flex: 1 }} onPress={!granted ? () => setPermission(true) : undefined} disabled={granted} accessibilityRole={granted ? undefined : 'button'}>
+          <Text variant="body-lg">Read bank alerts</Text>
+          <Text variant="label-sm" tone="meta">{status}</Text>
+        </Pressable>
+        <Toggle value={enabled} onValueChange={toggleEnabled} accessibilityLabel="Read bank alerts" />
+      </View>
+      <Text variant="label-sm" tone="muted" style={{ marginTop: 8 }}>Supported banks & wallets</Text>
+      <View>
+        {sources.map((s) => (
+          <SettingsRow
+            key={s.packageId}
+            label={s.label}
+            value={describe(s)}
+            domain={institutionDomain(s.label, s.bankId)}
+            icon={s.wallet ? Wallet : Landmark}
+            onPress={() => openSource(s)}
+            disabled={!enabled}
+            right={<Toggle value={watched.includes(s.packageId)} onValueChange={() => toggleSource(s)} disabled={!enabled} accessibilityLabel={s.label} />}
+          />
+        ))}
+      </View>
+    </SettingsScreen>
   );
 }

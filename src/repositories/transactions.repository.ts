@@ -236,6 +236,28 @@ export const transactionsRepository = {
     return { ok: true, data: Math.round(total * 100) / 100 };
   },
 
+  /** Every transaction, newest first, with account names joined (Settings › Data › Export). */
+  async fetchAll(): Promise<Result<Transaction[], SupabaseError>> {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select(`
+        *,
+        from_account:accounts!from_account_id(id, name, type),
+        to_account:accounts!to_account_id(id, name, type)
+      `)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data as Transaction[] };
+  },
+
+  /** How many transactions the user has (reset confirmation copy). */
+  async countAll(): Promise<Result<number, SupabaseError>> {
+    const { count, error } = await supabase.from('transactions').select('id', { count: 'exact', head: true });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: count ?? 0 };
+  },
+
   async fetchByAccount(accountId: string): Promise<Result<Transaction[], SupabaseError>> {
     const { data, error } = await supabase
       .from('transactions')

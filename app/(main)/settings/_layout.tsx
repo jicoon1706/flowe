@@ -1,10 +1,6 @@
 import { Stack } from 'expo-router';
-import { SettingsProvider } from '@/context/SettingsContext';
+import { colors } from '@/theme/tokens';
 
 export default function SettingsLayout() {
-  return (
-    <SettingsProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </SettingsProvider>
-  );
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }} />;
 }
