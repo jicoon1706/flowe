@@ -13,11 +13,11 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
 import { useAccounts } from '@/src/hooks/useAccounts';
-import { accountsRepository, assetsRepository, authRepository, liabilitiesRepository, transactionsRepository } from '@/src/repositories';
+import { transactionsRepository } from '@/src/repositories';
+import { resetAllData } from '@/src/services/resetData';
 import { exportTransactionsCsv, importTransactionsCsv } from '@/src/services/dataTransfer';
 import { MAX_IMPORT_BYTES } from '@/src/lib/csv';
 import { verifyPin } from '@/src/lib/pinVerify';
-import { flags } from '@/src/lib/secureStore';
 import { refreshGate } from '../../_layout';
 
 /** settings/data — export, import, recalculate, reset (typed RESET + PIN). */
@@ -87,10 +87,9 @@ export default function DataScreen() {
 
   const reset = async () => {
     if (!(await verifyPin(pin, user?.id))) { setPinError('Wrong PIN. Try again.'); setPin(''); return; }
-    const results = await Promise.all([accountsRepository.softDeleteAllAccounts(), assetsRepository.softDeleteAll(), liabilitiesRepository.softDeleteAll()]);
-    if (results.some((r) => !r.ok)) { toast.failure('Reset failed', { label: 'Retry', onPress: reset }); return; }
-    await authRepository.signOut();
-    await flags.unsetPin();
+    if (!user) return;
+    const res = await resetAllData(user.id);
+    if (!res.ok) { toast.failure('Reset failed', { label: 'Retry', onPress: reset }); return; }
     setResetting(false);
     refreshGate();
     router.replace('/(auth)/welcome');

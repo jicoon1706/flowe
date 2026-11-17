@@ -14,7 +14,7 @@ interface LockContextValue {
    * wall. Screens that show money read it to decide what to hide.
    */
   locked: boolean;
-  /** Puts the app back into the locked state. Called from Settings › Account › Sign out of this device. */
+  /** Puts the app back into the locked state. Called from Settings › Account › Lock Flowe now. */
   lock: () => void;
   /**
    * Shows the unlock prompt now, if the app is locked. Resolves `true` once the

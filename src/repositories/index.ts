@@ -13,3 +13,4 @@ export { customCategoriesRepository } from './customCategories.repository';
 export { authConfigRepository } from './authConfig.repository';
 export { merchantLogosRepository, merchantLogoRequestsRepository } from './merchantLogos.repository';
 export { profilesRepository } from './profiles.repository';
+export { userDataRepository } from './userData.repository';

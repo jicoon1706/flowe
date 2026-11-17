@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LogOut } from 'lucide-react-native';
+import { Lock } from 'lucide-react-native';
 import { SettingsScreen } from '@/components/settings/SettingsScreen';
 import { Button } from '@/components/ui/Button';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
@@ -14,8 +14,10 @@ import { useProfile } from '@/src/hooks/useProfile';
 import { useSettings } from '@/src/hooks/useSettings';
 
 /**
- * settings/account — name and currency. Primary: Save. "Sign out of this
- * device" locks Flowe behind the PIN; nothing is deleted.
+ * settings/account — name and currency. Primary: Save. "Lock Flowe now"
+ * locks Flowe behind the PIN; nothing is deleted. The phone never signs out:
+ * the account is anonymous, so a sign-out would strand the user's data
+ * (decision Q1 in docs/V2_GAPS.md). Flowe Desktop has a real sign-out.
  */
 export default function AccountSettingsScreen() {
   const router = useRouter();
@@ -47,10 +49,10 @@ export default function AccountSettingsScreen() {
       overlay={
         <ConfirmSheet
           visible={signingOut}
-          icon={LogOut}
-          title="Sign out of Flowe?"
+          icon={Lock}
+          title="Lock Flowe now?"
           message="Your data stays on this phone. You’ll need your PIN to get back in."
-          confirmLabel="Sign out"
+          confirmLabel="Lock"
           onConfirm={() => { setSigningOut(false); lock(); router.replace('/(main)'); }}
           onCancel={() => setSigningOut(false)}
         />
@@ -64,7 +66,7 @@ export default function AccountSettingsScreen() {
           <TextInput label="Currency" value={settings?.currency === 'RM' || !settings?.currency ? 'Malaysian ringgit (RM)' : settings.currency} editable={false} />
           <View style={{ height: 8 }} />
           <Button label="Save" onPress={save} loading={saving} loadingLabel="Saving…" fullWidth />
-          <Button label="Sign out of this device" variant="text" muted onPress={() => setSigningOut(true)} style={{ alignSelf: 'center' }} />
+          <Button label="Lock Flowe now" variant="text" muted onPress={() => setSigningOut(true)} style={{ alignSelf: 'center' }} />
         </>
       )}
     </SettingsScreen>

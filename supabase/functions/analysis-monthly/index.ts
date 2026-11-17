@@ -19,6 +19,7 @@ const CORS = {
 };
 
 const TREND_MONTHS = 12;
+const PAGE = 1000;
 
 function ymOf(year: number, monthIndex: number): string {
   const d = new Date(Date.UTC(year, monthIndex, 1));
@@ -83,14 +84,22 @@ Deno.serve(async (req) => {
     }));
     const index = new Map(trend.map((t, i) => [t.month, i]));
 
-    const { data: windowTxs, error: wErr } = await supabase
-      .from('transactions')
-      .select('type, amount, date')
-      .gte('date', `${trend[0].month}-01`)
-      .lte('date', monthEnd);
-    if (wErr) throw wErr;
+    // A year of transactions can pass PostgREST's 1,000-row response cap, so page.
+    const windowTxs: { type: string; amount: number; date: string }[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error: wErr } = await supabase
+        .from('transactions')
+        .select('type, amount, date')
+        .gte('date', `${trend[0].month}-01`)
+        .lte('date', monthEnd)
+        .order('id')
+        .range(from, from + PAGE - 1);
+      if (wErr) throw wErr;
+      windowTxs.push(...(data ?? []));
+      if (!data || data.length < PAGE) break;
+    }
 
-    for (const t of windowTxs ?? []) {
+    for (const t of windowTxs) {
       const i = index.get(String(t.date).slice(0, 7));
       if (i === undefined) continue;
       const amt = Number(t.amount) || 0;
