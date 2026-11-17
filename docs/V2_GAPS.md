@@ -588,6 +588,33 @@ Nothing the clients call is missing live. Phase 1 adds: the versioned `analysis-
 
 **Verification:** `npx tsc --noEmit` 0 errors · `npm run lint` 0 errors, 12 warnings (same as baseline) · `npm test` 38 suites, 316 tests passed.
 
+## Phase 2 results (tablet, flowe-app-v2)
+
+**Device:** Samsung Galaxy Tab S6 Lite (SM-P610, Android 13, 800 × 1333 dp, font scale 1.1), on the dev build. **Phone:** Pixel 8 emulator (API 34).
+
+**Correction to table a (Tablet).** Phase 0 judged the tablet frames from the code and called 149 of them "built". On the device most screens did not match their tablet family yet: a full-bleed hero instead of the inset card, the phone column on a blue page, and clipped labels. Phase 2 implements the families below. The status of individual tablet frames is now judged from the device screenshots.
+
+| Item | Status | Where |
+|---|---|---|
+| Breakpoint: tablet when the window's **shorter** side ≥ 600 dp (a phone in landscape stays a phone) | ✅ + tests | `src/hooks/useBreakpoint.ts`, `tests/breakpoint.test.ts` |
+| Tablet family **card**: inset gradient card (16 dp margin, r40), hero content in a 560 dp column, content across the screen (24 dp padding). Home, Accounts, Cashflow, Calendar, Learn, Settings. | ✅ | `components/ui/Hero.tsx`, `HeroScreen.tsx` (`tabletLayout`), `TABLET_LAYOUT` |
+| Tablet family **panel**: blue page, hero in a 640 dp column, inset white card (16 dp, r32). Detail screens, forms, settings sub-screens, Analysis, Cashflow info, Tabung, Transactions, Add transaction. | ✅ | same, and `add-transaction.tsx` |
+| Two-column Home (actions, pending, tiles, affirmation, links left; Recent Transactions right) | ✅ | `(main)/index.tsx` |
+| Two-column Settings groups (You + Money · App) | ✅ | `settings/index.tsx` |
+| Accounts / Learn loading skeletons on the tablet grid | ✅ | `home/accounts.tsx`, `home/learn/index.tsx` |
+| **Clipped labels on Android** ("Balanc", "Locked · tap to", "Recent"). Inter was loaded only at runtime, so Android measured with the fallback face and drew with Inter. | ✅ Fonts embedded at build time (`expo-font` plugin, needs a native rebuild) | `app.config.js` |
+| Big figures clipped top/bottom on Android | ✅ Line height ≥ 1.2 for text ≥ 32 px on Android; Money's "RM" span uses the figure's line height. Tested. | `components/ui/Text.tsx`, `Money.tsx`, `tests/lineHeight.test.ts` |
+| Calendar dropped Saturday to the next row on the tablet width (Yoga rounding) | ✅ | `calendar.tsx` |
+| Hero chips stuck to the left edge (phone and tablet) | ✅ `GlassChip align`; Home and Accounts chips centred | `GlassChip.tsx`, `HomeHero.tsx`, `home/accounts.tsx` |
+| Status bar invisible on the white tablet page / under the PIN lock | ✅ Focus-scoped style; lock overlay forces light | `src/hooks/useFocusStatusBar.ts`, `LockOverlay.tsx` |
+| Screenshots, tablet (10) | ✅ `docs/screenshots/tablet/01–10` | — |
+| Screenshots, phone (10) | see below | `docs/screenshots/phone/` |
+| Landscape on the device | ⏳ Not captured: rotating needs a system setting on your tablet. The layout code is width-driven (card/panel columns cap at 960/640 dp), and the breakpoint keeps the tablet family in both orientations. | — |
+| Settings › Budget amount fields: very large "Not set", no grey tile (frame: 32 px figure in a #F5F5F5 r20 tile). Same on phone. | ⏸ Phase 3 (phone frame match) | `components/ui/AmountField.tsx` |
+| Tablet top bar: the frames put the back/action buttons outside the content column (±56/±88 dp); the code keeps them inside it | ⏸ Minor; Phase 3 | `Hero`/`TopBar` |
+
+**Verification:** `npx tsc --noEmit` 0 errors · `npm run lint` 0 errors (12 baseline warnings) · `npm test` 39 suites, 319 tests passed.
+
 ## Verification log (Phase 3)
 
 | Step | Result |

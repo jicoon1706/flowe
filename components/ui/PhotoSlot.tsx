@@ -29,9 +29,9 @@ export function PhotoSlot({ photo, style, showCredit = true }: PhotoSlotProps) {
         <Image source={{ uri: spec.uri }} onError={() => setFailed(true)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" cachePolicy="memory-disk" />
       ) : null}
       {showCredit ? (
-        <View style={{ position: 'absolute', left: 12, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View style={{ position: 'absolute', left: 12, right: 12, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <ImageIcon size={14} color={colors['on-primary-soft']} strokeWidth={1.75} />
-          <Text variant="caption" tone="soft">Photo by {spec.credit} on Unsplash</Text>
+          <Text variant="caption" tone="soft" style={{ flexShrink: 1 }}>Photo by {spec.credit} on Unsplash</Text>
         </View>
       ) : null}
     </View>
