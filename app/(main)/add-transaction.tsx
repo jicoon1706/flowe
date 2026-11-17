@@ -28,7 +28,8 @@ import { useAssets } from '@/src/hooks/useAssets';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
 import { useReceiptScan } from '@/src/hooks/useReceiptScan';
 import { useTransactions } from '@/src/hooks/useTransactions';
-import { TABLET_WIDTH, useColumnPadding } from '@/src/hooks/useBreakpoint';
+import { TABLET_LAYOUT, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { GradientFill } from '@/components/ui/GradientFill';
 import { ResponsiveContainer } from '@/src/components/ui/ResponsiveContainer';
 import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
@@ -76,7 +77,9 @@ type Params = {
 export default function AddTransactionScreen() {
   const router = useRouter();
   // Tablet: the numpad column keeps phone-sized keys.
-  const padX = useColumnPadding(16, TABLET_WIDTH.keypad - 32);
+  // Tablet (t-core-add-*): the 'panel' family, blue page with an inset white card around a 640 dp column.
+  const { isTablet, width } = useBreakpoint();
+  const padX = isTablet ? Math.max(16, (width - 2 * TABLET_LAYOUT.inset - TABLET_LAYOUT.panelColumn) / 2) : 16;
   const p = useLocalSearchParams<Params>();
   const toast = useToast();
   const { user } = useAuth();
@@ -335,8 +338,9 @@ export default function AddTransactionScreen() {
   const fromList = kind === 'transfer' ? all : kind === 'income' ? spendable : all;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      <Hero height={undefined} style={{ paddingBottom: 48 }} contentMaxWidth={TABLET_WIDTH.keypad}>
+    <View style={{ flex: 1, backgroundColor: isTablet ? undefined : colors.surface }}>
+      {isTablet ? <GradientFill /> : null}
+      <Hero height={undefined} style={{ paddingBottom: isTablet ? 24 : 48 }} tablet="clear" contentMaxWidth={TABLET_LAYOUT.panelColumn}>
         <TopBar title={isEdit ? 'Edit transaction' : 'Add transaction'} onBack={close} close />
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
           <SegmentedToggle
@@ -354,7 +358,12 @@ export default function AddTransactionScreen() {
         </View>
       </Hero>
 
-      <View style={{ flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 20, paddingHorizontal: padX, paddingBottom: 24, gap: 12 }}>
+      <View
+        style={[
+          { flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 20, paddingHorizontal: padX, paddingBottom: 24, gap: 12 },
+          isTablet ? { marginTop: 0, marginHorizontal: TABLET_LAYOUT.inset, marginBottom: TABLET_LAYOUT.inset, borderRadius: 32, paddingTop: 24 } : null,
+        ]}
+      >
         <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {kind === 'transfer' ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

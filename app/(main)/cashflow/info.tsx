@@ -132,6 +132,7 @@ export default function CashflowInfoScreen() {
 
   return (
     <HeroScreen
+      tabletLayout="panel"
       heroHeight={300}
       refreshControl={<RefreshControl refreshing={(aLoading || lLoading) && fetched} onRefresh={load} tintColor={colors['on-primary']} />}
       hero={

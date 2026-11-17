@@ -37,15 +37,19 @@ import { refreshSpentToday, syncBudgetLimits } from '@/src/services/dailyBudget'
 import { readHomeCache, syncedLabel, writeHomeCache, type HomeCache } from '@/src/lib/homeCache';
 import { sumBalances, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
 import { editParams, type TxWithAccounts } from '@/src/utils/transactionDisplay';
-import { TABLET_WIDTH, useBreakpoint, useColumnPadding } from '@/src/hooks/useBreakpoint';
+import { TABLET_LAYOUT, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useFocusStatusBar } from '@/src/hooks/useFocusStatusBar';
 
 /** "Updated just now" stays this long after a live update (o-home-live-after). */
 const UPDATED_CHIP_MS = 2000;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { isTablet } = useBreakpoint();
-  const padX = useColumnPadding(16, TABLET_WIDTH.dashboard - 32);
+  const { isTablet, width } = useBreakpoint();
+  // Tablet: the page above the inset hero card is white, so dark status-bar icons.
+  useFocusStatusBar('dark', isTablet);
+  // Tablet (t-core-home): content spans the screen with 24 dp padding, capped at the dashboard width.
+  const padX = isTablet ? Math.max(TABLET_LAYOUT.cardPadding, (width - TABLET_WIDTH.dashboard) / 2 + TABLET_LAYOUT.cardPadding) : 16;
   const { user } = useAuth();
   const { locked, requireUnlock } = useLock();
   const detected = useDetected();
@@ -207,6 +211,13 @@ export default function HomeScreen() {
   const affirmation = showAffirmations && affirmationTexts.length > 0 ? (
     <AffirmationCard text={affirmationTexts[affIndex % affirmationTexts.length]} onNext={affirmationTexts.length > 1 ? () => setAffIndex((i) => i + 1) : undefined} />
   ) : null;
+  const actions = (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      <Button label="Add" icon={Plus} variant="action" style={{ flex: 1 }} onPress={() => router.push({ pathname: '/add-transaction', params: { nonce: String(Date.now()) } })} />
+      <IconButton icon={ArrowUpDown} variant="action" wide accessibilityLabel="Transfer" onPress={() => router.push({ pathname: '/add-transaction', params: { type: 'transfer', nonce: String(Date.now()) } })} />
+      <Button label="Scan" icon={ScanLine} variant="action" style={{ flex: 1 }} onPress={() => router.push({ pathname: '/add-transaction', params: { scan: '1', nonce: String(Date.now()) } })} />
+    </View>
+  );
   const links = (
     <View style={{ flexDirection: 'row', gap: 8 }}>
       <Chip label="Analysis" icon={ChartLine} onPress={() => router.push('/home/analysis')} />
@@ -221,7 +232,7 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 140 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors['on-primary']} colors={[colors.secondary]} progressBackgroundColor={colors.surface} />}
       >
-        <Hero style={{ paddingBottom: 24 }} contentMaxWidth={TABLET_WIDTH.dashboard}>{empty ? <View style={{ height: 300 }}>{hero}</View> : hero}</Hero>
+        <Hero style={{ paddingBottom: 24 }} tablet="card" contentMaxWidth={TABLET_LAYOUT.cardHeroColumn}>{empty ? <View style={{ height: 300 }}>{hero}</View> : hero}</Hero>
 
         <View style={{ paddingHorizontal: padX, paddingTop: 16, gap: 16 }}>
           {firstLoad ? (
@@ -257,16 +268,13 @@ export default function HomeScreen() {
             />
           ) : (
             <>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Button label="Add" icon={Plus} variant="action" style={{ flex: 1 }} onPress={() => router.push({ pathname: '/add-transaction', params: { nonce: String(Date.now()) } })} />
-                <IconButton icon={ArrowUpDown} variant="action" wide accessibilityLabel="Transfer" onPress={() => router.push({ pathname: '/add-transaction', params: { type: 'transfer', nonce: String(Date.now()) } })} />
-                <Button label="Scan" icon={ScanLine} variant="action" style={{ flex: 1 }} onPress={() => router.push({ pathname: '/add-transaction', params: { scan: '1', nonce: String(Date.now()) } })} />
-              </View>
+              {isTablet ? null : actions}
 
               {isTablet ? (
-                // Tablet: today's summary beside the recent list.
+                // Tablet (t-core-home): actions and today's summary beside the recent list.
                 <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-start' }}>
                   <View style={{ flex: 1, gap: 16 }}>
+                    {actions}
                     {pendingCard}
                     {statTiles}
                     {affirmation}

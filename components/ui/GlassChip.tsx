@@ -10,10 +10,12 @@ export interface GlassChipProps {
   /** 'alert' announces the chip (validation on the gradient). */
   role?: 'status' | 'alert';
   accessibilityLabel?: string;
+  /** Where the chip sits in a column parent; 'center' under a centred hero figure. */
+  align?: 'flex-start' | 'center';
 }
 
 /** White-16% pill on the gradient, label-sm white. Never used on white. */
-export function GlassChip({ label, icon: Icon, onPress, role, accessibilityLabel }: GlassChipProps) {
+export function GlassChip({ label, icon: Icon, onPress, role, accessibilityLabel, align = 'flex-start' }: GlassChipProps) {
   const body = (
     <View
       style={{
@@ -38,7 +40,7 @@ export function GlassChip({ label, icon: Icon, onPress, role, accessibilityLabel
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? label}
         hitSlop={6}
-        style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}
+        style={{ alignSelf: align, minHeight: 44, justifyContent: 'center' }}
       >
         {body}
       </Pressable>
@@ -50,7 +52,7 @@ export function GlassChip({ label, icon: Icon, onPress, role, accessibilityLabel
       accessibilityRole={role === 'alert' ? 'alert' : 'text'}
       accessibilityLiveRegion={role ? 'polite' : 'none'}
       accessibilityLabel={accessibilityLabel ?? label}
-      style={{ alignSelf: 'flex-start' }}
+      style={{ alignSelf: align }}
     >
       {body}
     </View>

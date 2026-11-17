@@ -6,6 +6,7 @@ import { verifyPin } from '@/src/lib/pinVerify';
 import { flags } from '@/src/lib/secureStore';
 import { useAuth } from '@/context/AuthContext';
 import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useOverlayStatusBar } from '@/src/hooks/useFocusStatusBar';
 import { BrandMark } from '../ui/BrandMark';
 import { Button } from '../ui/Button';
 import { GlassChip } from '../ui/GlassChip';
@@ -30,6 +31,8 @@ export function LockOverlay({ onUnlock, onCancel, displayName }: LockOverlayProp
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const { isTablet, width } = useBreakpoint();
+  // Drawn on the gradient: light status-bar icons even over a white tablet screen.
+  useOverlayStatusBar();
   // Tablet: full-screen gradient, but greeting + keypad keep a 400 dp column so keys never stretch.
   const padX = isTablet ? centeredPadding(width, TABLET_WIDTH.keypad, 24) : 24;
   const [pin, setPin] = useState('');

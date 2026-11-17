@@ -15,7 +15,13 @@ module.exports = ({ config }) => ({
       backgroundColor: colors.primary,
     },
   },
-  plugins: config.plugins.map((plugin) => {
+  plugins: [
+    // Inter embedded at build time (android/app/src/main/assets/fonts), family
+    // names = file names (Inter-Regular, Inter-Medium, Inter-SemiBold). Loaded
+    // only at runtime, Android measured text with the fallback face and drew it
+    // with Inter, so every shrink-wrapped label lost its last letter or word.
+    ['expo-font', { fonts: ['./assets/fonts/Inter-Regular.ttf', './assets/fonts/Inter-Medium.ttf', './assets/fonts/Inter-SemiBold.ttf'] }],
+    ...config.plugins.map((plugin) => {
     if (!Array.isArray(plugin)) return plugin;
     const [name, options] = plugin;
     if (name === 'expo-splash-screen') {
@@ -27,4 +33,5 @@ module.exports = ({ config }) => ({
     if (name === 'expo-notifications') return [name, { ...options, color: colors.primary }];
     return plugin;
   }),
+  ],
 });

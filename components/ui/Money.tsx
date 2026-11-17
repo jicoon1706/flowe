@@ -1,8 +1,8 @@
 import { View } from 'react-native';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react-native';
-import { colors, type TypeToken, type FontWeight } from '@/theme/tokens';
+import { colors, type as typeScale, type TypeToken, type FontWeight } from '@/theme/tokens';
 import { splitMoney, type MoneyDirection } from '@/src/lib/money';
-import { Text } from './Text';
+import { Text, lineHeightFor } from './Text';
 
 export interface MoneyProps {
   amount: number;
@@ -46,13 +46,17 @@ export function Money({
   const iconSize = Math.max(14, Math.round((size ?? 16) * (variant === 'numeric-lg' || variant === 'display-lg' ? 0.43 : 0.875)));
   const iconColor = on === 'gradient' ? colors['on-primary'] : colors['on-surface'];
   const Icon = direction === 'income' ? ArrowUpRight : ArrowDownRight;
+  // The small "RM" span must carry the figure's line height: on Android a nested
+  // span with a shorter line box squeezes the whole line and clips the digits.
+  const figureSize = size ?? typeScale[variant].size;
+  const figureLineHeight = Math.round(figureSize * lineHeightFor(typeScale[variant].lineHeight, figureSize));
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }} accessible accessibilityLabel={label}>
       <Text variant={variant} weight={weight} size={size} tone={strong} tabular>
         {sign}
         {smallCurrency ? (
-          <Text variant="body-lg" weight={weight ?? 500} size={24} tone="inherit" style={{ letterSpacing: 0 }}>RM </Text>
+          <Text variant="body-lg" weight={weight ?? 500} size={24} tone="inherit" style={{ letterSpacing: 0, lineHeight: figureLineHeight }}>RM </Text>
         ) : (
           'RM '
         )}

@@ -85,13 +85,16 @@ export default function LearnScreen() {
     >
       {firstLoad ? (
         <View style={{ gap: 20 }} accessibilityLabel="Loading projects">
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={{ gap: 10 }}>
-              <Skeleton height={120} radius={radius.md} />
-              <Skeleton width="50%" height={14} />
-              <Skeleton height={6} />
-            </View>
-          ))}
+          {/* Same grid as the loaded list: one column on phone, two on tablet (t-q-skel-learn). */}
+          <ResponsiveGrid gap={16} rowGap={20}>
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={{ gap: 10 }}>
+                <Skeleton height={120} radius={radius.md} />
+                <Skeleton width="50%" height={14} />
+                <Skeleton height={6} />
+              </View>
+            ))}
+          </ResponsiveGrid>
         </View>
       ) : error && !list.length ? (
         <EmptyState icon={RefreshCw} title="Couldn’t load your projects" body="Check your connection and try again." ctaLabel="Try again" onCta={load} />

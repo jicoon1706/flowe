@@ -1,6 +1,10 @@
 import { useWindowDimensions } from 'react-native';
 
-/** Tablet layouts start at this window width (dp). Below it every screen is the phone layout. */
+/**
+ * Tablet layouts start when the window's SHORTER side reaches this (dp), so a
+ * phone turned to landscape (e.g. 844 × 390) keeps the phone layout and a
+ * tablet keeps the tablet layout in both orientations.
+ */
 export const TABLET_MIN_WIDTH = 600;
 
 /**
@@ -22,6 +26,28 @@ export const TABLET_WIDTH = {
   nav: 480,
 } as const;
 
+/**
+ * The two tablet screen families on the canvas (Tablet page notes):
+ * - 'card'  — white page; the gradient is an inset card (16 dp margin, 40 dp
+ *   radius) whose content sits in a 560 dp column; content below in two
+ *   columns (home, accounts, cashflow, calendar, learn, settings).
+ * - 'panel' — blue page; hero content in a 640 dp column; the white working
+ *   sheet is an inset card (16 dp margin, 32 dp radius) with the same column
+ *   (detail screens, forms, settings sub-screens).
+ */
+export type TabletLayout = 'card' | 'panel';
+
+export const TABLET_LAYOUT = {
+  /** Margin around the inset hero card / white panel. */
+  inset: 16,
+  /** Hero content column inside the 'card' hero. */
+  cardHeroColumn: 560,
+  /** Content column of a 'panel' screen. */
+  panelColumn: 640,
+  /** Horizontal padding of the 'card' content area. */
+  cardPadding: 24,
+} as const;
+
 /** Bottom sheets on tablet never cover more than this share of the screen height. */
 export const TABLET_SHEET_MAX_HEIGHT = 0.85;
 
@@ -34,9 +60,9 @@ export interface Breakpoint {
   columns: 1 | 2;
 }
 
-/** Pure breakpoint logic (tested in tests/breakpoint.test.ts). */
-export function breakpointFor(width: number): Breakpoint {
-  const isTablet = width >= TABLET_MIN_WIDTH;
+/** Pure breakpoint logic (tested in tests/breakpoint.test.ts). `height` defaults to `width`. */
+export function breakpointFor(width: number, height: number = width): Breakpoint {
+  const isTablet = Math.min(width, height) >= TABLET_MIN_WIDTH;
   return { isTablet, width, columns: isTablet ? 2 : 1 };
 }
 
@@ -55,8 +81,8 @@ export function columnWidth(containerWidth: number, columns: number, gap: number
 }
 
 export function useBreakpoint(): Breakpoint {
-  const { width } = useWindowDimensions();
-  return breakpointFor(width);
+  const { width, height } = useWindowDimensions();
+  return breakpointFor(width, height);
 }
 
 /**

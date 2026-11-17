@@ -47,6 +47,7 @@ export default function AnalysisScreen() {
 
   return (
     <HeroScreen
+      tabletLayout="panel"
       heroHeight={300}
       refreshControl={<RefreshControl refreshing={loading && !!analysis} onRefresh={refetch} tintColor={colors['on-primary']} />}
       hero={

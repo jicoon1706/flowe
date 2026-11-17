@@ -156,6 +156,7 @@ export default function TabungScreen() {
 
   return (
     <HeroScreen
+      tabletLayout="panel"
       heroHeight={400}
       refreshControl={<RefreshControl refreshing={loading && !!progress} onRefresh={refresh} tintColor={colors['on-primary']} />}
       hero={

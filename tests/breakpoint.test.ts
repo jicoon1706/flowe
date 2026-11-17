@@ -10,6 +10,14 @@ describe('breakpointFor', () => {
     expect(breakpointFor(TABLET_MIN_WIDTH)).toEqual({ isTablet: true, width: 600, columns: 2 });
     expect(breakpointFor(820).columns).toBe(2);
   });
+
+  it('uses the shorter side, so orientation never flips the layout', () => {
+    expect(breakpointFor(844, 390).isTablet).toBe(false); // phone, landscape
+    expect(breakpointFor(390, 844).isTablet).toBe(false); // phone, portrait
+    expect(breakpointFor(1280, 800).isTablet).toBe(true); // Pixel Tablet, landscape
+    expect(breakpointFor(800, 1280).isTablet).toBe(true); // Pixel Tablet, portrait
+    expect(breakpointFor(960, 599).isTablet).toBe(false);
+  });
 });
 
 describe('centeredPadding', () => {

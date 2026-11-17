@@ -1,4 +1,4 @@
-import { Text as RNText, type TextProps as RNTextProps, type TextStyle } from 'react-native';
+import { Platform, Text as RNText, type TextProps as RNTextProps, type TextStyle } from 'react-native';
 import { colors, type, familyForWeight, type ColorToken, type FontWeight, type TypeToken } from '@/theme/tokens';
 
 export type TextTone =
@@ -27,6 +27,15 @@ export interface TextProps extends RNTextProps {
  * Typography primitive. Inter in three weights (400/500/600), the DESIGN.md scale,
  * tabular figures on numbers. Use instead of react-native's Text everywhere.
  */
+/**
+ * Android clips glyphs that rise above the line box, so the tight display
+ * line heights (numeric-lg 1.0, display-lg 1.1) cut the top off big figures.
+ * Large text gets at least 1.2 there; iOS and the web keep the design values.
+ */
+export function lineHeightFor(ratio: number, fontSize: number, os: string = Platform.OS): number {
+  return os === 'android' && fontSize >= 32 ? Math.max(ratio, 1.2) : ratio;
+}
+
 export function Text({ variant = 'body-md', weight, tone = 'default', tabular, align, size, style, ...rest }: TextProps) {
   const spec = type[variant];
   const w = weight ?? spec.weight;
@@ -36,7 +45,7 @@ export function Text({ variant = 'body-md', weight, tone = 'default', tabular, a
     fontFamily: familyForWeight[w],
     fontSize,
     letterSpacing: spec.trackingEm * fontSize,
-    lineHeight: Math.round(fontSize * spec.lineHeight),
+    lineHeight: Math.round(fontSize * lineHeightFor(spec.lineHeight, fontSize)),
     textAlign: align,
     fontVariant: tabular ?? numeric ? ['tabular-nums'] : undefined,
   };

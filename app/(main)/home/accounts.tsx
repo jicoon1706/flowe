@@ -101,7 +101,7 @@ export default function AccountsScreen() {
               <>
                 <Text variant="body-lg" tone="soft">Net worth in accounts</Text>
                 <Money amount={sumBalances(all)} variant="numeric-lg" on="gradient" smallCurrency masked={locked} />
-                <GlassChip icon={Wallet} label={`${otherCount} account${otherCount === 1 ? '' : 's'} · ${tabungCount} Tabung`} />
+                <GlassChip align="center" icon={Wallet} label={`${otherCount} account${otherCount === 1 ? '' : 's'} · ${tabungCount} Tabung`} />
               </>
             )}
           </View>
@@ -115,6 +115,8 @@ export default function AccountsScreen() {
     >
       {firstLoad ? (
         <View style={{ gap: 12 }} accessibilityLabel="Loading accounts">
+          {/* One column on phone, two on tablet (t-q-skel-accounts). */}
+          <ResponsiveGrid gap={16} rowGap={12}>
           {['Banks', 'E-wallets', 'Tabung'].map((g) => (
             <View key={g} style={{ gap: 8 }}>
               <Skeleton width={120} height={12} />
@@ -127,6 +129,7 @@ export default function AccountsScreen() {
               ))}
             </View>
           ))}
+          </ResponsiveGrid>
         </View>
       ) : error && all.length === 0 ? (
         <EmptyState icon={RefreshCw} title="Couldn’t load accounts" body="Check your connection and try again." ctaLabel="Try again" onCta={fetchAccounts} />

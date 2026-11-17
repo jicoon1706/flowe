@@ -27,6 +27,14 @@ import type { AnyAccount } from '@/src/utils/accountDisplay';
 const WEEK = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 /** calendar — opens on today; dots scale with daily spend; tap a day → day sheet. */
+
+/**
+ * One seventh of the row, rounded down: Yoga rounds each 14.2857% cell up to
+ * whole pixels, and on some widths (the Galaxy Tab S6 Lite) seven of them
+ * overflow the row and Saturday wraps to the next line.
+ */
+const CELL_WIDTH = '14.28%';
+
 export default function CalendarScreen() {
   const router = useRouter();
   const { isTablet } = useBreakpoint();
@@ -58,7 +66,7 @@ export default function CalendarScreen() {
 
   return (
     <HeroScreen
-      contentWidth="form"
+      contentWidth="form" tabletLayout="card"
       heroHeight={260}
       refreshControl={<RefreshControl refreshing={loading && fetched} onRefresh={refetch} tintColor={colors['on-primary']} />}
       hero={
@@ -115,19 +123,19 @@ export default function CalendarScreen() {
         <>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {WEEK.map((w, i) => (
-              <View key={`${w}${i}`} style={{ width: `${100 / 7}%`, alignItems: 'center', paddingBottom: 8 }}>
+              <View key={`${w}${i}`} style={{ width: CELL_WIDTH, alignItems: 'center', paddingBottom: 8 }}>
                 <Text variant="label-sm" tone="muted">{w}</Text>
               </View>
             ))}
             {cells.map((d, i) => {
-              if (!d) return <View key={`b${i}`} style={{ width: `${100 / 7}%`, height: 52 }} />;
+              if (!d) return <View key={`b${i}`} style={{ width: CELL_WIDTH, height: 52 }} />;
               const ymd = ymdOf(d);
               const isToday = ymd === todayYmd;
               const future = ymd > todayYmd;
               const level = levels[ymd] ?? 0;
               const label = `${d} ${month.toLocaleDateString('en-MY', { month: 'long' })}${level ? `, spend level ${level} of 3` : ''}`;
               return (
-                <View key={ymd} style={{ width: `${100 / 7}%`, padding: 2 }}>
+                <View key={ymd} style={{ width: CELL_WIDTH, padding: 2 }}>
                   {firstLoad ? (
                     <Skeleton height={44} />
                   ) : (

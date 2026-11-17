@@ -5,6 +5,8 @@ import { BellRing, Database, Gauge, Lock, Repeat, Shield, Sparkles, Store, Tags,
 import { colors } from '@/theme/tokens';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { ResponsiveColumns } from '@/src/components/ui/ResponsiveGrid';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { SettingsGroup } from '@/components/ui/SettingsGroup';
 import { SettingsRow } from '@/components/ui/SettingsRow';
 import { Text } from '@/components/ui/Text';
@@ -38,9 +40,11 @@ export default function SettingsIndex() {
   const activeBills = recurringRules.filter((r) => r.status === 'active').length;
   const initial = (displayName.trim()[0] ?? 'F').toUpperCase();
 
+  const { isTablet } = useBreakpoint();
   return (
     <HeroScreen
-      contentWidth="form"
+      // Tablet (t-set-settings): the groups flow in two columns across the sheet.
+      contentWidth={isTablet ? 'dashboard' : 'form'}
       heroHeight={236}
       hero={
         <View style={{ paddingHorizontal: 24, marginTop: 16, gap: 16 }}>
@@ -57,6 +61,8 @@ export default function SettingsIndex() {
         </View>
       }
     >
+      <ResponsiveColumns>{[
+      <View key="you-money" style={{ gap: 16 }}>
       <SettingsGroup title="You">
         <SettingsRow label="Account" icon={User} onPress={() => router.push('/settings/account')} />
         <SettingsRow label="Security" value="PIN, fingerprint" icon={Lock} onPress={() => router.push('/settings/security')} />
@@ -67,12 +73,14 @@ export default function SettingsIndex() {
         <SettingsRow label="Budget" value={budget ? `${formatRM(budget)} a day` : 'Not set'} icon={Gauge} onPress={() => router.push('/settings/budget')} />
         <SettingsRow label="Recurring" value={`${activeBills} bill${activeBills === 1 ? '' : 's'}`} icon={Repeat} onPress={() => router.push('/settings/recurring')} />
       </SettingsGroup>
-      <SettingsGroup title="App">
+      </View>,
+      <SettingsGroup key="app" title="App">
         <SettingsRow label="Notifications" icon={Bell} onPress={() => router.push('/settings/notifications')} />
         <SettingsRow label="Affirmations" icon={Sparkles} onPress={() => router.push('/settings/affirmations')} />
         <SettingsRow label="Data" value="Export, import, reset" icon={Database} onPress={() => router.push('/settings/data')} />
         <SettingsRow label="Request a merchant" icon={Store} onPress={() => router.push('/settings/merchant-request')} />
-      </SettingsGroup>
+      </SettingsGroup>,
+      ]}</ResponsiveColumns>
     </HeroScreen>
   );
 }

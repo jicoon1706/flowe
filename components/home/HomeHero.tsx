@@ -63,13 +63,13 @@ export function HomeHero({ name, balance, accounts, monthChangePct, masked, unre
                 <Money amount={balance ?? 0} variant="numeric-lg" on="gradient" smallCurrency masked={masked} />
               </View>
             </Pressable>
-            {masked ? <GlassChip icon={Lock} label="Locked · tap to show" onPress={onUnlock} />
-              : justUpdated ? <GlassChip icon={RefreshCw} label="Updated just now" role="status" />
-              : stale === 'updating' ? <GlassChip label="Updating…" role="status" />
-              : stale === 'saved' ? <GlassChip icon={Clock} label="Showing saved data" role="status" />
-              : accounts.length === 0 ? <GlassChip icon={Wallet} label="No accounts yet" />
+            {masked ? <GlassChip icon={Lock} label="Locked · tap to show" onPress={onUnlock} align="center" />
+              : justUpdated ? <GlassChip icon={RefreshCw} label="Updated just now" role="status" align="center" />
+              : stale === 'updating' ? <GlassChip label="Updating…" role="status" align="center" />
+              : stale === 'saved' ? <GlassChip icon={Clock} label="Showing saved data" role="status" align="center" />
+              : accounts.length === 0 ? <GlassChip icon={Wallet} label="No accounts yet" align="center" />
               : monthChangePct !== null ? (
-                <GlassChip icon={monthChangePct < 0 ? ArrowDownRight : ArrowUpRight} label={`${Math.abs(monthChangePct).toFixed(2)}% this month`} />
+                <GlassChip icon={monthChangePct < 0 ? ArrowDownRight : ArrowUpRight} label={`${Math.abs(monthChangePct).toFixed(2)}% this month`} align="center" />
               ) : null}
           </>
         )}
