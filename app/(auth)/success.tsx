@@ -15,6 +15,7 @@ import { hashPin } from '@/src/lib/pinCrypto';
 import { flags } from '@/src/lib/secureStore';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { refreshGate } from '../_layout';
+import { useColumnPadding } from '@/src/hooks/useBreakpoint';
 
 type Status = 'saving' | 'ready' | 'error';
 
@@ -22,6 +23,7 @@ type Status = 'saving' | 'ready' | 'error';
 export default function Success() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const padX = useColumnPadding(24);
   const toast = useToast();
   const { state, dispatch } = useOnboarding();
   const [status, setStatus] = useState<Status>('saving');
@@ -53,7 +55,7 @@ export default function Success() {
   const next = () => { refreshGate(); router.replace('/(onboarding)/name'); };
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top + 176, paddingBottom: insets.bottom + 32, paddingHorizontal: 24 }}>
+    <View style={{ flex: 1, paddingTop: insets.top + 176, paddingBottom: insets.bottom + 32, paddingHorizontal: padX }}>
       <GradientFill />
       <View style={{ gap: 32 }}>
         <ProgressRing progress={status === 'ready' ? 1 : 0.72} size={168} stroke={10} accessibilityLabel={status === 'ready' ? 'Done' : 'Saving'}>

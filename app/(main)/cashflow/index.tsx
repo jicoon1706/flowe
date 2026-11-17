@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, useWindowDimensions, View } from 'react-native';
+import { Pressable, RefreshControl, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, ChevronDown, Info, Plus, RefreshCw } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
@@ -19,11 +19,13 @@ import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
 import { useTransactions } from '@/src/hooks/useTransactions';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { spendByCategory } from '@/src/lib/cashflow';
 import { describeTransaction } from '@/src/utils/transactionDisplay';
 import type { Transaction } from '@/src/types';
 
 /** Bubble slots on a 390-wide hero (ins-cashflow): [left, top, size], largest first. */
+const STAGE_WIDTH = 390;
 const SLOTS: [number, number, number][] = [
   [14, 72, 150], [196, 82, 134], [120, 216, 122], [268, 254, 108], [16, 284, 92], [150, 374, 76],
 ];
@@ -34,7 +36,7 @@ const SLOTS: [number, number, number][] = [
  */
 export default function CashflowScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, isTablet } = useBreakpoint();
   const { user } = useAuth();
   const { locked } = useLock();
   const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
@@ -47,7 +49,7 @@ export default function CashflowScreen() {
 
   const { total, items } = useMemo(() => spendByCategory(transactions as Transaction[]), [transactions]);
   const labelOf = (cat: string) => describeTransaction({ type: 'expense', category: cat } as Transaction, custom).label;
-  const scale = Math.min(1, width / 390);
+  const scale = Math.min(1, width / STAGE_WIDTH);
   const iconKeyOf = (cat: string) => expenseCategories.find((c) => c.id === cat)?.id ?? custom.find((c) => c.name === cat)?.icon ?? cat;
   const openCategory = (cat: string) => router.push({ pathname: '/transactions', params: { category: cat, month: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}` } });
   const firstLoad = loading && !fetched;
@@ -91,7 +93,7 @@ export default function CashflowScreen() {
             </Pressable>
             <GlassIconButton icon={Info} accessibilityLabel="Cashflow info" onPress={() => router.push('/cashflow/info')} />
           </View>
-          <View style={{ flex: 1 }} accessibilityLabel={items.length ? 'Spending by category' : undefined}>
+          <View style={{ flex: 1, ...(isTablet ? { width: STAGE_WIDTH, alignSelf: 'center' } as const : null) }} accessibilityLabel={items.length ? 'Spending by category' : undefined}>
             {bubbles}
             {!firstLoad && items.length === 0 && !error ? (
               <View style={{ position: 'absolute', left: 24, right: 24, bottom: 48, alignItems: 'center' }}>

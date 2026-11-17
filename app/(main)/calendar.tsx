@@ -18,6 +18,7 @@ import { useLock } from '@/context/LockContext';
 import { useAccounts } from '@/src/hooks/useAccounts';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
 import { useTransactions } from '@/src/hooks/useTransactions';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { spendOnDay } from '@/src/lib/calendarSpend';
 import { localYMD } from '@/src/utils/date';
 import { editParams, type TxWithAccounts } from '@/src/utils/transactionDisplay';
@@ -28,6 +29,7 @@ const WEEK = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 /** calendar — opens on today; dots scale with daily spend; tap a day → day sheet. */
 export default function CalendarScreen() {
   const router = useRouter();
+  const { isTablet } = useBreakpoint();
   const { user } = useAuth();
   const { locked } = useLock();
   const today = new Date();
@@ -56,6 +58,7 @@ export default function CalendarScreen() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       heroHeight={260}
       refreshControl={<RefreshControl refreshing={loading && fetched} onRefresh={refetch} tintColor={colors['on-primary']} />}
       hero={
@@ -133,7 +136,7 @@ export default function CalendarScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={label}
                       accessibilityState={{ selected: isToday }}
-                      style={{ height: 48, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', gap: 3, backgroundColor: isToday ? colors.secondary : 'transparent' }}
+                      style={{ ...(isTablet ? { width: 48, alignSelf: 'center' } as const : null), height: 48, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', gap: 3, backgroundColor: isToday ? colors.secondary : 'transparent' }}
                     >
                       <Text variant="body-md" size={15} weight={500} tone="inherit" style={{ color: isToday ? colors['on-secondary'] : future ? colors['on-surface-variant'] : colors['on-surface'] }}>{d}</Text>
                       <View style={{ flexDirection: 'row', gap: 2, height: 4 }}>

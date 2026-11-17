@@ -53,6 +53,7 @@ export default function NotificationAccess() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       heroHeight={416}
       bottomPadding={32}
       sheetPadding={{ top: 28, horizontal: 24 }}

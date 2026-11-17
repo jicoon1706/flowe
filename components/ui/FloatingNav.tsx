@@ -3,6 +3,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarDays, ChartPie, House, Plus, Settings2, type LucideIcon } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
+import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 
 export type NavKey = 'home' | 'cashflow' | 'add' | 'calendar' | 'settings';
 
@@ -26,6 +27,9 @@ export interface FloatingNavProps {
 export function FloatingNav({ active, onNavigate }: FloatingNavProps) {
   const insets = useSafeAreaInsets();
   const bottom = Math.max(24, insets.bottom + 8);
+  const { isTablet, width } = useBreakpoint();
+  // Tablet: the pill (and its centre + key) stays centred at a phone-like width.
+  const inset = isTablet ? centeredPadding(width, TABLET_WIDTH.nav, 24) : 24;
   return (
     <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 96 + bottom }}>
       <Svg pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }} width="100%" height={96 + bottom}>
@@ -41,8 +45,8 @@ export function FloatingNav({ active, onNavigate }: FloatingNavProps) {
         accessibilityRole="tablist"
         style={{
           position: 'absolute',
-          left: 24,
-          right: 24,
+          left: inset,
+          right: inset,
           bottom,
           height: 60,
           borderRadius: 9999,

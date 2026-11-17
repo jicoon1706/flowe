@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { ResponsiveGrid } from '@/src/components/ui/ResponsiveGrid';
 import { Money } from '@/components/ui/Money';
 import { Sheet } from '@/components/ui/Sheet';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -134,20 +135,22 @@ export default function AccountsScreen() {
             <Text variant="label-sm" tone="muted" accessibilityRole="header">
               {ACCOUNT_GROUP_LABEL[g.type]} · {locked ? 'RM •••••' : formatRM(sumBalances(g.items))}
             </Text>
-            {g.items.map((a) => (
-              <TransactionRow
-                key={a.id}
-                title={a.name}
-                meta={meta(a)}
-                amount={accountBalance(a)}
-                direction="none"
-                domain={accountDomain(a)}
-                icon={a.type === 'tabung' ? tabungIcon(a.tabung_accounts?.template_type, a.tabung_accounts?.icon) : a.type === 'wallet' ? Wallet : Landmark}
-                masked={locked}
-                onPress={() => router.push(detailHref(a))}
-                trailing={<Money amount={accountBalance(a)} weight={600} masked={locked} />}
-              />
-            ))}
+            <ResponsiveGrid gap={16} rowGap={2}>
+              {g.items.map((a) => (
+                <TransactionRow
+                  key={a.id}
+                  title={a.name}
+                  meta={meta(a)}
+                  amount={accountBalance(a)}
+                  direction="none"
+                  domain={accountDomain(a)}
+                  icon={a.type === 'tabung' ? tabungIcon(a.tabung_accounts?.template_type, a.tabung_accounts?.icon) : a.type === 'wallet' ? Wallet : Landmark}
+                  masked={locked}
+                  onPress={() => router.push(detailHref(a))}
+                  trailing={<Money amount={accountBalance(a)} weight={600} masked={locked} />}
+                />
+              ))}
+            </ResponsiveGrid>
           </View>
         ))
       )}

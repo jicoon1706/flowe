@@ -79,6 +79,7 @@ export default function NotificationsScreen() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       heroHeight={164}
       refreshControl={<RefreshControl refreshing={loading && notifications.length > 0} onRefresh={fetchNotifications} tintColor={colors['on-primary']} />}
       hero={<TopBar title="Notifications" onBack={() => router.back()} right={<GlassIconButton icon={Check} accessibilityLabel="Mark all read" onPress={markAll} disabled={!unread} />} />}

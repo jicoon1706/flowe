@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radius } from '@/theme/tokens';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { GradientFill } from './GradientFill';
 
 export interface HeroProps {
@@ -15,14 +16,18 @@ export interface HeroProps {
   style?: StyleProp<ViewStyle>;
   /** Content dimmed to 55% while showing cached figures (q-launch-2). */
   dimmed?: boolean;
+  /** Tablet only: centres the content in a column this wide (dp). The gradient stays full width. */
+  contentMaxWidth?: number;
 }
 
 /**
  * The hero field: the gradient holding one key metric. 40 px bottom radius
  * (rounded.xl) where a white sheet meets it; full-bleed on auth screens.
  */
-export function Hero({ children, height, full, safeTop = true, style, dimmed }: HeroProps) {
+export function Hero({ children, height, full, safeTop = true, style, dimmed, contentMaxWidth }: HeroProps) {
   const insets = useSafeAreaInsets();
+  const { isTablet } = useBreakpoint();
+  const column = isTablet && contentMaxWidth ? { width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' } as const : null;
   return (
     <View
       style={[
@@ -38,7 +43,7 @@ export function Hero({ children, height, full, safeTop = true, style, dimmed }: 
       ]}
     >
       <GradientFill />
-      <View style={{ flex: full || height ? 1 : undefined, opacity: dimmed ? 0.55 : 1 }}>{children}</View>
+      <View style={{ flex: full || height ? 1 : undefined, opacity: dimmed ? 0.55 : 1, ...column }}>{children}</View>
     </View>
   );
 }

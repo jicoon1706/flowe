@@ -65,6 +65,7 @@ export default function TransactionsScreen() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       hero={
         <TopBar
           title={params.category ? describeTransaction({ type: 'expense', category: params.category } as TxWithAccounts, custom).label : 'Recent Transactions'}

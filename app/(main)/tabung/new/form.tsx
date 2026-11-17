@@ -55,6 +55,7 @@ export default function NewTabungForm() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       bottomPadding={32}
       sheetPadding={{ top: 24, horizontal: 24 }}
       hero={

@@ -21,6 +21,7 @@ export function SettingsScreen({ title, children, overlay, refreshControl }: Set
       overlay={overlay}
       refreshControl={refreshControl}
       sheetPadding={{ top: 20 }}
+      contentWidth="form"
       hero={
         <>
           <TopBar onBack={() => router.back()} />

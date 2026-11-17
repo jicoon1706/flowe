@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { ScrollView, View, type RefreshControlProps } from 'react-native';
 import { colors, radius } from '@/theme/tokens';
+import { TABLET_WIDTH, useBreakpoint, type ContentWidth } from '@/src/hooks/useBreakpoint';
 import { Hero } from './Hero';
 
 export interface HeroScreenProps {
@@ -20,6 +21,10 @@ export interface HeroScreenProps {
   heroDimmed?: boolean;
   scrollEnabled?: boolean;
   testID?: string;
+  /** Tablet column: 'dashboard' (≈960 dp, default) or 'form' (≈640 dp). Ignored on phones. */
+  contentWidth?: ContentWidth;
+  /** Tablet: centre the hero content in the column too (default). Off for full-bleed hero art. */
+  heroColumn?: boolean;
 }
 
 /**
@@ -27,8 +32,13 @@ export interface HeroScreenProps {
  * working sheet (32 px top radius) that overlaps its bottom edge. Scrolls as one.
  */
 export function HeroScreen({
-  hero, heroHeight, overlap = 24, children, bottomPadding = 120, refreshControl, sheetPadding, overlay, heroDimmed, scrollEnabled = true, testID,
+  hero, heroHeight, overlap = 24, children, bottomPadding = 120, refreshControl, sheetPadding, overlay, heroDimmed, scrollEnabled = true, testID, contentWidth = 'dashboard', heroColumn = true,
 }: HeroScreenProps) {
+  const { isTablet, width } = useBreakpoint();
+  const maxWidth = TABLET_WIDTH[contentWidth];
+  const padX = sheetPadding?.horizontal ?? 16;
+  // Tablet: hero content and sheet content share one centred column; both surfaces stay full width.
+  const sheetPadX = isTablet ? Math.max(padX, (width - maxWidth) / 2 + padX) : padX;
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }} testID={testID}>
       <ScrollView
@@ -38,7 +48,7 @@ export function HeroScreen({
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: bottomPadding }}
       >
-        <Hero height={heroHeight} dimmed={heroDimmed} style={{ paddingBottom: overlap }}>{hero}</Hero>
+        <Hero height={heroHeight} dimmed={heroDimmed} style={{ paddingBottom: overlap }} contentMaxWidth={heroColumn ? maxWidth : undefined}>{hero}</Hero>
         <View
           style={{
             marginTop: -overlap,
@@ -46,7 +56,7 @@ export function HeroScreen({
             borderTopLeftRadius: overlap > 0 ? radius.lg : 0,
             borderTopRightRadius: overlap > 0 ? radius.lg : 0,
             paddingTop: sheetPadding?.top ?? 20,
-            paddingHorizontal: sheetPadding?.horizontal ?? 16,
+            paddingHorizontal: sheetPadX,
             gap: 16,
             flexGrow: 1,
           }}

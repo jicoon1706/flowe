@@ -28,6 +28,8 @@ import { useAssets } from '@/src/hooks/useAssets';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
 import { useReceiptScan } from '@/src/hooks/useReceiptScan';
 import { useTransactions } from '@/src/hooks/useTransactions';
+import { TABLET_WIDTH, useColumnPadding } from '@/src/hooks/useBreakpoint';
+import { ResponsiveContainer } from '@/src/components/ui/ResponsiveContainer';
 import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
 import { transactionsRepository, type CreateTransactionRequest } from '@/src/repositories/transactions.repository';
@@ -73,6 +75,8 @@ type Params = {
  */
 export default function AddTransactionScreen() {
   const router = useRouter();
+  // Tablet: the numpad column keeps phone-sized keys.
+  const padX = useColumnPadding(16, TABLET_WIDTH.keypad - 32);
   const p = useLocalSearchParams<Params>();
   const toast = useToast();
   const { user } = useAuth();
@@ -332,7 +336,7 @@ export default function AddTransactionScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      <Hero height={undefined} style={{ paddingBottom: 48 }}>
+      <Hero height={undefined} style={{ paddingBottom: 48 }} contentMaxWidth={TABLET_WIDTH.keypad}>
         <TopBar title={isEdit ? 'Edit transaction' : 'Add transaction'} onBack={close} close />
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
           <SegmentedToggle
@@ -350,7 +354,7 @@ export default function AddTransactionScreen() {
         </View>
       </Hero>
 
-      <View style={{ flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 20, paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}>
+      <View style={{ flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 20, paddingHorizontal: padX, paddingBottom: 24, gap: 12 }}>
         <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {kind === 'transfer' ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -421,13 +425,15 @@ export default function AddTransactionScreen() {
       </Sheet>
 
       {showDate ? (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          maximumDate={new Date()}
-          display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          onChange={(e: DateTimePickerEvent, d?: Date) => { setShowDate(Platform.OS === 'ios' && e.type !== 'dismissed'); if (d && e.type === 'set') setDate(d); }}
-        />
+        <ResponsiveContainer variant={TABLET_WIDTH.keypad}>
+          <DateTimePicker
+            value={date}
+            mode="date"
+            maximumDate={new Date()}
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            onChange={(e: DateTimePickerEvent, d?: Date) => { setShowDate(Platform.OS === 'ios' && e.type !== 'dismissed'); if (d && e.type === 'set') setDate(d); }}
+          />
+        </ResponsiveContainer>
       ) : null}
     </View>
   );

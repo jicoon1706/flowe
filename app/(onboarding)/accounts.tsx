@@ -47,6 +47,7 @@ export default function Accounts() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       hero={<OnboardingHero title={title} step={2} onBack={() => (adding && count ? setAdding(false) : router.back())} />}
       bottomPadding={32}
       sheetPadding={{ top: 24, horizontal: 24 }}

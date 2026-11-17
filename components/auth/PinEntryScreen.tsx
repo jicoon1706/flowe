@@ -7,6 +7,7 @@ import { PinDots } from '../ui/PinDots';
 import { PinPad } from '../ui/PinPad';
 import { Text } from '../ui/Text';
 import { TopBar } from '../ui/TopBar';
+import { TABLET_WIDTH, useColumnPadding } from '@/src/hooks/useBreakpoint';
 
 export interface PinEntryScreenProps {
   title: string;
@@ -25,18 +26,21 @@ export interface PinEntryScreenProps {
 /** Full gradient PIN screen: back, title, 6 dots, glass numpad (B2–B4, G4). */
 export function PinEntryScreen({ title, subtitle, pin, onChange, onBack, error, errorKey, step, disabled }: PinEntryScreenProps) {
   const insets = useSafeAreaInsets();
+  const textPadX = useColumnPadding(24);
+  // Tablet: keypad keeps a 400 dp column so its keys stay phone-sized.
+  const padPadX = useColumnPadding(32, TABLET_WIDTH.keypad);
   return (
     <View style={{ flex: 1, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 40 }}>
       <GradientFill />
       <TopBar onBack={onBack} title={step} />
-      <View style={{ alignItems: 'center', paddingHorizontal: 24, marginTop: 48, gap: 8 }}>
+      <View style={{ alignItems: 'center', paddingHorizontal: textPadX, marginTop: 48, gap: 8 }}>
         <Text variant="display-md" tone="inverse" align="center" accessibilityRole="header">{title}</Text>
         <Text variant="body-md" tone="soft" align="center">{subtitle}</Text>
         <View style={{ marginTop: 32 }}><PinDots length={pin.length} errorKey={errorKey} /></View>
         {error ? <View style={{ marginTop: 12 }}><GlassChip icon={CircleAlert} role="alert" label={error} /></View> : null}
       </View>
       <View style={{ flex: 1 }} />
-      <View style={{ paddingHorizontal: 32 }}>
+      <View style={{ paddingHorizontal: padPadX }}>
         <PinPad value={pin} onChange={onChange} disabled={disabled} />
       </View>
     </View>

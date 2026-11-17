@@ -63,6 +63,7 @@ export default function MerchantRequestScreen() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       heroHeight={180}
       bottomPadding={32}
       sheetPadding={{ top: 20, horizontal: 24 }}

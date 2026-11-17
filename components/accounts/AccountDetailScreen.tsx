@@ -125,6 +125,7 @@ export function AccountDetailScreen({ accountId, kind }: { accountId: string; ki
 
   return (
     <HeroScreen
+      contentWidth="form"
       heroHeight={360}
       refreshControl={<RefreshControl refreshing={loading && fetched} onRefresh={() => { refetch(); fetchAccounts(); }} tintColor={colors['on-primary']} />}
       hero={

@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { ResponsiveContainer } from '@/src/components/ui/ResponsiveContainer';
 import { PhotoSlot } from '@/components/ui/PhotoSlot';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SettingsRow } from '@/components/ui/SettingsRow';
@@ -53,20 +54,24 @@ export default function LearnProjectScreen() {
 
   return (
     <HeroScreen
+      contentWidth="form"
+      heroColumn={false}
       heroHeight={300}
       refreshControl={<RefreshControl refreshing={loading && !!project} onRefresh={refresh} tintColor={colors['on-primary']} />}
       hero={
         <View style={{ flex: 1 }}>
           <PhotoSlot photo={LEARN_COVERS[0]} style={{ position: 'absolute', left: 0, right: 0, top: -80, bottom: -24 }} />
-          <TopBar onBack={() => router.replace('/home/learn')} right={<GlassIconButton icon={Ellipsis} accessibilityLabel="More options" onPress={() => setMenu(true)} disabled={!project} />} />
-          <View style={{ paddingHorizontal: 24, marginTop: 64, gap: 8 }}>
-            {firstLoad ? <Skeleton width={200} height={32} tone="glass" /> : (
-              <>
-                <Text variant="display-md" tone="inverse" accessibilityRole="header">{project?.name}</Text>
-                <GlassChip icon={BookOpen} label={`${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`} />
-              </>
-            )}
-          </View>
+          <ResponsiveContainer variant="form" style={{ flex: 1 }}>
+            <TopBar onBack={() => router.replace('/home/learn')} right={<GlassIconButton icon={Ellipsis} accessibilityLabel="More options" onPress={() => setMenu(true)} disabled={!project} />} />
+            <View style={{ paddingHorizontal: 24, marginTop: 64, gap: 8 }}>
+              {firstLoad ? <Skeleton width={200} height={32} tone="glass" /> : (
+                <>
+                  <Text variant="display-md" tone="inverse" accessibilityRole="header">{project?.name}</Text>
+                  <GlassChip icon={BookOpen} label={`${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`} />
+                </>
+              )}
+            </View>
+          </ResponsiveContainer>
         </View>
       }
       overlay={

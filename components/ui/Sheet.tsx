@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } fr
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius } from '@/theme/tokens';
+import { TABLET_SHEET_MAX_HEIGHT, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { Text } from './Text';
 
 export interface SheetProps {
@@ -18,14 +19,19 @@ export interface SheetProps {
   dismissible?: boolean;
   /** Override the default sheet test id. */
   testID?: string;
+  /** Tablet only: max sheet width in dp (default 560). Phones always span the screen. */
+  tabletMaxWidth?: number;
 }
 
 /**
  * White bottom sheet: 32 px top radius, grabber, 45% ink scrim, 12/24/24 padding.
  * No shadow — separation comes from the scrim and the colour jump.
  */
-export function Sheet({ visible, onClose, title, children, scroll, maxHeightRatio = 0.9, dismissible = true, testID }: SheetProps) {
+export function Sheet({ visible, onClose, title, children, scroll, maxHeightRatio = 0.9, dismissible = true, testID, tabletMaxWidth = TABLET_WIDTH.sheet }: SheetProps) {
   const insets = useSafeAreaInsets();
+  const { isTablet } = useBreakpoint();
+  // Tablet: still bottom-anchored, but centred, width-capped and at most 85% tall.
+  const heightRatio = isTablet ? Math.min(maxHeightRatio, TABLET_SHEET_MAX_HEIGHT) : maxHeightRatio;
   const close = () => { if (dismissible) onClose(); };
   const Body = scroll ? ScrollView : View;
   return (
@@ -45,7 +51,8 @@ export function Sheet({ visible, onClose, title, children, scroll, maxHeightRati
             paddingTop: 12,
             paddingHorizontal: 24,
             paddingBottom: Math.max(24, insets.bottom + 12),
-            maxHeight: `${Math.round(maxHeightRatio * 100)}%`,
+            maxHeight: `${Math.round(heightRatio * 100)}%`,
+            ...(isTablet ? { width: '100%', maxWidth: tabletMaxWidth, alignSelf: 'center' } as const : null),
           }}
         >
           <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 9999, backgroundColor: colors['surface-container-high'], marginBottom: 16 }} />

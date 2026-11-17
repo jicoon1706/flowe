@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { Toast, type ToastAction, type ToastKind } from './Toast';
 
 export interface ToastInput {
@@ -37,6 +38,7 @@ export function ToastProvider({ children, bottomOffset = 104 }: { children: Reac
   const [toast, setToast] = useState<ToastState | null>(null);
   const seq = useRef(0);
   const insets = useSafeAreaInsets();
+  const { isTablet } = useBreakpoint();
 
   const hide = useCallback(() => setToast(null), []);
   const show = useCallback((t: ToastInput) => {
@@ -64,7 +66,7 @@ export function ToastProvider({ children, bottomOffset = 104 }: { children: Reac
       {children}
       <View pointerEvents="box-none" style={{ position: 'absolute', left: 16, right: 16, bottom: bottomOffset + insets.bottom / 2, alignItems: 'center' }}>
         {toast ? (
-          <Animated.View key={toast.id} entering={FadeInDown.duration(180)} exiting={FadeOutDown.duration(160)} style={{ maxWidth: '100%' }}>
+          <Animated.View key={toast.id} entering={FadeInDown.duration(180)} exiting={FadeOutDown.duration(160)} style={{ maxWidth: isTablet ? TABLET_WIDTH.dialog : '100%' }}>
             <Toast
               kind={toast.kind}
               message={toast.message}

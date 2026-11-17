@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useAuth } from '@/context/AuthContext';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
 import { useTransactions } from '@/src/hooks/useTransactions';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import type { CustomCategory } from '@/src/types';
 
 type Kind = 'expense' | 'income';
@@ -28,6 +29,7 @@ type Kind = 'expense' | 'income';
 export default function CategoriesScreen() {
   const toast = useToast();
   const { user } = useAuth();
+  const { isTablet } = useBreakpoint();
   const now = new Date();
   const { transactions, refetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
   const { categories: custom, fetchCategories, createCategory, updateCategory, deleteCategory } = useCustomCategories();
@@ -102,7 +104,7 @@ export default function CategoriesScreen() {
                     const sel = k === icon;
                     return (
                       <Pressable key={k} onPress={() => setIcon(k)} accessibilityRole="radio" accessibilityLabel={k.replace(/-/g, ' ')} accessibilityState={{ checked: sel }}
-                        style={{ width: '14.9%', height: 52, borderRadius: 9999, backgroundColor: sel ? colors.secondary : colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+                        style={{ width: isTablet ? 52 : '14.9%', height: 52, borderRadius: 9999, backgroundColor: sel ? colors.secondary : colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
                         <Icon size={20} color={sel ? colors['on-secondary'] : colors['on-surface']} strokeWidth={1.75} />
                       </Pressable>
                     );

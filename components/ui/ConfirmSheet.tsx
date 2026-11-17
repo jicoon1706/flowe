@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { Trash2, type LucideIcon } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
+import { TABLET_WIDTH } from '@/src/hooks/useBreakpoint';
 import { Button } from './Button';
 import { Sheet } from './Sheet';
 import { Text } from './Text';
@@ -39,7 +40,7 @@ export function ConfirmSheet({
     }
   };
   return (
-    <Sheet visible={visible} onClose={onCancel} dismissible={!busy} testID="confirm-sheet">
+    <Sheet visible={visible} onClose={onCancel} dismissible={!busy} testID="confirm-sheet" tabletMaxWidth={TABLET_WIDTH.dialog}>
       <View style={{ gap: 14 }}>
         <View style={{ width: 64, height: 64, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={30} color={colors['on-surface']} strokeWidth={1.5} />

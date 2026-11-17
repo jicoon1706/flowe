@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { ResponsiveGrid } from '@/src/components/ui/ResponsiveGrid';
 import { PhotoSlot } from '@/components/ui/PhotoSlot';
 import { Sheet } from '@/components/ui/Sheet';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -96,18 +97,20 @@ export default function LearnScreen() {
       ) : !list.length ? (
         <EmptyState icon={BookOpen} title="Start a learning project" body="Keep notes on what you learn about money, one project at a time." ctaLabel="New project" ctaIcon={Plus} onCta={() => setCreating(true)} />
       ) : (
-        list.map((p, i) => {
-          const n = p.learn_entries?.length ?? 0;
-          return (
-            <Pressable key={p.id} onPress={() => router.push(`/home/learn/${p.id}`)} accessibilityRole="link" accessibilityLabel={`${p.name}, ${n} entries`} style={({ pressed }) => ({ gap: 10, opacity: pressed ? 0.8 : 1 })}>
-              {i < 3 ? <PhotoSlot photo={LEARN_COVERS[i]} style={{ height: 120, borderRadius: radius.md }} /> : null}
-              <View>
-                <Text variant="body-lg" weight={500}>{p.name}</Text>
-                <Text variant="label-sm" tone="muted">{n} entr{n === 1 ? 'y' : 'ies'}</Text>
-              </View>
-            </Pressable>
-          );
-        })
+        <ResponsiveGrid gap={16}>
+          {list.map((p, i) => {
+            const n = p.learn_entries?.length ?? 0;
+            return (
+              <Pressable key={p.id} onPress={() => router.push(`/home/learn/${p.id}`)} accessibilityRole="link" accessibilityLabel={`${p.name}, ${n} entries`} style={({ pressed }) => ({ gap: 10, opacity: pressed ? 0.8 : 1 })}>
+                {i < 3 ? <PhotoSlot photo={LEARN_COVERS[i]} style={{ height: 120, borderRadius: radius.md }} /> : null}
+                <View>
+                  <Text variant="body-lg" weight={500}>{p.name}</Text>
+                  <Text variant="label-sm" tone="muted">{n} entr{n === 1 ? 'y' : 'ies'}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ResponsiveGrid>
       )}
     </HeroScreen>
   );

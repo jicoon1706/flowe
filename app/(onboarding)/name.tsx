@@ -25,7 +25,7 @@ export default function Name() {
   };
 
   return (
-    <HeroScreen hero={<OnboardingHero title="What should we call you?" step={1} onBack={router.canGoBack() ? () => router.back() : undefined} />} bottomPadding={32} sheetPadding={{ top: 28, horizontal: 24 }}>
+    <HeroScreen contentWidth="form" hero={<OnboardingHero title="What should we call you?" step={1} onBack={router.canGoBack() ? () => router.back() : undefined} />} bottomPadding={32} sheetPadding={{ top: 28, horizontal: 24 }}>
       <View style={{ gap: 8 }}>
         <Text variant="label-sm" tone="muted">Your name</Text>
         <View style={{ backgroundColor: colors['surface-container'], borderRadius: 20, paddingHorizontal: 20, paddingVertical: 16, borderWidth: 1.5, borderColor: error ? colors.secondary : 'transparent' }}>

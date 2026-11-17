@@ -5,6 +5,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { verifyPin } from '@/src/lib/pinVerify';
 import { flags } from '@/src/lib/secureStore';
 import { useAuth } from '@/context/AuthContext';
+import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { BrandMark } from '../ui/BrandMark';
 import { Button } from '../ui/Button';
 import { GlassChip } from '../ui/GlassChip';
@@ -28,6 +29,9 @@ export interface LockOverlayProps {
 export function LockOverlay({ onUnlock, onCancel, displayName }: LockOverlayProps) {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const { isTablet, width } = useBreakpoint();
+  // Tablet: full-screen gradient, but greeting + keypad keep a 400 dp column so keys never stretch.
+  const padX = isTablet ? centeredPadding(width, TABLET_WIDTH.keypad, 24) : 24;
   const [pin, setPin] = useState('');
   const [errorKey, setErrorKey] = useState(0);
   const [wrong, setWrong] = useState(false);
@@ -75,7 +79,7 @@ export function LockOverlay({ onUnlock, onCancel, displayName }: LockOverlayProp
   return (
     <View
       accessibilityViewIsModal
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, paddingTop: insets.top + 64, paddingBottom: insets.bottom + 40, paddingHorizontal: 24 }}
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200, paddingTop: insets.top + 64, paddingBottom: insets.bottom + 40, paddingHorizontal: padX }}
     >
       <GradientFill />
       <View style={{ alignItems: 'center', gap: 8 }}>

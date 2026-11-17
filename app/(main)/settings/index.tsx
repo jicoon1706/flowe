@@ -40,6 +40,7 @@ export default function SettingsIndex() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       heroHeight={236}
       hero={
         <View style={{ paddingHorizontal: 24, marginTop: 16, gap: 16 }}>

@@ -16,7 +16,7 @@ export function FullScreenModal({ visible, title, onClose, children }: FullScree
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: colors.surface }}>
-        <HeroScreen heroHeight={176} bottomPadding={48} hero={<TopBar title={title} onBack={onClose} />}>
+        <HeroScreen heroHeight={176} bottomPadding={48} contentWidth="form" hero={<TopBar title={title} onBack={onClose} />}>
           {children}
         </HeroScreen>
       </View>

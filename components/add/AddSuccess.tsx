@@ -9,6 +9,7 @@ import { useTodaySpend } from '@/src/hooks/useTodaySpend';
 import { directionOf } from '@/src/lib/money';
 import { dayLabel, timeOf } from '@/src/utils/transactionDisplay';
 import type { Transaction } from '@/src/types';
+import { TABLET_WIDTH, useColumnPadding } from '@/src/hooks/useBreakpoint';
 import { Button } from '../ui/Button';
 import { Hero } from '../ui/Hero';
 import { Money } from '../ui/Money';
@@ -34,6 +35,7 @@ export function AddSuccess({ transaction, categoryLabel, accountName, onDone, on
   const { budget, fetchBudget } = useDailyBudget(user?.id);
   const { spent } = useTodaySpend();
   const [sweep, setSweep] = useState(0.72);
+  const padX = useColumnPadding(16);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
 
@@ -50,7 +52,7 @@ export function AddSuccess({ transaction, categoryLabel, accountName, onDone, on
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }} accessibilityLiveRegion="polite">
-      <Hero style={{ paddingBottom: 56 }}>
+      <Hero style={{ paddingBottom: 56 }} contentMaxWidth={TABLET_WIDTH.form}>
         <View style={{ alignItems: 'center', gap: 24, marginTop: 48 }}>
           <ProgressRing progress={sweep} size={132} stroke={8} accessibilityLabel="Saved">
             <View style={{ width: 92, height: 92, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
@@ -61,7 +63,7 @@ export function AddSuccess({ transaction, categoryLabel, accountName, onDone, on
           <Money amount={Number(transaction.amount)} direction={dir} variant="numeric-lg" on="gradient" smallCurrency />
         </View>
       </Hero>
-      <View style={{ flex: 1, marginTop: -32, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 16, paddingTop: 24, gap: 16 }}>
+      <View style={{ flex: 1, marginTop: -32, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 16, paddingHorizontal: padX, paddingTop: 24, gap: 16 }}>
         <TransactionRow title={transaction.name} meta={meta} amount={Number(transaction.amount)} direction={dir} icon={categoryIcon(transaction.category)} />
         {transaction.type === 'expense' ? (
           <View style={{ flexDirection: 'row', gap: 8 }}>

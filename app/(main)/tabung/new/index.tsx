@@ -14,6 +14,7 @@ export default function NewTabung() {
   const [goal, setGoal] = useState<TabungGoalKey>('emergency');
   return (
     <HeroScreen
+      contentWidth="form"
       bottomPadding={32}
       hero={
         <View style={{ paddingBottom: 40 }}>

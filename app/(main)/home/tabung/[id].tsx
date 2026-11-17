@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { ResponsiveColumns } from '@/src/components/ui/ResponsiveGrid';
 import { Money } from '@/components/ui/Money';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -242,25 +243,31 @@ export default function TabungScreen() {
         <EmptyState icon={RefreshCw} title="Couldn’t load this Tabung" body="Check your connection and try again." ctaLabel="Try again" onCta={refresh} />
       ) : progress ? (
         <>
-          <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.sm, padding: 16, gap: 8 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text variant="label-sm" tone="meta">Saved toward goal</Text>
-              <Money amount={progress.contributed} direction="income" variant="headline-md" weight={600} on="grey" masked={locked} />
+          <ResponsiveColumns>
+          <>
+            <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.sm, padding: 16, gap: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text variant="label-sm" tone="meta">Saved toward goal</Text>
+                <Money amount={progress.contributed} direction="income" variant="headline-md" weight={600} on="grey" masked={locked} />
+              </View>
+              <Text variant="label-sm" tone="meta">
+                {progress.reached ? `Goal reached in ${reachedMonths} month${reachedMonths === 1 ? '' : 's'}.` : 'Every top-up counts. Pay-outs never move this back.'}
+              </Text>
             </View>
-            <Text variant="label-sm" tone="meta">
-              {progress.reached ? `Goal reached in ${reachedMonths} month${reachedMonths === 1 ? '' : 's'}.` : 'Every top-up counts. Pay-outs never move this back.'}
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <StatTile label="In Tabung now" icon={PiggyBank} amount={saved} masked={locked} />
-            <StatTile label="Paid out" icon={ArrowDownRight} amount={progress.paidOut} direction={progress.paidOut ? 'expense' : 'none'} masked={locked} />
-          </View>
-          <SectionHeader title="This goal by month" actionLabel="Breakdown" onAction={() => setBreakdown(true)} />
-          {progress.months.length ? (
-            <TabungMonthStrip months={progress.months} projected={!progress.reached && tabung && monthsLeft(tabung.to_date) > 0 ? onTrack : null} />
-          ) : (
-            <Text variant="body-md" tone="muted">Your first top-up starts the month strip.</Text>
-          )}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <StatTile label="In Tabung now" icon={PiggyBank} amount={saved} masked={locked} />
+              <StatTile label="Paid out" icon={ArrowDownRight} amount={progress.paidOut} direction={progress.paidOut ? 'expense' : 'none'} masked={locked} />
+            </View>
+          </>
+          <>
+            <SectionHeader title="This goal by month" actionLabel="Breakdown" onAction={() => setBreakdown(true)} />
+            {progress.months.length ? (
+              <TabungMonthStrip months={progress.months} projected={!progress.reached && tabung && monthsLeft(tabung.to_date) > 0 ? onTrack : null} />
+            ) : (
+              <Text variant="body-md" tone="muted">Your first top-up starts the month strip.</Text>
+            )}
+          </>
+          </ResponsiveColumns>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Button label="Add money" icon={Plus} onPress={() => setMoney('in')} style={{ flex: 1 }} />
             <Button label="Pay out" icon={ArrowDownRight} variant="action" onPress={() => setMoney('out')} disabled={saved <= 0} />

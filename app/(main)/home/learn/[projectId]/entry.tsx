@@ -56,6 +56,7 @@ export default function EntryScreen() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       heroHeight={164}
       bottomPadding={48}
       sheetPadding={{ top: 24, horizontal: 24 }}

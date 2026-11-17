@@ -36,12 +36,15 @@ import { refreshSpentToday, syncBudgetLimits } from '@/src/services/dailyBudget'
 import { readHomeCache, syncedLabel, writeHomeCache, type HomeCache } from '@/src/lib/homeCache';
 import { sumBalances, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
 import { editParams, type TxWithAccounts } from '@/src/utils/transactionDisplay';
+import { TABLET_WIDTH, useBreakpoint, useColumnPadding } from '@/src/hooks/useBreakpoint';
 
 /** "Updated just now" stays this long after a live update (o-home-live-after). */
 const UPDATED_CHIP_MS = 2000;
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { isTablet } = useBreakpoint();
+  const padX = useColumnPadding(16, TABLET_WIDTH.dashboard - 32);
   const { user } = useAuth();
   const { locked, requireUnlock } = useLock();
   const detected = useDetected();
@@ -171,6 +174,41 @@ export default function HomeScreen() {
     />
   );
 
+  const pendingCard = detected.pending.length > 0 ? (
+    <PendingEntriesCard pending={detected.pending} accounts={detected.accounts} onSave={detected.save} onDismiss={detected.dismiss} />
+  ) : null;
+  const statTiles = (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      <StatTile label="Spent today" icon={ArrowDownRight} amount={shownSpent ?? 0} masked={masked} />
+      {budget !== null ? (
+        <StatTile label="Left today" icon={Wallet} amount={shownLeft ?? 0} masked={masked} />
+      ) : (
+        <StatTile label="Left today" icon={Gauge} value="Set a budget" onPress={() => router.push('/settings/budget')} />
+      )}
+    </View>
+  );
+  const recentSection = (
+    <>
+      <SectionHeader title="Recent Transactions" onAction={() => router.push('/transactions')} />
+      {txError && recent.length === 0 ? (
+        <EmptyState icon={RefreshCw} title="Couldn’t load transactions" body="Check your connection and try again." ctaLabel="Try again" onCta={fetchTx} />
+      ) : !txLoading && recent.length === 0 ? (
+        <EmptyState title="No transactions yet" body="Add one, or turn on auto-detect and bank alerts become one-tap confirmations." ctaLabel="Add transaction" ctaIcon={Plus} onCta={() => router.push('/add-transaction')} />
+      ) : (
+        <TransactionList transactions={recent} customCategories={custom} masked={masked} loading={txLoading} skeletonRows={4} onPress={async (tx) => { if (await requireUnlock()) setDetail(tx); }} />
+      )}
+    </>
+  );
+  const affirmation = affirmationTexts.length > 0 ? (
+    <AffirmationCard text={affirmationTexts[affIndex % affirmationTexts.length]} onNext={affirmationTexts.length > 1 ? () => setAffIndex((i) => i + 1) : undefined} />
+  ) : null;
+  const links = (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      <Chip label="Analysis" icon={ChartLine} onPress={() => router.push('/home/analysis')} />
+      <Chip label="Learn" icon={BookOpen} onPress={() => router.push('/home/learn')} />
+    </View>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView
@@ -178,9 +216,9 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 140 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors['on-primary']} colors={[colors.secondary]} progressBackgroundColor={colors.surface} />}
       >
-        <Hero style={{ paddingBottom: 24 }}>{empty ? <View style={{ height: 300 }}>{hero}</View> : hero}</Hero>
+        <Hero style={{ paddingBottom: 24 }} contentMaxWidth={TABLET_WIDTH.dashboard}>{empty ? <View style={{ height: 300 }}>{hero}</View> : hero}</Hero>
 
-        <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 16 }}>
+        <View style={{ paddingHorizontal: padX, paddingTop: 16, gap: 16 }}>
           {firstLoad ? (
             <>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -220,36 +258,26 @@ export default function HomeScreen() {
                 <Button label="Scan" icon={ScanLine} variant="action" style={{ flex: 1 }} onPress={() => router.push({ pathname: '/add-transaction', params: { scan: '1', nonce: String(Date.now()) } })} />
               </View>
 
-              {detected.pending.length > 0 ? (
-                <PendingEntriesCard pending={detected.pending} accounts={detected.accounts} onSave={detected.save} onDismiss={detected.dismiss} />
-              ) : null}
-
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <StatTile label="Spent today" icon={ArrowDownRight} amount={shownSpent ?? 0} masked={masked} />
-                {budget !== null ? (
-                  <StatTile label="Left today" icon={Wallet} amount={shownLeft ?? 0} masked={masked} />
-                ) : (
-                  <StatTile label="Left today" icon={Gauge} value="Set a budget" onPress={() => router.push('/settings/budget')} />
-                )}
-              </View>
-
-              <SectionHeader title="Recent Transactions" onAction={() => router.push('/transactions')} />
-              {txError && recent.length === 0 ? (
-                <EmptyState icon={RefreshCw} title="Couldn’t load transactions" body="Check your connection and try again." ctaLabel="Try again" onCta={fetchTx} />
-              ) : !txLoading && recent.length === 0 ? (
-                <EmptyState title="No transactions yet" body="Add one, or turn on auto-detect and bank alerts become one-tap confirmations." ctaLabel="Add transaction" ctaIcon={Plus} onCta={() => router.push('/add-transaction')} />
+              {isTablet ? (
+                // Tablet: today's summary beside the recent list.
+                <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, gap: 16 }}>
+                    {pendingCard}
+                    {statTiles}
+                    {affirmation}
+                    {links}
+                  </View>
+                  <View style={{ flex: 1, gap: 16 }}>{recentSection}</View>
+                </View>
               ) : (
-                <TransactionList transactions={recent} customCategories={custom} masked={masked} loading={txLoading} skeletonRows={4} onPress={async (tx) => { if (await requireUnlock()) setDetail(tx); }} />
+                <>
+                  {pendingCard}
+                  {statTiles}
+                  {recentSection}
+                  {affirmation}
+                  {links}
+                </>
               )}
-
-              {affirmationTexts.length > 0 ? (
-                <AffirmationCard text={affirmationTexts[affIndex % affirmationTexts.length]} onNext={affirmationTexts.length > 1 ? () => setAffIndex((i) => i + 1) : undefined} />
-              ) : null}
-
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Chip label="Analysis" icon={ChartLine} onPress={() => router.push('/home/analysis')} />
-                <Chip label="Learn" icon={BookOpen} onPress={() => router.push('/home/learn')} />
-              </View>
             </>
           )}
         </View>

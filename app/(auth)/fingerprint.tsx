@@ -11,11 +11,13 @@ import { GradientFill } from '@/components/ui/GradientFill';
 import { Text } from '@/components/ui/Text';
 import { TopBar } from '@/components/ui/TopBar';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useColumnPadding } from '@/src/hooks/useBreakpoint';
 
 /** (auth)/fingerprint — Enable (white pill) → system prompt; Skip = text button. */
 export default function Fingerprint() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const padX = useColumnPadding(24);
   const { dispatch } = useOnboarding();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function Fingerprint() {
     <View style={{ flex: 1, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }}>
       <GradientFill />
       <TopBar onBack={() => router.back()} />
-      <View style={{ alignItems: 'center', paddingHorizontal: 24, marginTop: 64, gap: 32 }}>
+      <View style={{ alignItems: 'center', paddingHorizontal: padX, marginTop: 64, gap: 32 }}>
         <View style={{ width: 200, height: 200, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
           <View style={{ width: 136, height: 136, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
             <FingerprintPattern size={64} color={colors['on-primary']} strokeWidth={1.5} />
@@ -58,7 +60,7 @@ export default function Fingerprint() {
         {note ? <GlassChip role="alert" label={note} /> : null}
       </View>
       <View style={{ flex: 1 }} />
-      <View style={{ paddingHorizontal: 24, gap: 8, alignItems: 'center' }}>
+      <View style={{ paddingHorizontal: padX, gap: 8, alignItems: 'center' }}>
         <Button label="Enable" variant="white" onPress={enable} loading={busy} fullWidth />
         <Button label="Skip" variant="text" onGradient onPress={() => finish(false)} disabled={busy} />
       </View>

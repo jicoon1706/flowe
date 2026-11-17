@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { FullScreenModal } from '@/components/ui/FullScreenModal';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { ResponsiveColumns } from '@/src/components/ui/ResponsiveGrid';
 import { Money } from '@/components/ui/Money';
 import { SettingsRow } from '@/components/ui/SettingsRow';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -185,22 +186,24 @@ export default function CashflowInfoScreen() {
       {(aError || lError) && !assets.length && !liabilities.length && fetched ? (
         <EmptyState icon={RefreshCw} title="Couldn’t load your balance sheet" body="Check your connection and try again." ctaLabel="Try again" onCta={load} />
       ) : null}
-      <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
-        <Text variant="label-lg">Income statement · {monthShort}</Text>
-        <StatementLine label="Income" amount={totalIncome} direction="income" masked={locked} />
-        <StatementLine label="Expenses" amount={totalExpenses} direction="expense" masked={locked} />
-        <View style={{ height: 1, backgroundColor: colors['surface-container-high'] }} />
-        <StatementLine label="Net cashflow" amount={Math.abs(totalIncome - totalExpenses)} direction={totalIncome - totalExpenses >= 0 ? 'income' : 'expense'} masked={locked} />
-      </View>
-      <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
-        <Text variant="label-lg">Balance sheet</Text>
-        <StatementLine label={`Assets · ${assetsLabel}`} amount={totalAssets} masked={locked} />
-        <StatementLine label={`Liabilities · ${liabLabel}`} amount={totalLiab} masked={locked} />
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-          <Button label="Add asset" icon={Plus} variant="white" height={44} onPress={() => setAssetSheet({ initial: null })} style={{ flex: 1 }} />
-          <Button label="Add liability" icon={Plus} variant="white" height={44} onPress={() => setLiabSheet({ initial: null })} style={{ flex: 1 }} />
+      <ResponsiveColumns>
+        <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
+          <Text variant="label-lg">Income statement · {monthShort}</Text>
+          <StatementLine label="Income" amount={totalIncome} direction="income" masked={locked} />
+          <StatementLine label="Expenses" amount={totalExpenses} direction="expense" masked={locked} />
+          <View style={{ height: 1, backgroundColor: colors['surface-container-high'] }} />
+          <StatementLine label="Net cashflow" amount={Math.abs(totalIncome - totalExpenses)} direction={totalIncome - totalExpenses >= 0 ? 'income' : 'expense'} masked={locked} />
         </View>
-      </View>
+        <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
+          <Text variant="label-lg">Balance sheet</Text>
+          <StatementLine label={`Assets · ${assetsLabel}`} amount={totalAssets} masked={locked} />
+          <StatementLine label={`Liabilities · ${liabLabel}`} amount={totalLiab} masked={locked} />
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+            <Button label="Add asset" icon={Plus} variant="white" height={44} onPress={() => setAssetSheet({ initial: null })} style={{ flex: 1 }} />
+            <Button label="Add liability" icon={Plus} variant="white" height={44} onPress={() => setLiabSheet({ initial: null })} style={{ flex: 1 }} />
+          </View>
+        </View>
+      </ResponsiveColumns>
       {assets.length || liabilities.length ? (
         <View>
           {assets.map((a) => (

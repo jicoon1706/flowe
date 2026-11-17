@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal, View } from 'react-native';
 import { ArrowUpRight, Check, Info, Landmark, Wallet } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
+import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { formatRM, parseAmount, roundCents } from '@/src/lib/money';
 import { accountDomain, type AnyAccount } from '@/src/utils/accountDisplay';
 import { AccountPill } from '../ui/AccountPill';
@@ -45,6 +46,9 @@ export function TabungMoneySheet(p: TabungMoneySheetProps) {
   const [picker, setPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tried, setTried] = useState(false);
+  const { isTablet, width } = useBreakpoint();
+  // Tablet: the numpad column keeps a phone-like width so keys don't stretch.
+  const padX = isTablet ? centeredPadding(width, TABLET_WIDTH.keypad - 32, 16) : 16;
 
   useEffect(() => {
     if (!p.visible) return;
@@ -74,7 +78,7 @@ export function TabungMoneySheet(p: TabungMoneySheetProps) {
   return (
     <Modal visible={p.visible} animationType="slide" onRequestClose={() => !saving && p.onClose()} statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: colors.surface }}>
-        <Hero style={{ paddingBottom: 48 }}>
+        <Hero style={{ paddingBottom: 48 }} contentMaxWidth={TABLET_WIDTH.keypad}>
           <TopBar title={p.mode === 'in' ? `Add to ${p.tabungName}` : `Pay out of ${p.tabungName}`} onBack={() => !saving && p.onClose()} close />
           <View style={{ alignItems: 'center', gap: 10, marginTop: 28 }}>
             <Money amount={amount} variant="numeric-lg" on="gradient" smallCurrency />
@@ -91,7 +95,7 @@ export function TabungMoneySheet(p: TabungMoneySheetProps) {
             {tried && error && amount <= 0 ? <InlineError on="gradient" message={error} /> : null}
           </View>
         </Hero>
-        <View style={{ flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: 16, paddingTop: 20, paddingBottom: 24, gap: 12 }}>
+        <View style={{ flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: 16, paddingHorizontal: padX, paddingTop: 20, paddingBottom: 24, gap: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text variant="body-md" tone="muted">{p.mode === 'in' ? 'From' : 'To'}</Text>
             <AccountPill

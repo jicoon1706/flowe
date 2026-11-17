@@ -79,6 +79,7 @@ export default function BudgetScreen() {
 
   return (
     <HeroScreen
+      contentWidth="form"
       heroHeight={300}
       bottomPadding={112}
       hero={

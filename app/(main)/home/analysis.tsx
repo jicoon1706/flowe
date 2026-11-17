@@ -6,6 +6,7 @@ import { chart, colors } from '@/theme/tokens';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { ResponsiveColumns } from '@/src/components/ui/ResponsiveGrid';
 import { Money } from '@/components/ui/Money';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -70,50 +71,54 @@ export default function AnalysisScreen() {
       {error && !analysis ? (
         <EmptyState icon={RefreshCw} title="Couldn’t load analysis" body="Check your connection and try again." ctaLabel="Try again" ctaIcon={RefreshCw} onCta={refetch} />
       ) : (
-        <>
-          <SectionHeader title="Monthly trend" actionLabel={`${period}M`} onAction={() => setPeriod((p) => NEXT[p])} />
-          {firstLoad ? (
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 196, paddingHorizontal: 4 }} accessibilityLabel="Loading chart">
-              {[103, 123, 112, 136, 126, 116].map((h, i) => <Skeleton key={i} width={28} height={h} tone="pill" />)}
-            </View>
-          ) : trend.length ? (
-            <View
-              accessible
-              accessibilityRole="image"
-              accessibilityLabel={`Monthly spend: ${trend.map((t) => `${monthName(t.month)} ${formatRMCompact(t.expenses)}`).join(', ')}`}
-              style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 196, paddingHorizontal: 4 }}
-            >
-              {trend.map((t, i) => {
-                const current = i === trend.length - 1;
-                return (
-                  <View key={t.month} style={{ alignItems: 'center', gap: 8 }}>
-                    <Text variant="caption" tone="muted">{formatRMCompact(t.expenses).replace('RM ', '')}</Text>
-                    <View style={{ width: period === 12 ? 16 : 28, height: Math.max(8, Math.round((t.expenses / max) * BAR_MAX)), borderRadius: 9999, backgroundColor: current ? chart[0] : chart[1], opacity: current ? 1 : 0.55 }} />
-                    <Text variant="label-sm" tone={current ? 'default' : 'muted'}>{monthName(t.month)}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          ) : (
-            <Text variant="body-md" tone="muted">Your first month of spending starts the trend.</Text>
-          )}
-          <SectionHeader title="Income vs expense" />
-          {[{ label: 'Income', value: income, dir: 'income' as const, color: chart[0] }, { label: 'Expense', value: spent, dir: 'expense' as const, color: chart[2] }].map((r) => {
-            const share = Math.max(income, spent) > 0 ? r.value / Math.max(income, spent) : 0;
-            return (
-              <View key={r.label} style={{ gap: 8 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text variant="body-md">{r.label}</Text>
-                  <Money amount={r.value} direction={r.dir} arrow variant="body-md" weight={500} masked={locked} />
-                </View>
-                <View style={{ height: 12, borderRadius: 9999, backgroundColor: colors['surface-container'], overflow: 'hidden' }} accessibilityElementsHidden>
-                  <View style={{ width: `${share * 100}%`, height: 12, borderRadius: 9999, backgroundColor: r.color }} />
-                </View>
+        <ResponsiveColumns>
+          <>
+            <SectionHeader title="Monthly trend" actionLabel={`${period}M`} onAction={() => setPeriod((p) => NEXT[p])} />
+            {firstLoad ? (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 196, paddingHorizontal: 4 }} accessibilityLabel="Loading chart">
+                {[103, 123, 112, 136, 126, 116].map((h, i) => <Skeleton key={i} width={28} height={h} tone="pill" />)}
               </View>
-            );
-          })}
-          {kept !== null ? <Text variant="label-sm" weight={400} tone="muted">{kept >= 0 ? `You kept ${kept}% of income this month.` : `You spent ${Math.abs(kept)}% more than you earned this month.`}</Text> : null}
-        </>
+            ) : trend.length ? (
+              <View
+                accessible
+                accessibilityRole="image"
+                accessibilityLabel={`Monthly spend: ${trend.map((t) => `${monthName(t.month)} ${formatRMCompact(t.expenses)}`).join(', ')}`}
+                style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 196, paddingHorizontal: 4 }}
+              >
+                {trend.map((t, i) => {
+                  const current = i === trend.length - 1;
+                  return (
+                    <View key={t.month} style={{ alignItems: 'center', gap: 8 }}>
+                      <Text variant="caption" tone="muted">{formatRMCompact(t.expenses).replace('RM ', '')}</Text>
+                      <View style={{ width: period === 12 ? 16 : 28, height: Math.max(8, Math.round((t.expenses / max) * BAR_MAX)), borderRadius: 9999, backgroundColor: current ? chart[0] : chart[1], opacity: current ? 1 : 0.55 }} />
+                      <Text variant="label-sm" tone={current ? 'default' : 'muted'}>{monthName(t.month)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text variant="body-md" tone="muted">Your first month of spending starts the trend.</Text>
+            )}
+          </>
+          <>
+            <SectionHeader title="Income vs expense" />
+            {[{ label: 'Income', value: income, dir: 'income' as const, color: chart[0] }, { label: 'Expense', value: spent, dir: 'expense' as const, color: chart[2] }].map((r) => {
+              const share = Math.max(income, spent) > 0 ? r.value / Math.max(income, spent) : 0;
+              return (
+                <View key={r.label} style={{ gap: 8 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text variant="body-md">{r.label}</Text>
+                    <Money amount={r.value} direction={r.dir} arrow variant="body-md" weight={500} masked={locked} />
+                  </View>
+                  <View style={{ height: 12, borderRadius: 9999, backgroundColor: colors['surface-container'], overflow: 'hidden' }} accessibilityElementsHidden>
+                    <View style={{ width: `${share * 100}%`, height: 12, borderRadius: 9999, backgroundColor: r.color }} />
+                  </View>
+                </View>
+              );
+            })}
+            {kept !== null ? <Text variant="label-sm" weight={400} tone="muted">{kept >= 0 ? `You kept ${kept}% of income this month.` : `You spent ${Math.abs(kept)}% more than you earned this month.`}</Text> : null}
+          </>
+        </ResponsiveColumns>
       )}
     </HeroScreen>
   );

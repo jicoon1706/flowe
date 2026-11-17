@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { ResponsiveContainer } from '@/src/components/ui/ResponsiveContainer';
 import { Bell, Clock, Plus, Quote, Trash2 } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 import { AffirmationCard } from '@/components/home/AffirmationCard';
@@ -98,19 +99,21 @@ export default function AffirmationSettingsScreen() {
           </Sheet>
           <ConfirmSheet visible={!!removing} icon={Trash2} title="Remove this affirmation?" message={`“${removing?.text ?? ''}” won’t be shown again.`} confirmLabel="Remove" onConfirm={remove} onCancel={() => setRemoving(null)} />
           {picker ? (
-            <DateTimePicker
-              value={new Date(2000, 0, 1, h || 8, m || 0)}
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(e: DateTimePickerEvent, d?: Date) => {
-                setPicker(false);
-                if (d && e.type === 'set') {
-                  const v = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                  setTime(v);
-                  persist({ daily_reminder_time: v });
-                }
-              }}
-            />
+            <ResponsiveContainer variant="form">
+              <DateTimePicker
+                value={new Date(2000, 0, 1, h || 8, m || 0)}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(e: DateTimePickerEvent, d?: Date) => {
+                  setPicker(false);
+                  if (d && e.type === 'set') {
+                    const v = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    setTime(v);
+                    persist({ daily_reminder_time: v });
+                  }
+                }}
+              />
+            </ResponsiveContainer>
           ) : null}
         </>
       }

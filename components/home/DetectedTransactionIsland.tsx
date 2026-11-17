@@ -4,6 +4,7 @@ import Animated, { FadeIn, SlideInUp, SlideOutUp } from 'react-native-reanimated
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BellRing, CalendarDays, Wallet, X } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
+import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { expenseCategories, incomeCategories } from '@/constants/categories';
 import { categoryIcon } from '@/constants/categoryIcons';
 import { merchantCategory } from '@/src/utils/merchantLogo';
@@ -55,6 +56,8 @@ function categoryLabel(slug: string | undefined): string {
  */
 export function DetectedTransactionIsland({ detected, accounts, onSave, onDismiss, onSnooze }: DetectedTransactionIslandProps) {
   const insets = useSafeAreaInsets();
+  const { isTablet, width } = useBreakpoint();
+  const islandInset = isTablet ? centeredPadding(width, TABLET_WIDTH.nav, 16) : 16;
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -103,7 +106,7 @@ export function DetectedTransactionIsland({ detected, accounts, onSave, onDismis
           entering={SlideInUp.duration(260)}
           exiting={SlideOutUp.duration(200)}
           {...pan.panHandlers}
-          style={{ position: 'absolute', top: insets.top + 8, left: 16, right: 16, zIndex: 100 }}
+          style={{ position: 'absolute', top: insets.top + 8, left: islandInset, right: islandInset, zIndex: 100 }}
         >
           <Pressable
             onPress={() => setExpanded(true)}
@@ -129,7 +132,7 @@ export function DetectedTransactionIsland({ detected, accounts, onSave, onDismis
             entering={SlideInUp.duration(220)}
             accessibilityViewIsModal
             accessibilityLabel="Detected transaction"
-            style={{ marginTop: insets.top + 8, marginHorizontal: 12, borderRadius: radius.lg, overflow: 'hidden', padding: 20, gap: 16 }}
+            style={{ marginTop: insets.top + 8, marginHorizontal: 12, borderRadius: radius.lg, overflow: 'hidden', padding: 20, gap: 16, ...(isTablet ? { width: '100%', maxWidth: TABLET_WIDTH.dialog, alignSelf: 'center' } as const : null) }}
           >
             <GradientFill />
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
