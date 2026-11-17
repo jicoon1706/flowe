@@ -1,4 +1,5 @@
 import type { NotificationType, Settings } from '../types';
+import { formatRM } from './money';
 
 /**
  * Which settings.notif_* column governs each notification type
@@ -99,4 +100,62 @@ export function parseReminderTime(value: string | null | undefined): { hour: num
   const minute = Number(match[2]);
   if (hour > 23 || minute > 59) return null;
   return { hour, minute };
+}
+
+/**
+ * Where a notification opens: the in-app inbox row and the OS push share it
+ * (journey §5.1.9). A push may override it (the monthly summary opens Analysis).
+ */
+export function hrefForNotification(type: NotificationType, relatedId?: string | null): string {
+  switch (type) {
+    case 'expense': case 'income': case 'transfer': return '/transactions';
+    case 'recurring': return '/settings/recurring';
+    case 'alert': return '/settings/budget';
+    case 'tabung': case 'milestone': return relatedId ? `/home/tabung/${relatedId}` : '/home/accounts';
+    case 'asset': case 'liability': case 'cashflow': return '/cashflow/info';
+    case 'note': case 'project': return '/home/learn';
+    case 'affirmation': return '/settings/affirmations';
+    default: return '/';
+  }
+}
+
+/** Action sets on Flowe's pushes (canvas "push · android · all 8 types"). */
+export type PushCategory = 'view' | 'open' | 'recurring-before' | 'recurring-due';
+
+export const PUSH_ACTIONS: Record<PushCategory, { id: string; title: string; opensApp: boolean }[]> = {
+  view: [{ id: 'view', title: 'View', opensApp: true }],
+  open: [{ id: 'open', title: 'Open', opensApp: true }],
+  'recurring-before': [{ id: 'remind-later', title: 'Remind me later', opensApp: false }],
+  'recurring-due': [{ id: 'confirm-all', title: 'Confirm all', opensApp: true }],
+};
+
+/** How long "Remind me later" waits before asking again. */
+export const REMIND_LATER_MS = 3 * 60 * 60 * 1000;
+
+export interface DueBill {
+  name: string;
+  amount: number;
+  /** Name of the account it is paid from or into, when known. */
+  accountName?: string | null;
+}
+
+function shortDate(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' });
+}
+
+/** Canvas "Recurring · day before": "Netflix is due tomorrow" / "RM 55.00 from Maybank Savings on 16 Nov." */
+export function dayBeforePush(bill: DueBill, dueYmd: string): { title: string; body: string } {
+  const from = bill.accountName ? ` from ${bill.accountName}` : '';
+  return { title: `${bill.name} is due tomorrow`, body: `${formatRM(bill.amount)}${from} on ${shortDate(dueYmd)}.` };
+}
+
+/** Canvas "Recurring · due": "3 bills due today" / "Netflix, Spotify, Unifi · RM 209.90". */
+export function dueTodayPush(bills: readonly DueBill[]): { title: string; body: string } {
+  const total = bills.reduce((sum, b) => sum + b.amount, 0);
+  if (bills.length === 1) {
+    const b = bills[0];
+    return { title: `${b.name} is due today`, body: `${formatRM(b.amount)}${b.accountName ? ` from ${b.accountName}` : ''}.` };
+  }
+  return { title: `${bills.length} bills due today`, body: `${bills.map((b) => b.name).join(', ')} · ${formatRM(total)}` };
 }

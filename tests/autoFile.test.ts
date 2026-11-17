@@ -56,6 +56,26 @@ describe('auto-file decision', () => {
     expect(decide(item, [])).toEqual({ name: 'Groceries', type: 'expense', accountId: 'acc-maybank-1234', category: 'others' });
   });
 
+  it('files a heads-up Confirm the way the parser reads it', () => {
+    const item = toDetected(
+      capture({ text: 'RM 12.00 debited from account ending 1234 at KEDAI RUNCIT PAK MAT', chosenType: 'confirm' }),
+      [maybank],
+      {}
+    )!;
+    expect(item.answeredFromShade).toBe(true);
+    expect(item.parsed.type).toBe('expense');
+    expect(decide(item, [])).toEqual(expect.objectContaining({ type: 'expense', accountId: 'acc-maybank-1234', category: 'others' }));
+  });
+
+  it('keeps a confirmed credit alert as income', () => {
+    const item = toDetected(
+      capture({ packageName: 'com.cimb.octo', title: 'Credit Alert', text: 'MYR 3,200.00 has been credited to your account ending 1234', chosenType: 'confirm' }),
+      [maybank],
+      {}
+    )!;
+    expect(decide(item, [])).toEqual(expect.objectContaining({ type: 'income', category: undefined }));
+  });
+
   it('waits for the user when an e-wallet alert cannot be placed', () => {
     const item = toDetected(
       capture({ packageName: 'com.grabtaxi.passenger', title: 'Payment successful', text: 'You paid RM50.00 at MCDONALDS Rawang', chosenType: 'expense', chosenName: 'Lunch' }),

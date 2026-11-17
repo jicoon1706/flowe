@@ -72,16 +72,22 @@ export async function checkBudgetAlerts(): Promise<void> {
   // Record first, so two writes in quick succession can't both announce it.
   await writeStore({ ...store, budget: { date: today, sent: [...already, ...toSend] } });
   const top = toSend[0];
+  // Canvas "push · android · all 8 types": Budget 80 % / Budget 100 %, action View.
+  const title = top >= 100 ? 'Today’s budget is used up' : `${top}% of today’s budget used`;
+  const body = top >= 100
+    ? `${formatRM(spent.data)} spent of ${formatRM(limit)}. Resets at midnight.`
+    : `${formatRM(Math.max(0, limit - spent.data))} left of ${formatRM(limit)} today.`;
   await notify({
     type: 'alert',
     emoji: top >= 100 ? '⛔' : '⚠️',
-    message: top >= 100 ? 'Daily budget used up' : `${top}% of today's budget used`,
-    sub_text: `${formatRM(spent.data)} of ${formatRM(limit)} today`,
+    message: title,
+    sub_text: body,
+    push: { title, body, categoryId: 'view' },
   });
 }
 
 /** Tabung milestone every 20 % toward the goal. Called when a Tabung's progress changes. */
-export async function checkTabungMilestone(tabung: { id: string; name: string; percent: number; target: number }): Promise<void> {
+export async function checkTabungMilestone(tabung: { id: string; name: string; percent: number; target: number; counted: number }): Promise<void> {
   if (tabung.target <= 0) return;
   const prefs = await getNotificationSettings();
   if (prefs?.notif_milestone === false || prefs?.notif_tabung === false) return;
@@ -96,12 +102,16 @@ export async function checkTabungMilestone(tabung: { id: string; name: string; p
   const step = milestoneToSend(tabung.percent, already);
   if (step === null) return;
   await writeStore({ ...store, milestones: { ...store.milestones, [tabung.id]: [...already, step] } });
+  // Canvas: "Emergency Fund passed 20%" / "RM 1,053.34 of RM 5,000.00. Keep going." · Open.
+  const title = step >= 100 ? `${tabung.name} reached its goal` : `${tabung.name} passed ${step}%`;
+  const body = `${formatRM(tabung.counted)} of ${formatRM(tabung.target)}.${step >= 100 ? '' : ' Keep going.'}`;
   await notify({
     type: 'milestone',
     emoji: step >= 100 ? '🎉' : '🎯',
-    message: step >= 100 ? `${tabung.name} goal reached` : `${tabung.name} is ${step}% there`,
-    sub_text: `${step}% of ${formatRM(tabung.target)}`,
+    message: title,
+    sub_text: body,
     related_entity_id: tabung.id,
+    push: { title, body, categoryId: 'open' },
   });
 }
 
@@ -132,9 +142,10 @@ export async function runMonthlySummary(now: Date = new Date()): Promise<void> {
   const nextFirst = new Date(now.getFullYear(), now.getMonth() + 1, 1, SUMMARY_HOUR, 0, 0, 0);
   await scheduleLocalNotificationAt(
     nextFirst,
-    `📊 Your ${monthLabel(thisMonth)} summary is ready`,
+    `Your ${monthLabel(thisMonth)} summary`,
     'Open Flowe to see where it went.',
     `${SUMMARY_PREFIX}${thisMonth}`,
+    { categoryId: 'open', href: '/home/analysis' },
   );
 
   const last = previousMonth(thisMonth);
@@ -148,11 +159,17 @@ export async function runMonthlySummary(now: Date = new Date()): Promise<void> {
   const res = await edgeFunctionsService.getAnalysis(last);
   if (!res.ok) return;
   await writeStore({ ...store, summaryMonth: last });
+  // Canvas: "Your October summary" / "Spent RM 2,710.40 · kept 39% of income." · Open.
+  const title = `Your ${monthLabel(last)} summary`;
+  const body = res.data.income > 0
+    ? `Spent ${formatRM(res.data.expenses)} · kept ${Math.max(0, res.data.savings_rate)}% of income.`
+    : `Spent ${formatRM(res.data.expenses)}.`;
   await notify({
     type: 'cashflow',
     emoji: '📊',
-    message: `Your ${monthLabel(last)} summary`,
-    sub_text: `In ${formatRM(res.data.income)} · Out ${formatRM(res.data.expenses)}`,
+    message: title,
+    sub_text: body,
+    push: { title, body, categoryId: 'open', href: '/home/analysis' },
   });
 }
 
@@ -181,7 +198,8 @@ export async function scheduleDailyAffirmations(userId: string | undefined, now:
   const start = Math.floor(now.getTime() / 86_400_000);
   for (let i = 0; i < AFFIRMATION_DAYS; i++) {
     const when = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, time.hour, time.minute, 0, 0);
-    await scheduleLocalNotificationAt(when, '✨ Today’s affirmation', lines[(start + i) % lines.length], `${AFFIRMATION_PREFIX}${i}`);
+    // Canvas: "Today's affirmation" / the line, no action; a tap opens Settings › Affirmations.
+    await scheduleLocalNotificationAt(when, 'Today’s affirmation', lines[(start + i) % lines.length], `${AFFIRMATION_PREFIX}${i}`, { href: '/settings/affirmations' });
   }
 }
 

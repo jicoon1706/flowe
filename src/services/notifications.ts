@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { isRunningInExpoGo } from 'expo';
 import { supabase } from '../lib/supabase';
 import { notificationsRepository } from '../repositories/notifications.repository';
-import { bannerAllowed } from '../lib/notificationRules';
+import { bannerAllowed, hrefForNotification, PUSH_ACTIONS, type PushCategory } from '../lib/notificationRules';
 import { getNotificationSettings } from './notificationPrefs';
 import { colors } from '../../theme/tokens';
 import type { NotificationType } from '../types';
@@ -42,6 +42,34 @@ function getNotifications(): NotificationsModule | null {
 
 let permissionGranted: boolean | null = null;
 
+/** What a push carries besides its text: an action set and where a tap goes. */
+export interface PushExtras {
+  categoryId?: PushCategory;
+  /** expo-router path opened by a tap on the body or an opening action. */
+  href?: string;
+}
+
+function pushContent(title: string, body: string, extras?: PushExtras) {
+  return {
+    title,
+    body,
+    ...(extras?.categoryId ? { categoryIdentifier: extras.categoryId } : null),
+    ...(extras?.href ? { data: { href: extras.href } } : null),
+  };
+}
+
+/** Registers the canvas' action buttons (View, Open, Remind me later, Confirm all). */
+async function registerCategories(Notifications: NotificationsModule): Promise<void> {
+  await Promise.all(
+    (Object.keys(PUSH_ACTIONS) as PushCategory[]).map((id) =>
+      Notifications.setNotificationCategoryAsync(
+        id,
+        PUSH_ACTIONS[id].map((a) => ({ identifier: a.id, buttonTitle: a.title, options: { opensAppToForeground: a.opensApp } })),
+      ),
+    ),
+  );
+}
+
 /**
  * Request OS notification permission and register the Android channel. Safe to
  * call multiple times — the permission check is cached after the first grant.
@@ -62,6 +90,11 @@ export async function setupNotifications(): Promise<boolean> {
       lightColor: colors['primary-container'],
     });
   }
+  try {
+    await registerCategories(Notifications);
+  } catch (e) {
+    console.warn('[notifications] failed to register actions:', e);
+  }
 
   const settings = await Notifications.getPermissionsAsync();
   let status = settings.status;
@@ -78,14 +111,14 @@ export async function setupNotifications(): Promise<boolean> {
  * callers don't have to. Never throws — notification failures shouldn't break
  * the action that triggered them. A no-op in Expo Go.
  */
-export async function presentLocalNotification(title: string, body: string): Promise<void> {
+export async function presentLocalNotification(title: string, body: string, extras?: PushExtras): Promise<void> {
   try {
     if (permissionGranted === null) await setupNotifications();
     if (!permissionGranted) return;
     const Notifications = getNotifications();
     if (!Notifications) return;
     await Notifications.scheduleNotificationAsync({
-      content: { title, body },
+      content: pushContent(title, body, extras),
       trigger: null, // null = deliver immediately
     });
   } catch (e) {
@@ -108,7 +141,8 @@ export async function scheduleLocalNotificationAt(
   when: Date,
   title: string,
   body: string,
-  identifier: string
+  identifier: string,
+  extras?: PushExtras
 ): Promise<void> {
   try {
     if (when.getTime() <= Date.now()) return;
@@ -118,7 +152,7 @@ export async function scheduleLocalNotificationAt(
     if (!Notifications) return;
     await Notifications.scheduleNotificationAsync({
       identifier,
-      content: { title, body },
+      content: pushContent(title, body, extras),
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: when,
@@ -166,12 +200,22 @@ export async function notify(params: {
   message: string;
   sub_text?: string;
   related_entity_id?: string;
+  /**
+   * The OS push as the canvas draws it ("push · android · all 8 types"): a
+   * plain title and body, an action set and a tap target. Without it the push
+   * is "<emoji> <message>" / sub_text and opens the notification's source.
+   */
+  push?: { title: string; body: string } & PushExtras;
 }): Promise<void> {
   // The OS banner follows Settings › Notifications (notif_* per type). The
   // in-app entry is the history behind the bell, so it is always written.
   // The switches are cached in memory, so this rarely waits on the network.
   const prefs = await getNotificationSettings();
-  if (bannerAllowed(params.type, prefs)) presentLocalNotification(`${params.emoji} ${params.message}`, params.sub_text ?? '');
+  if (bannerAllowed(params.type, prefs)) {
+    const href = params.push?.href ?? hrefForNotification(params.type, params.related_entity_id);
+    if (params.push) await presentLocalNotification(params.push.title, params.push.body, { categoryId: params.push.categoryId, href });
+    else await presentLocalNotification(`${params.emoji} ${params.message}`, params.sub_text ?? '', { href });
+  }
   try {
     const { data } = await supabase.auth.getUser();
     const userId = data.user?.id;
@@ -188,4 +232,37 @@ export async function notify(params: {
   } catch (e) {
     console.warn('[notifications] failed to record:', e);
   }
+}
+
+export interface PushResponse {
+  /** 'default' for a tap on the body, otherwise the action id (view, open, remind-later, confirm-all). */
+  actionId: string;
+  href?: string;
+  title: string;
+  body: string;
+}
+
+/**
+ * Calls `handler` for every tap or action on a Flowe push, including the one
+ * that launched the app. Returns the unsubscribe. A no-op in Expo Go.
+ */
+export function onPushResponse(handler: (r: PushResponse) => void): () => void {
+  const Notifications = getNotifications();
+  if (!Notifications) return () => {};
+  const toResponse = (r: import('expo-notifications').NotificationResponse): PushResponse => {
+    const c = r.notification.request.content;
+    const href = typeof c.data?.href === 'string' ? c.data.href : undefined;
+    const actionId = r.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER ? 'default' : r.actionIdentifier;
+    return { actionId, href, title: c.title ?? '', body: c.body ?? '' };
+  };
+  const sub = Notifications.addNotificationResponseReceivedListener((r) => handler(toResponse(r)));
+  Notifications.getLastNotificationResponseAsync()
+    .then((r) => {
+      if (r) {
+        handler(toResponse(r));
+        Notifications.clearLastNotificationResponseAsync?.().catch(() => {});
+      }
+    })
+    .catch(() => {});
+  return () => sub.remove();
 }

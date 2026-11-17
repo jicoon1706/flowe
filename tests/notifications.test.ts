@@ -15,6 +15,7 @@
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
   setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
+  setNotificationCategoryAsync: jest.fn(() => Promise.resolve()),
   getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   scheduleNotificationAsync: jest.fn(() => Promise.resolve('notif-id')),
@@ -189,7 +190,7 @@ describe('notify()', () => {
     const { notify } = loadService();
     await notify(params);
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
-      content: { title: '💸 Loan added', body: 'RM 1,000.00' },
+      content: { title: '💸 Loan added', body: 'RM 1,000.00', data: { href: '/cashflow/info' } },
       trigger: null,
     });
   });
@@ -212,7 +213,7 @@ describe('notify()', () => {
     const { notify } = loadService();
     await notify({ type: 'asset', emoji: '📈', message: 'Asset added' });
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith({
-      content: { title: '📈 Asset added', body: '' },
+      content: { title: '📈 Asset added', body: '', data: { href: '/cashflow/info' } },
       trigger: null,
     });
   });

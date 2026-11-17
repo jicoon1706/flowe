@@ -50,6 +50,7 @@ object CaptureStore {
   private const val PREFS = "flowe_notification_captures"
   private const val KEY_QUEUE = "queue"
   private const val KEY_ENABLED = "enabled"
+  private const val KEY_PROMPTS = "capture_prompts"
   private const val KEY_PACKAGES = "packages"
   private const val KEY_SEEN = "seen"
 
@@ -70,6 +71,16 @@ object CaptureStore {
 
   fun setEnabled(context: Context, enabled: Boolean) {
     prefs(context).edit().putBoolean(KEY_ENABLED, enabled).apply()
+  }
+
+  /**
+   * Settings › Notifications › Detected transactions. Off: alerts are still
+   * captured (and auto-filed or listed in the app), but no heads-up is posted.
+   */
+  fun promptsEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_PROMPTS, true)
+
+  fun setPromptsEnabled(context: Context, enabled: Boolean) {
+    prefs(context).edit().putBoolean(KEY_PROMPTS, enabled).apply()
   }
 
   fun watchedPackages(context: Context): Set<String> =

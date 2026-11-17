@@ -130,8 +130,15 @@ export function AccountDraftForm({ onAdd, submitLabel = 'Continue', onNewTabung 
           : ONBOARDING_GOALS.map((g) => tile(g.key, g.label.replace(' & festive', ''), { icon: g.icon }))}
       </View>
       {errors.pick ? <Text variant="label-sm" tone="muted" accessibilityRole="alert">{errors.pick}</Text> : null}
-      <TextInput ref={nameRef} label="Account name" value={name} onChangeText={(t) => { setName(t); setErrors((e) => ({ ...e, name: undefined })); }} error={errors.name} autoCapitalize="words" returnKeyType="next" onSubmitEditing={() => amountRef.current?.focus()} />
-      <AmountField ref={amountRef} label="Starting balance" value={amount} onChangeText={(t) => { setAmount(t); setErrors((e) => ({ ...e, amount: undefined })); }} error={errors.amount} />
+      {/* (onboarding)/accounts: name and starting balance side by side, both pills. */}
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+        <TextInput ref={nameRef} label="Account name" value={name} onChangeText={(t) => { setName(t); setErrors((e) => ({ ...e, name: undefined })); }} error={errors.name} autoCapitalize="words" returnKeyType="next" onSubmitEditing={() => amountRef.current?.focus()} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+        <AmountField look="pill" ref={amountRef} label="Starting balance" value={amount} onChangeText={(t) => { setAmount(t); setErrors((e) => ({ ...e, amount: undefined })); }} error={errors.amount} />
+        </View>
+      </View>
       <Button label={submitLabel} onPress={submit} fullWidth />
       {kind === 'tabung' && onNewTabung ? <Button label="New Tabung" variant="text" onPress={onNewTabung} style={{ alignSelf: 'center' }} /> : null}
       <BankDropdown visible={dropdown} onClose={() => setDropdown(false)} value={pick} onChange={(b) => choose(b.id, b.name)} />

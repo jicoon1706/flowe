@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -79,6 +79,10 @@ export default function AddTransactionScreen() {
   // Tablet: the numpad column keeps phone-sized keys.
   // Tablet (t-core-add-*): the 'panel' family, blue page with an inset white card around a 640 dp column.
   const { isTablet, width } = useBreakpoint();
+  // Short phones (< 780 dp tall, e.g. 411 × 731): 48 dp keys (still above the 44 dp
+  // touch target) so the category, account, date and note pills stay in view.
+  const { height: windowHeight } = useWindowDimensions();
+  const numpadKeyHeight = windowHeight < 780 ? 48 : undefined;
   const padX = isTablet ? Math.max(16, (width - 2 * TABLET_LAYOUT.inset - TABLET_LAYOUT.panelColumn) / 2) : 16;
   const p = useLocalSearchParams<Params>();
   const toast = useToast();
@@ -400,7 +404,7 @@ export default function AddTransactionScreen() {
           ) : null}
         </ScrollView>
         <View style={{ flex: 1 }} />
-        <Numpad onKey={onKey} />
+        <Numpad onKey={onKey} keyHeight={numpadKeyHeight} />
         <Button
           label={saveLabel}
           onPress={save}

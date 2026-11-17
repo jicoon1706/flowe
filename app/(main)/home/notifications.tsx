@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { hrefForNotification } from '@/src/lib/notificationRules';
 import { RefreshControl, View } from 'react-native';
 import { Pressable } from '@/components/ui/Pressable';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
@@ -23,18 +24,9 @@ const ICON: Record<NotificationType, LucideIcon> = {
   note: BookOpen, affirmation: Sparkles, project: BookOpen,
 };
 
-/** Where tapping an alert goes (each alert opens its source). */
+/** Where tapping an alert goes (each alert opens its source; shared with the OS pushes). */
 function sourceOf(n: Notification): Href {
-  switch (n.type) {
-    case 'expense': case 'income': case 'transfer': return '/transactions';
-    case 'recurring': return '/settings/recurring';
-    case 'alert': return '/settings/budget';
-    case 'tabung': case 'milestone': return n.related_entity_id ? `/home/tabung/${n.related_entity_id}` : '/home/accounts';
-    case 'asset': case 'liability': case 'cashflow': return '/cashflow/info';
-    case 'note': case 'project': return '/home/learn';
-    case 'affirmation': return '/settings/affirmations';
-    default: return '/(main)';
-  }
+  return hrefForNotification(n.type, n.related_entity_id) as Href;
 }
 
 function when(iso: string): string {

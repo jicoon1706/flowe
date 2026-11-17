@@ -11,7 +11,8 @@ export interface CapturedNotification {
   /** Epoch millis Android posted it — this is the transaction's real time. */
   postedAt: number;
   /** Set when the user answered the quick-capture notification from the shade. */
-  chosenType?: 'expense' | 'income' | null;
+  /** 'confirm': Confirm on the heads-up — file it the way the parser reads it. */
+  chosenType?: 'expense' | 'income' | 'confirm' | null;
   chosenName?: string | null;
 }
 
@@ -22,6 +23,7 @@ interface FloweNotificationsNativeModule {
   openSettings(): void;
   isEnabled(): boolean;
   setEnabled(enabled: boolean): void;
+  setCapturePromptsEnabled(enabled: boolean): void;
   getWatchedPackages(): string[];
   setWatchedPackages(packages: string[]): void;
   getInstalledPackages(packages: string[]): string[];
@@ -95,6 +97,11 @@ export function isEnabled(): boolean {
 
 export function setEnabled(enabled: boolean): void {
   native?.setEnabled(enabled);
+}
+
+/** Settings › Notifications › Detected transactions: post the heads-up or not. */
+export function setCapturePromptsEnabled(enabled: boolean): void {
+  native?.setCapturePromptsEnabled(enabled);
 }
 
 export function getWatchedPackages(): string[] {

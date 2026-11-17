@@ -8,7 +8,8 @@ import {
   cancelScheduledWithPrefix,
 } from './notifications';
 import { getNotificationSettings } from './notificationPrefs';
-import { dayBefore } from '../lib/notificationRules';
+import { dayBefore, dayBeforePush, dueTodayPush, type DueBill } from '../lib/notificationRules';
+import { accountsRepository } from '../repositories/accounts.repository';
 import type { RecurringFrequency, RecurringRule, ReminderOffset, TransactionType } from '../types';
 import type { Result, SupabaseError } from '../utils/result';
 
@@ -64,33 +65,40 @@ export async function scheduleRecurringReminders(): Promise<void> {
     const prefs = await getNotificationSettings();
     if (prefs?.notif_recurring === false) return;
 
-    const rules = await recurringRepository.fetchAllActive();
+    const [rules, accounts] = await Promise.all([recurringRepository.fetchAllActive(), accountsRepository.fetchAllActive()]);
     if (!rules.ok) return;
+    const accountName = new Map((accounts.ok ? accounts.data : []).map((a) => [a.id, a.name]));
 
-    await Promise.all(
-      rules.data
-        .filter((rule) => rule.status === 'active')
-        .flatMap((rule) => {
-          const occurrence = rule.next_date ?? rule.start_date;
-          if (rule.end_date && occurrence > rule.end_date) return [];
-          const amount = formatRM(Number(rule.amount));
-          const [y, m, d] = dayBefore(occurrence).split('-').map(Number);
-          return [
-            scheduleLocalNotificationAt(
-              new Date(y, m - 1, d, DAY_BEFORE_HOUR, 0, 0, 0),
-              `🔁 ${rule.name} is due tomorrow`,
-              `${amount} • Flowe asks you to confirm it on the day`,
-              `${REMINDER_PREFIX}before-${rule.id}`
-            ),
-            scheduleLocalNotificationAt(
-              dueMoment(occurrence),
-              `🔁 ${rule.name} is due`,
-              `${amount} • open Flowe to confirm it`,
-              `${REMINDER_PREFIX}${rule.id}`
-            ),
-          ];
-        })
-    );
+    // Canvas "push · android · all 8 types": one day-before push per bill
+    // (Remind me later), one on-the-day push per date for every bill due then
+    // (Confirm all).
+    const byDate = new Map<string, DueBill[]>();
+    const jobs: Promise<void>[] = [];
+    for (const rule of rules.data) {
+      if (rule.status !== 'active') continue;
+      const occurrence = rule.next_date ?? rule.start_date;
+      if (rule.end_date && occurrence > rule.end_date) continue;
+      const bill: DueBill = {
+        name: rule.name,
+        amount: Number(rule.amount),
+        accountName: accountName.get((rule.type === 'income' ? rule.to_account_id : rule.from_account_id) ?? '') ?? null,
+      };
+      byDate.set(occurrence, [...(byDate.get(occurrence) ?? []), bill]);
+      const [y, m, d] = dayBefore(occurrence).split('-').map(Number);
+      const before = dayBeforePush(bill, occurrence);
+      jobs.push(scheduleLocalNotificationAt(
+        new Date(y, m - 1, d, DAY_BEFORE_HOUR, 0, 0, 0),
+        before.title,
+        before.body,
+        `${REMINDER_PREFIX}before-${rule.id}`,
+        { categoryId: 'recurring-before', href: '/settings/recurring' },
+      ));
+    }
+    for (const [date, bills] of byDate) {
+      const due = dueTodayPush(bills);
+      jobs.push(scheduleLocalNotificationAt(dueMoment(date), due.title, due.body, `${REMINDER_PREFIX}due-${date}`, { categoryId: 'recurring-due', href: '/' }));
+    }
+    await Promise.all(jobs);
   } catch (e) {
     console.warn('[recurring] failed to schedule reminders:', e);
   }

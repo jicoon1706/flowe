@@ -65,6 +65,11 @@ class FloweNotificationsModule : Module() {
       CaptureStore.setEnabled(context, enabled)
     }
 
+    Function("setCapturePromptsEnabled") { enabled: Boolean ->
+      val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
+      CaptureStore.setPromptsEnabled(context, enabled)
+    }
+
     Function("getWatchedPackages") {
       val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
       CaptureStore.watchedPackages(context).toList()

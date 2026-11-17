@@ -128,7 +128,9 @@ class TransactionNotificationListenerService : NotificationListenerService() {
     // Tell the app if it's running, so the in-app island can appear immediately.
     FloweNotificationsModule.emitCapture(capture)
 
-    QuickCaptureNotifier.post(context, capture, AmountText.first(combined))
+    if (CaptureStore.promptsEnabled(context)) {
+      QuickCaptureNotifier.post(context, capture, AmountText.first(combined))
+    }
 
     // An alert that names the account (last 4 digits) and a merchant we know
     // needs nobody: file it right now, app closed or not. The JS task decides;

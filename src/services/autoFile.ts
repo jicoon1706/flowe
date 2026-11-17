@@ -115,10 +115,9 @@ export function toDetected(
   // The shade also offers "Ignore", which the native side handles by deleting
   // the capture outright — so it should never arrive here. Guarded anyway:
   // anything that isn't one of the two real types must not become one.
-  const answered =
-    capture.chosenType === 'expense' || capture.chosenType === 'income'
-      ? capture.chosenType
-      : undefined;
+  // 'confirm' is the heads-up's Confirm: a transaction, filed the way the
+  // parser reads it (older builds answered 'expense' / 'income' directly).
+  const confirmedInShade = capture.chosenType === 'confirm';
   const parsed = parseTransactionNotification({
     packageName: capture.packageName,
     title: capture.title,
@@ -126,9 +125,15 @@ export function toDetected(
     postedAt: capture.postedAt,
     // The user has already called it a transaction from the shade; the
     // parser must not overrule them and quietly drop their answer.
-    confirmed: !!answered,
+    confirmed: confirmedInShade || capture.chosenType === 'expense' || capture.chosenType === 'income',
   });
   if (!parsed) return null;
+  const answered =
+    capture.chosenType === 'expense' || capture.chosenType === 'income'
+      ? capture.chosenType
+      : confirmedInShade
+        ? parsed.type
+        : undefined;
   return {
     id: capture.id,
     parsed: answered ? { ...parsed, type: answered, typeConfident: true } : parsed,

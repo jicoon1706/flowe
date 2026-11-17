@@ -95,7 +95,13 @@ export default function TabungScreen() {
       percent: progress.percent,
     });
     // Settings › Notifications › Tabung milestones (every 20 %).
-    checkTabungMilestone({ id: account.id, name: account.name, percent: progress.percent, target: Number(tabung.target_amount) || 0 });
+    checkTabungMilestone({
+      id: account.id,
+      name: account.name,
+      percent: progress.percent,
+      target: Number(tabung.target_amount) || 0,
+      counted: tabung.progress_mode === 'balance' ? progress.balance : progress.contributed,
+    });
   }, [progress, account, tabung]);
 
   const statusChip = !progress || !tabung ? null

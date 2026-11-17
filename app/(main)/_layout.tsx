@@ -11,6 +11,7 @@ import { isOpenWhileLocked } from '@/src/utils/lockRoutes';
 import { navKeyFor, showsNav } from '@/src/utils/navRoutes';
 import { startDailyBudgetSync } from '@/src/services/dailyBudget';
 import { startAlerts } from '@/src/services/alerts';
+import { usePushResponses } from '@/src/hooks/usePushResponses';
 import { authRepository } from '@/src/repositories';
 
 async function currentUserId(): Promise<string | undefined> {
@@ -73,6 +74,8 @@ export default function MainLayout() {
   useEffect(() => startDailyBudgetSync(), []);
   // Budget alerts, monthly summary and the daily affirmation (Settings › Notifications).
   useEffect(() => startAlerts(currentUserId), []);
+  // Taps and actions on Flowe's pushes open their screen (or re-schedule / confirm).
+  usePushResponses();
 
   return (
     <LockProvider>

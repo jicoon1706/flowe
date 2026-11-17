@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { settingsRepository } from '../repositories/settings.repository';
+import * as FloweNotifications from '../../modules/flowe-notifications';
 import type { NotificationPrefs } from '../lib/notificationRules';
 import type { Settings } from '../types';
 
@@ -42,6 +43,11 @@ function pick(s: Settings): NotificationSettings {
 export function rememberSettings(s: Settings): void {
   cached = pick(s);
   readAt = Date.now();
+  // Settings › Notifications › Detected transactions (notif_expense + notif_income):
+  // the native listener posts its heads-up only while this is on.
+  if (FloweNotifications.isAvailable) {
+    FloweNotifications.setCapturePromptsEnabled(s.notif_expense !== false || s.notif_income !== false);
+  }
 }
 
 export async function getNotificationSettings(): Promise<NotificationSettings | null> {

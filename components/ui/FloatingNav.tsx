@@ -8,11 +8,12 @@ import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBre
 
 export type NavKey = 'home' | 'cashflow' | 'add' | 'calendar' | 'settings';
 
+/** Left → right: Home · Calendar · + · Cashflow · Settings (journey §7.1). */
 const ITEMS: { key: NavKey; label: string; icon: LucideIcon }[] = [
   { key: 'home', label: 'Home', icon: House },
-  { key: 'cashflow', label: 'Cashflow', icon: ChartPie },
-  { key: 'add', label: 'Add transaction', icon: Plus },
   { key: 'calendar', label: 'Calendar', icon: CalendarDays },
+  { key: 'add', label: 'Add transaction', icon: Plus },
+  { key: 'cashflow', label: 'Cashflow', icon: ChartPie },
   { key: 'settings', label: 'Settings', icon: Settings2 },
 ];
 

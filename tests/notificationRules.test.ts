@@ -105,3 +105,34 @@ describe('date helpers', () => {
     expect(parseReminderTime('25:00')).toBeNull();
   });
 });
+
+describe('recurring push copy (canvas push · android · all 8 types)', () => {
+  const { dayBeforePush, dueTodayPush, hrefForNotification } = require('../src/lib/notificationRules');
+
+  it('names the bill, amount, account and date the day before', () => {
+    expect(dayBeforePush({ name: 'Netflix', amount: 55, accountName: 'Maybank Savings' }, '2026-11-16')).toEqual({
+      title: 'Netflix is due tomorrow',
+      body: 'RM 55.00 from Maybank Savings on 16 Nov.',
+    });
+  });
+
+  it('groups the bills due on one day with their total', () => {
+    expect(dueTodayPush([
+      { name: 'Netflix', amount: 55 },
+      { name: 'Spotify', amount: 14.9 },
+      { name: 'Unifi', amount: 140 },
+    ])).toEqual({ title: '3 bills due today', body: 'Netflix, Spotify, Unifi · RM 209.90' });
+  });
+
+  it('names a single bill due today', () => {
+    expect(dueTodayPush([{ name: 'Netflix', amount: 55, accountName: 'Maybank Savings' }])).toEqual({
+      title: 'Netflix is due today',
+      body: 'RM 55.00 from Maybank Savings.',
+    });
+  });
+
+  it('opens the same screen as the in-app inbox', () => {
+    expect(hrefForNotification('milestone', 't-1')).toBe('/home/tabung/t-1');
+    expect(hrefForNotification('alert')).toBe('/settings/budget');
+  });
+});

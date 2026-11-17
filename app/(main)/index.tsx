@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowDownRight, ArrowUpDown, BookOpen, ChartLine, Gauge, Plus, RefreshCw, ScanLine, Wallet } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 import { HomeHero } from '@/components/home/HomeHero';
@@ -117,9 +117,12 @@ export default function HomeScreen() {
   }, [user]);
 
   const autoShown = useRef(false);
+  // "Confirm all" on the bills-due push opens Home with ?recurring=due: show the sheet again even if it was seen.
+  const { recurring: recurringParam } = useLocalSearchParams<{ recurring?: string }>();
+  useEffect(() => { if (recurringParam === 'due') autoShown.current = false; }, [recurringParam]);
   useEffect(() => {
     if (!autoShown.current && !locked && pending.length > 0) { autoShown.current = true; setShowRecurring(true); }
-  }, [pending.length, locked]);
+  }, [pending.length, locked, recurringParam]);
 
   const all = accounts as AnyAccount[];
   const liveBalance = all.length ? sumBalances(spendableAccounts(all)) : null;

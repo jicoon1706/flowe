@@ -115,8 +115,8 @@ export default function BudgetScreen() {
         />
       }
     >
-      <AmountField label="Monthly limit" value={monthly} onChangeText={onMonthly} placeholder="Not set" />
-      <AmountField label="Daily limit" value={daily} onChangeText={(v) => { setDaily(v); setDailyTouched(true); }} placeholder="Not set" />
+      <AmountField look="tile" label="Monthly limit" value={monthly} onChangeText={onMonthly} placeholder="Not set" />
+      <AmountField look="tile" label="Daily limit" value={daily} onChangeText={(v) => { setDaily(v); setDailyTouched(true); }} placeholder="Not set" />
       {FloweNotifications.isAvailable && !widgetPinned && FloweNotifications.canRequestBudgetWidget() ? (
         <SettingsRow label="Add the budget widget" value="Left today on your home screen" icon={LayoutGrid} onPress={() => FloweNotifications.requestBudgetWidget()} />
       ) : null}
