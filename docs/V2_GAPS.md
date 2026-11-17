@@ -552,10 +552,10 @@ Nothing the clients call is missing live. Phase 1 adds: the versioned `analysis-
 
 ## Open questions
 
-- **Q1.** Sign-out semantics: options above. Recommendation: C.
-- **Q2.** Reset semantics: options above. Recommendation: A.
-- **Q3.** Remote apply: Phase 1 writes new migrations and functions locally. Apply them to `flowe` after I show you the SQL and diff?
-- **Q4.** Onboarding step count: the tablet sticky notes say "Step 1 of 3" / "Step 2 of 3", but the journey and code say "of 2". Which is right? Default if you don't say: keep "of 2" (the journey wins over a sticky note).
+- **Q1.** Sign-out semantics: **answered, C** (phone locks, desktop signs out).
+- **Q2.** Reset semantics: **answered, A** (full reset). Migration applied.
+- **Q3.** Deploy `analysis-monthly`: **answered, yes**. v5 is live.
+- **Q4.** Onboarding step count: **answered, keep "of 2"**.
 - **Q5.** Desktop locked Overview: masked Overview or straight to lock? Default: straight to lock (as built).
 
 ## Phase 1 results (backend + journey fixes, flowe-app-v2)
@@ -563,7 +563,7 @@ Nothing the clients call is missing live. Phase 1 adds: the versioned `analysis-
 | Item | Status | Where |
 |---|---|---|
 | Every client call resolves against a real table, RPC, function or bucket with RLS | ✅ Verified live (table d) | — |
-| `analysis-monthly` source versioned | ✅ Local only; **deploy waits for Q3**. It also fixes the trend: a trailing 12 months ending at the selected month (v4 returned Jan–Dec, so in November "6M" showed an empty December and compared November with itself). | `supabase/functions/analysis-monthly/index.ts` |
+| `analysis-monthly` source versioned | ✅ **Deployed as v5** (Q3 = yes; verify_jwt on). Also pages past the 1,000-row cap. It also fixes the trend: a trailing 12 months ending at the selected month (v4 returned Jan–Dec, so in November "6M" showed an empty December and compared November with itself). | `supabase/functions/analysis-monthly/index.ts` |
 | Skip-recurring race guard | ✅ Conditional on the pending date; a no-op when another device moved the rule first. No migration needed. | `recurring.repository.ts` `skipOccurrence`, `services/recurring.ts` |
 | Desktop pairing (5-min one-time code, redeem for the same user, server-side PIN check, hash never sent) | ✅ Already built and deployed (`desktop-pair` v1, `verify-pin` v1, `pin_attempts`, `desktop_pairings`) | — |
 | Banners follow `settings.notif_*` | ✅ `notify()` checks the type's switch (inbox row still written) | `lib/notificationRules.ts`, `services/notificationPrefs.ts`, `services/notifications.ts` |
@@ -578,7 +578,8 @@ Nothing the clients call is missing live. Phase 1 adds: the versioned `analysis-
 | Recurring Transfer copy | ✅ "Recurring transfers aren't supported yet." (still disabled) | `settings/recurring.tsx` |
 | Home affirmation card respects `show_affirmations` | ✅ | `(main)/index.tsx` |
 | Security "Use Flowe on desktop"; Data "Recalculate balances" + "From a Flowe CSV" | ✅ Already in code | — |
-| Sign out / Reset semantics | ⏸ **Waiting on Q1 / Q2** | — |
+| Sign out (Q1 = phone locks, desktop signs out) | ✅ Phone: "Lock Flowe now" (lock only). Desktop sign-out comes in Phase 4. | `settings/account.tsx` |
+| Reset (Q2 = full reset) | ✅ `reset_user_data()` deletes every row the caller owns in one transaction; the client then purges storage, widgets, reminders, caches, PIN and onboarding, and signs out. Migration **applied to `flowe` on 2026-11-17** with your OK. Checked: SECURITY DEFINER, `search_path=public`, execute for `authenticated` only (not `anon`/`public`); a call with no session is refused and deletes nothing. | `supabase/migrations/20261120_reset_user_data.sql`, `services/resetData.ts`, `repositories/userData.repository.ts` |
 | `database.types.ts` | ✅ Compared with live generated types; no schema change this phase. `settings.daily_reminder_time` corrected to nullable. | `src/types/database.types.ts` |
 | Unit tests | ✅ Tabung RM 1,000 / RM 500 → 80 % after 4 months, balance RM 2,000 (existing); daily/monthly budget (existing); new `cashflow.test.ts` (financialClass, coverRatio, spendByCategory); new `notificationRules.test.ts`; updated recurring and notification tests | `tests/` |
 | Android channel light colour | ✅ Token (`primary-container`), was lime `#C5FF00` | `services/notifications.ts` |
