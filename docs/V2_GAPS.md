@@ -608,9 +608,10 @@ Nothing the clients call is missing live. Phase 1 adds: the versioned `analysis-
 | Hero chips stuck to the left edge (phone and tablet) | ✅ `GlassChip align`; Home and Accounts chips centred | `GlassChip.tsx`, `HomeHero.tsx`, `home/accounts.tsx` |
 | Status bar invisible on the white tablet page / under the PIN lock | ✅ Focus-scoped style; lock overlay forces light | `src/hooks/useFocusStatusBar.ts`, `LockOverlay.tsx` |
 | Screenshots, tablet (10) | ✅ `docs/screenshots/tablet/01–10` | — |
-| Screenshots, phone (10) | see below | `docs/screenshots/phone/` |
+| Screenshots, phone (10) | ✅ `docs/screenshots/phone/01–10` (Pixel 8 emulator, 411 × 731 dp; its account has no accounts, so several screens show their empty states) | — |
 | Landscape on the device | ⏳ Not captured: rotating needs a system setting on your tablet. The layout code is width-driven (card/panel columns cap at 960/640 dp), and the breakpoint keeps the tablet family in both orientations. | — |
 | Settings › Budget amount fields: very large "Not set", no grey tile (frame: 32 px figure in a #F5F5F5 r20 tile). Same on phone. | ⏸ Phase 3 (phone frame match) | `components/ui/AmountField.tsx` |
+| Phone · Add transaction on a 731 dp tall screen: the account/date pills are cut at the bottom of their scroll area and "+ Note" is pushed out of view (the numpad takes the rest) | ⏸ Phase 3 | `add-transaction.tsx` |
 | Tablet top bar: the frames put the back/action buttons outside the content column (±56/±88 dp); the code keeps them inside it | ⏸ Minor; Phase 3 | `Hero`/`TopBar` |
 
 **Verification:** `npx tsc --noEmit` 0 errors · `npm run lint` 0 errors (12 baseline warnings) · `npm test` 39 suites, 319 tests passed.
