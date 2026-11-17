@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { Check, Clock, FingerprintPattern, Lock, Pen } from 'lucide-react-native';
+import { Check, Clock, FingerprintPattern, Lock, Monitor, Pen } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
+import { DesktopPairingSheet } from '@/components/settings/DesktopPairingSheet';
 import { SettingsScreen } from '@/components/settings/SettingsScreen';
 import { AccountPill } from '@/components/ui/AccountPill';
 import { SettingsRow } from '@/components/ui/SettingsRow';
@@ -12,8 +13,6 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
 import { Toggle } from '@/components/ui/Toggle';
 import { useToast } from '@/components/ui/ToastProvider';
-
-
 import { useAuth } from '@/context/AuthContext';
 import { authConfigRepository } from '@/src/repositories/authConfig.repository';
 import { flags } from '@/src/lib/secureStore';
@@ -35,6 +34,7 @@ export default function SecurityScreen() {
   const [fingerprint, setFingerprint] = useState(false);
   const [lockAfter, setLockAfter] = useState<number | null>(DEFAULT_AUTO_LOCK_MINUTES);
   const [picker, setPicker] = useState(false);
+  const [pairing, setPairing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +89,8 @@ export default function SecurityScreen() {
     <SettingsScreen
       title="Security"
       overlay={
+        <>
+        <DesktopPairingSheet visible={pairing} onClose={() => setPairing(false)} />
         <Sheet visible={picker} onClose={() => setPicker(false)} title="Lock after">
           {LOCK_OPTIONS.map((o) => (
             <Pressable key={o.label} onPress={() => chooseLock(o.value)} accessibilityRole="radio" accessibilityState={{ checked: o.value === lockAfter }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 52 }}>
@@ -97,6 +99,7 @@ export default function SecurityScreen() {
             </Pressable>
           ))}
         </Sheet>
+        </>
       }
     >
       {loading ? (
@@ -107,6 +110,7 @@ export default function SecurityScreen() {
           <SettingsRow label="Fingerprint" value="Unlock with a touch" icon={FingerprintPattern} right={<Toggle value={fingerprint} onValueChange={toggleFingerprint} accessibilityLabel="Fingerprint" />} />
           <SettingsRow label="Lock after" icon={Clock} right={<AccountPill label={lockLabel} plainIcon={Clock} onPress={() => setPicker(true)} accessibilityLabel={`Lock after: ${lockLabel}`} />} />
           <SettingsRow label="Change PIN" icon={Pen} onPress={() => router.push('/settings/change-pin')} />
+          <SettingsRow label="Use Flowe on desktop" value="Get a one-time code" icon={Monitor} onPress={() => setPairing(true)} />
         </View>
       )}
     </SettingsScreen>

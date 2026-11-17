@@ -3,6 +3,13 @@ import { localYMD } from '../utils/date';
 import type { Result, EdgeFunctionError } from '../utils/result';
 import type { CashflowSummary, AnalysisMonthly, ReceiptData } from '../types';
 
+export interface DesktopPairingCode {
+  /** Shown as "XXXX-XXXX". */
+  code: string;
+  /** ISO time the code stops working. */
+  expiresAt: string;
+}
+
 export const edgeFunctionsService = {
   // Extract structured fields from a base64 receipt image via the `receipt-ocr`
   // Edge Function (OpenAI vision). The image is sent raw — no transaction exists
@@ -21,6 +28,18 @@ export const edgeFunctionsService = {
       return { ok: false, error: { message: String((data as any).error) } };
     }
     return { ok: true, data: data as ReceiptData };
+  },
+
+  /**
+   * A one-time code for signing Flowe Desktop in as this user (`desktop-pair`).
+   * It lasts 5 minutes; asking again replaces the previous code.
+   */
+  async createDesktopPairingCode(): Promise<Result<DesktopPairingCode, EdgeFunctionError>> {
+    const { data, error } = await supabase.functions.invoke('desktop-pair', { body: { action: 'create' } });
+    if (error) return { ok: false, error: { message: error.message, code: error.code } };
+    const body = data as Partial<DesktopPairingCode> & { error?: string };
+    if (!body?.code || !body.expiresAt) return { ok: false, error: { message: body?.error ?? 'No code returned' } };
+    return { ok: true, data: { code: body.code, expiresAt: body.expiresAt } };
   },
 
   async getCashflowSummary(month: string): Promise<Result<CashflowSummary, EdgeFunctionError>> {
