@@ -28,6 +28,7 @@ import { AccountSelector } from '@/components/ui/AccountSelector';
 import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
 import { useAccounts } from '@/src/hooks/useAccounts';
+import { checkTabungMilestone } from '@/src/services/alerts';
 import { useTabungProgress } from '@/src/hooks/useTabungProgress';
 import { accountsRepository } from '@/src/repositories/accounts.repository';
 import { transactionsRepository } from '@/src/repositories/transactions.repository';
@@ -93,6 +94,8 @@ export default function TabungScreen() {
       balance: progress.balance,
       percent: progress.percent,
     });
+    // Settings › Notifications › Tabung milestones (every 20 %).
+    checkTabungMilestone({ id: account.id, name: account.name, percent: progress.percent, target: Number(tabung.target_amount) || 0 });
   }, [progress, account, tabung]);
 
   const statusChip = !progress || !tabung ? null

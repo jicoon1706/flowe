@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { settingsRepository } from '../repositories/settings.repository';
+import { rememberSettings } from '../services/notificationPrefs';
 import { syncBudgetLimits } from '../services/dailyBudget';
 import type { LiveBudgetMode } from '../lib/budget';
 import type { SupabaseError } from '../utils/result';
@@ -25,6 +26,7 @@ export function useBudgetSettings(userId: string | undefined) {
     setLoading(true);
     const res = await settingsRepository.fetchOrCreate(userId);
     if (res.ok) {
+      rememberSettings(res.data);
       const s = res.data;
       setValue({
         daily: s.daily_budget === null || s.daily_budget === undefined ? null : Number(s.daily_budget),
@@ -41,6 +43,7 @@ export function useBudgetSettings(userId: string | undefined) {
     if (!userId) return { ok: false as const, error: { code: 'NO_USER', message: 'Not signed in' } };
     const res = await settingsRepository.update(userId, { daily_budget: next.daily, monthly_budget: next.monthly, live_budget_mode: next.liveMode });
     if (res.ok) {
+      rememberSettings(res.data);
       setValue(next);
       syncBudgetLimits(next.daily, next.monthly, next.liveMode);
     }

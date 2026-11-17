@@ -35,6 +35,10 @@ jest.mock('@/src/repositories/notifications.repository', () => ({
   },
 }));
 
+jest.mock('@/src/services/notificationPrefs', () => ({
+  getNotificationSettings: jest.fn(() => Promise.resolve(null)),
+}));
+
 // --- Helpers ----------------------------------------------------------------
 
 const Notifications = require('expo-notifications');
@@ -99,7 +103,7 @@ describe('setupNotifications()', () => {
     await setupNotifications();
     expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
       'default',
-      expect.objectContaining({ name: 'Default', lightColor: '#C5FF00' }),
+      expect.objectContaining({ name: 'Default', lightColor: require('@/theme/tokens').colors['primary-container'] }),
     );
   });
 
@@ -225,6 +229,14 @@ describe('notify()', () => {
     const { notify } = loadService();
     await notify(params);
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalled();
+  });
+
+  it('skips the banner but keeps the in-app row when the type is switched off', async () => {
+    require('@/src/services/notificationPrefs').getNotificationSettings.mockResolvedValueOnce({ notif_asset: false });
+    const { notify } = loadService();
+    await notify(params);
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(notificationsRepository.create).toHaveBeenCalled();
   });
 
   it('never throws when recording the in-app row fails', async () => {

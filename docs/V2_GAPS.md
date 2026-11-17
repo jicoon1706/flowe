@@ -16,16 +16,18 @@
 | Page | Artboards | Built | Partial | Missing | Deferred |
 |---|---|---|---|---|---|
 | Mobile | 176 | 160 | 10 | 0 | 6 |
-| Tablet | 171 | 149 | 16 | 0 | 6 |
+| Tablet | 171 | 151 | 14 | 0 | 6 |
 | Desktop | 69 | 63 | 5 | 1 | 0 |
 
 Most of v2 is already in code: the earlier commits on `flowe-app-v2` and `flowe-desktop-v1` rebuilt the screens, the native widgets and live update, the tablet primitives, and desktop pairing. The work left:
 1. **Cross-cutting.** Bottom-nav order (§7.1); `notif_*` and `show_affirmations` are not honoured; five server-promised notification types are not sent.
 2. **Journey [unclear]/[stub] fixes.** Tabung entry point, notification-access "still off", the padlock comment, the recurring-transfer copy, and the affirmation card.
-3. **Tablet.** 2-column layouts for Accounts, Learn and Settings.
+3. **Tablet.** A 2-column Settings layout, and 2-column loading skeletons for Accounts and Learn (both screens already use `ResponsiveGrid`).
 4. **Desktop.** The recurring-due dialog, the cash-flow patterns dialog, and the masked locked Overview (a [TBD] on the canvas).
-5. **Backend hygiene.** `analysis-monthly` source isn't in the repo; skip-recurring has no race guard; there's no storage policy for `merchant_logo_requests` (none needed, see d).
+5. **Backend hygiene.** `analysis-monthly` source isn't in the repo, and its trend is calendar-year, not trailing. Skip-recurring has no race guard.
 6. **Two semantics decisions** that need your call: Q1 (sign out) and Q2 (reset).
+
+Tables a–d are the **Phase 0 snapshot**. What Phase 1 changed is listed under "Phase 1 results" at the end.
 
 ## a. Artboards → route / component → status
 
@@ -210,7 +212,7 @@ Most of v2 is already in code: the earlier commits on `flowe-app-v2` and `flowe-
 | `q-widget-loading` | widgets · loading | Android widget | modules/flowe-notifications (BudgetWidgetProvider, MonthBudgetWidgetProvider, TabungWidgetProvider) | **built** |  |
 | `q-live-update-syncing` | Live Update · Syncing… | Android notification | modules/flowe-notifications (LiveBudgetNotifier.kt) | **built** |  |
 
-### a.Tablet — 171 artboards · built 149 · partial 16 · missing 0 · deferred 6
+### a.Tablet — 171 artboards · built 151 · partial 14 · missing 0 · deferred 6
 
 | Artboard | Title | Route | Component(s) | Status | Gap |
 |---|---|---|---|---|---|
@@ -244,7 +246,7 @@ Most of v2 is already in code: the earlier commits on `flowe-app-v2` and `flowe-
 | `t-r-transactions-search` | transactions · search · tablet | /transactions | app/(main)/transactions.tsx | **built** |  |
 | `t-r-transactions-category` | transactions · category filter · tablet | /transactions | app/(main)/transactions.tsx | **built** |  |
 | `t-core-transaction-detail` | transaction/[id] · sheet · tablet | sheet | components/home/TransactionDetail.tsx | **built** |  |
-| `t-acc-accounts` | home/accounts · tablet | /home/accounts | app/(main)/home/accounts.tsx | **partial** | Tablet frame shows content in 2 columns; code uses the single centred column. |
+| `t-acc-accounts` | home/accounts · tablet | /home/accounts | app/(main)/home/accounts.tsx | **built** |  |
 | `t-r-accounts-add-sheet` | home/accounts · add account · tablet | /home/accounts | app/(main)/home/accounts.tsx | **built** |  |
 | `t-acc-account-id` | home/account/[id] · tablet | /home/account/[id] | components/accounts/AccountDetailScreen.tsx | **built** |  |
 | `t-r-account-menu` | account/[id] · ⋯ menu · tablet | /home/account/[id] | components/accounts/AccountDetailScreen.tsx | **built** |  |
@@ -266,7 +268,7 @@ Most of v2 is already in code: the earlier commits on `flowe-app-v2` and `flowe-
 | `t-l-inapp-unread` | home/notifications · unread · tablet | /home/notifications | app/(main)/home/notifications.tsx | **built** |  |
 | `t-l-inapp-all-read` | home/notifications · all read · tablet | /home/notifications | app/(main)/home/notifications.tsx | **built** |  |
 | `t-ins-analysis` | home/analysis · tablet | /home/analysis | app/(main)/home/analysis.tsx | **built** |  |
-| `t-ins-learn` | home/learn · tablet | /home/learn | app/(main)/home/learn/index.tsx | **partial** | Tablet frame shows a 2-column project grid; code uses one column on tablet. |
+| `t-ins-learn` | home/learn · tablet | /home/learn | app/(main)/home/learn/index.tsx | **built** |  |
 | `t-r-learn-new-project` | home/learn · new project · tablet | /home/learn | app/(main)/home/learn/index.tsx | **built** |  |
 | `t-ins-learn-project` | home/learn/[projectId] · tablet | /home/learn/[projectId] | app/(main)/home/learn/[projectId].tsx | **built** |  |
 | `t-r-learn-project-rename` | learn/[projectId] · rename · tablet | /home/learn/[projectId] | app/(main)/home/learn/[projectId].tsx | **built** |  |
@@ -369,7 +371,7 @@ Most of v2 is already in code: the earlier commits on `flowe-app-v2` and `flowe-
 | `t-st-recent-empty` | transactions · empty · tablet | /transactions | app/(main)/transactions.tsx | **built** |  |
 | `t-st-recent-loading` | transactions · loading · tablet | /transactions | app/(main)/transactions.tsx | **built** |  |
 | `t-st-recent-error` | transactions · error · tablet | /transactions | app/(main)/transactions.tsx | **built** |  |
-| `t-q-skel-accounts` | home/accounts · loading · tablet | /home/accounts | app/(main)/home/accounts.tsx | **partial** | Skeleton must follow the 2-column tablet layout. |
+| `t-q-skel-accounts` | home/accounts · loading · tablet | /home/accounts | app/(main)/home/accounts.tsx | **partial** | Skeleton is single-column; the screen itself uses the 2-column ResponsiveGrid. |
 | `t-q-skel-account-id` | account/[id] · loading · tablet | /home/account/[id] | components/accounts/AccountDetailScreen.tsx | **built** |  |
 | `t-q-skel-tabung` | tabung/[id] · loading · tablet | /home/tabung/[id] | app/(main)/home/tabung/[id].tsx, components/tabung/* | **built** |  |
 | `t-r-notifications-empty` | home/notifications · all caught up · tablet | /home/notifications | app/(main)/home/notifications.tsx | **built** |  |
@@ -534,7 +536,7 @@ Live: `flowe` (txylaohgzlvhoqdyqmhy). Local: `supabase/migrations`, `supabase/fu
 | rpc | adjust_account_balance | 20260925 | ✅ | security invoker, owner check | |
 | rpc | adjust_asset_value | 20261116 | ✅ | | |
 | rpc | approve_recurring_occurrence | 20261116 | ✅ | | Approve ✅ |
-| rpc | *(skip recurring)* | — | — | table update under RLS | Skip is a plain `update`, with no "still pending" guard like approve has. Add `skip_recurring_occurrence` (new migration). |
+| rpc | *(skip recurring)* | — | — | table update under RLS | Skip is a plain `update`, with no "still pending" guard like approve has. Fix: make the update conditional on the pending date (client-side filter, no migration). |
 | rpc | recalculate_account_balances | 20260925 | ✅ | | |
 | rpc | tabung_contributed | 20261117 | ✅ | security invoker | |
 | fn | cashflow-summary | ✅ | ✅ v1 | verify_jwt | |
@@ -546,7 +548,7 @@ Live: `flowe` (txylaohgzlvhoqdyqmhy). Local: `supabase/migrations`, `supabase/fu
 | bucket | merchant-logos | 20260830 | ✅ public read | | |
 | migration | 20261119_merchant_logos_verified_domains | ✅ | applied (rows match) | | Not in the live migration history: it was applied as plain SQL. |
 
-Nothing the clients call is missing live. Phase 1 adds: `skip_recurring_occurrence`; the versioned `analysis-monthly` source; `reset_user_data` only if Q2 = A. Each is a **new local file**; applying anything remotely waits for your OK.
+Nothing the clients call is missing live. Phase 1 adds: the versioned `analysis-monthly` source, plus `reset_user_data` only if Q2 = A. Each is a **new local file**; applying anything remotely waits for your OK.
 
 ## Open questions
 
@@ -555,6 +557,35 @@ Nothing the clients call is missing live. Phase 1 adds: `skip_recurring_occurren
 - **Q3.** Remote apply: Phase 1 writes new migrations and functions locally. Apply them to `flowe` after I show you the SQL and diff?
 - **Q4.** Onboarding step count: the tablet sticky notes say "Step 1 of 3" / "Step 2 of 3", but the journey and code say "of 2". Which is right? Default if you don't say: keep "of 2" (the journey wins over a sticky note).
 - **Q5.** Desktop locked Overview: masked Overview or straight to lock? Default: straight to lock (as built).
+
+## Phase 1 results (backend + journey fixes, flowe-app-v2)
+
+| Item | Status | Where |
+|---|---|---|
+| Every client call resolves against a real table, RPC, function or bucket with RLS | ✅ Verified live (table d) | — |
+| `analysis-monthly` source versioned | ✅ Local only; **deploy waits for Q3**. It also fixes the trend: a trailing 12 months ending at the selected month (v4 returned Jan–Dec, so in November "6M" showed an empty December and compared November with itself). | `supabase/functions/analysis-monthly/index.ts` |
+| Skip-recurring race guard | ✅ Conditional on the pending date; a no-op when another device moved the rule first. No migration needed. | `recurring.repository.ts` `skipOccurrence`, `services/recurring.ts` |
+| Desktop pairing (5-min one-time code, redeem for the same user, server-side PIN check, hash never sent) | ✅ Already built and deployed (`desktop-pair` v1, `verify-pin` v1, `pin_attempts`, `desktop_pairings`) | — |
+| Banners follow `settings.notif_*` | ✅ `notify()` checks the type's switch (inbox row still written) | `lib/notificationRules.ts`, `services/notificationPrefs.ts`, `services/notifications.ts` |
+| Budget alerts 80 % / 100 % | ✅ After every write (coalesced) and on foreground; once per threshold per day | `services/alerts.ts` `checkBudgetAlerts` |
+| Tabung milestones every 20 % | ✅ When a Tabung's progress changes (detail screen); first view primes, so old progress isn't announced | `checkTabungMilestone` |
+| Monthly summary on the 1st | ✅ 09:00 reminder on the next 1st, plus the in-app summary on the first open after it | `runMonthlySummary` |
+| Recurring day before + on the day | ✅ 09:00 the day before, 05:00 on the day; off with `notif_recurring` | `services/recurring.ts` |
+| Daily affirmation at `daily_reminder_time` | ✅ Next 7 days scheduled, rebuilt on each foreground and on settings change; off with `show_affirmations` / `notif_affirmation` | `scheduleDailyAffirmations` |
+| /tabung/new reachable | ✅ "New Tabung" on Accounts and in the Add account sheet's Tabung tab | `home/accounts.tsx`, `AccountDraftForm.tsx` |
+| Notification access "Access is still off" | ✅ | `(onboarding)/notification-access.tsx` |
+| LockContext padlock comment | ✅ | `context/LockContext.tsx` |
+| Recurring Transfer copy | ✅ "Recurring transfers aren't supported yet." (still disabled) | `settings/recurring.tsx` |
+| Home affirmation card respects `show_affirmations` | ✅ | `(main)/index.tsx` |
+| Security "Use Flowe on desktop"; Data "Recalculate balances" + "From a Flowe CSV" | ✅ Already in code | — |
+| Sign out / Reset semantics | ⏸ **Waiting on Q1 / Q2** | — |
+| `database.types.ts` | ✅ Compared with live generated types; no schema change this phase. `settings.daily_reminder_time` corrected to nullable. | `src/types/database.types.ts` |
+| Unit tests | ✅ Tabung RM 1,000 / RM 500 → 80 % after 4 months, balance RM 2,000 (existing); daily/monthly budget (existing); new `cashflow.test.ts` (financialClass, coverRatio, spendByCategory); new `notificationRules.test.ts`; updated recurring and notification tests | `tests/` |
+| Android channel light colour | ✅ Token (`primary-container`), was lime `#C5FF00` | `services/notifications.ts` |
+
+**Known limit:** an alert caused only by a desktop write reaches the phone the next time Flowe runs there. Tabung milestones fire when that Tabung's screen is open on the phone.
+
+**Verification:** `npx tsc --noEmit` 0 errors · `npm run lint` 0 errors, 12 warnings (same as baseline) · `npm test` 38 suites, 316 tests passed.
 
 ## Verification log (Phase 3)
 

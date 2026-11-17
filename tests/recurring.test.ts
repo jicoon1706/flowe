@@ -25,7 +25,7 @@ jest.mock('@/src/lib/supabase', () => ({
 
 jest.mock('@/src/repositories/recurring.repository', () => ({
   recurringRepository: {
-    advance: jest.fn(() => Promise.resolve({ ok: true, data: undefined })),
+    skipOccurrence: jest.fn(() => Promise.resolve({ ok: true, data: true })),
     approveOccurrence: jest.fn(() => Promise.resolve({ ok: true, data: 'tx-1' })),
     fetchDue: jest.fn(() => Promise.resolve({ ok: true, data: [] })),
   },
@@ -86,7 +86,7 @@ function rule(overrides: Partial<RecurringRule> = {}): RecurringRule {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  recurringRepository.advance.mockResolvedValue({ ok: true, data: undefined });
+  recurringRepository.skipOccurrence.mockResolvedValue({ ok: true, data: true });
   recurringRepository.approveOccurrence.mockResolvedValue({ ok: true, data: 'tx-1' });
   transactionsRepository.create.mockResolvedValue({ ok: true, data: { id: 'tx-1' } });
   notify.mockResolvedValue(undefined);
@@ -155,7 +155,7 @@ describe('approveRecurring()', () => {
   it('never creates the transaction or advances the rule as separate requests', async () => {
     await approveRecurring(rule());
     expect(transactionsRepository.create).not.toHaveBeenCalled();
-    expect(recurringRepository.advance).not.toHaveBeenCalled();
+    expect(recurringRepository.skipOccurrence).not.toHaveBeenCalled();
   });
 
   it('uses start_date as the occurrence when next_date is absent', async () => {
@@ -206,7 +206,7 @@ describe('skipRecurring()', () => {
   it('rolls next_date forward WITHOUT creating a transaction', async () => {
     await skipRecurring(rule({ frequency: 'monthly', next_date: '2026-03-15', start_date: '2026-01-15' }));
     expect(transactionsRepository.create).not.toHaveBeenCalled();
-    expect(recurringRepository.advance).toHaveBeenCalledWith('rule-1', '2026-04-15');
+    expect(recurringRepository.skipOccurrence).toHaveBeenCalledWith('rule-1', '2026-03-15', '2026-04-15');
   });
 
   it('fires a "skipped" recurring notification on success', async () => {
@@ -221,9 +221,16 @@ describe('skipRecurring()', () => {
     );
   });
 
-  it('does not notify when the advance fails, and returns the failure', async () => {
+  it('does not notify when another device already moved the rule', async () => {
+    recurringRepository.skipOccurrence.mockResolvedValue({ ok: true, data: false });
+    const res = await skipRecurring(rule());
+    expect(res.ok).toBe(true);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('does not notify when the skip fails, and returns the failure', async () => {
     const failure = { ok: false as const, error: { code: 'X', message: 'update failed' } };
-    recurringRepository.advance.mockResolvedValue(failure);
+    recurringRepository.skipOccurrence.mockResolvedValue(failure);
     const res = await skipRecurring(rule());
     expect(res).toBe(failure);
     expect(notify).not.toHaveBeenCalled();

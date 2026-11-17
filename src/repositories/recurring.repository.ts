@@ -92,15 +92,23 @@ export const recurringRepository = {
     return { ok: true, data: (data as string | null) ?? null };
   },
 
-  /** Move a rule's next occurrence forward and stamp when it was last applied. */
-  async advance(id: string, nextDate: string): Promise<Result<void, SupabaseError>> {
+  /**
+   * Skip one occurrence: move the rule to `nextDate` without a transaction.
+   * Like approveOccurrence, it only acts while `occurrence` is still the
+   * rule's pending date (next_date, or start_date before the first run), so a
+   * skip racing an approval from another device can't skip the next period.
+   * Resolves to true when this call moved the rule.
+   */
+  async skipOccurrence(id: string, occurrence: string, nextDate: string): Promise<Result<boolean, SupabaseError>> {
     const now = new Date().toISOString();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('recurring_rules')
       .update({ next_date: nextDate, last_applied_at: now, updated_at: now })
-      .eq('id', id);
+      .eq('id', id)
+      .or(`next_date.eq.${occurrence},and(next_date.is.null,start_date.eq.${occurrence})`)
+      .select('id');
     if (error) return { ok: false, error: fromSupabaseError(error) };
-    return { ok: true, data: undefined };
+    return { ok: true, data: (data ?? []).length > 0 };
   },
 
   /**

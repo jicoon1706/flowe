@@ -10,6 +10,13 @@ import { colors } from '@/theme/tokens';
 import { isOpenWhileLocked } from '@/src/utils/lockRoutes';
 import { navKeyFor, showsNav } from '@/src/utils/navRoutes';
 import { startDailyBudgetSync } from '@/src/services/dailyBudget';
+import { startAlerts } from '@/src/services/alerts';
+import { authRepository } from '@/src/repositories';
+
+async function currentUserId(): Promise<string | undefined> {
+  const res = await authRepository.getUser();
+  return res.ok ? res.data?.id : undefined;
+}
 
 const HIDDEN = { href: null } as const;
 
@@ -64,6 +71,8 @@ function LockedRouteGuard() {
 export default function MainLayout() {
   // Every transaction write redraws the widgets and the live budget notification.
   useEffect(() => startDailyBudgetSync(), []);
+  // Budget alerts, monthly summary and the daily affirmation (Settings › Notifications).
+  useEffect(() => startAlerts(currentUserId), []);
 
   return (
     <LockProvider>

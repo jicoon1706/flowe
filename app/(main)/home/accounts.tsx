@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { Landmark, Plus, RefreshCw, Wallet } from 'lucide-react-native';
+import { Landmark, PiggyBank, Plus, RefreshCw, Wallet } from 'lucide-react-native';
+import { Button } from '@/components/ui/Button';
 import { colors } from '@/theme/tokens';
 import { tabungIcon } from '@/constants/tabungGoals';
 import { AccountDraftForm } from '@/components/onboarding/AccountDraftForm';
@@ -60,6 +61,8 @@ export default function AccountsScreen() {
   const tabungCount = all.filter((a) => a.type === 'tabung').length;
   const otherCount = all.length - tabungCount;
 
+  const newTabung = () => { setAdding(false); router.push('/tabung/new'); };
+
   const add = async (draft: DraftAccount) => {
     if (!user) return;
     setSaving(true);
@@ -106,7 +109,7 @@ export default function AccountsScreen() {
       }
       overlay={
         <Sheet visible={adding} onClose={() => setAdding(false)} title="Add account" scroll dismissible={!saving}>
-          <AccountDraftForm onAdd={add} submitLabel={saving ? 'Adding…' : 'Add account'} />
+          <AccountDraftForm onAdd={add} submitLabel={saving ? 'Adding…' : 'Add account'} onNewTabung={newTabung} />
         </Sheet>
       }
     >
@@ -154,6 +157,10 @@ export default function AccountsScreen() {
           </View>
         ))
       )}
+      {/* Goal-first Tabung creation (journey §5.1.7): type → name, target, date. */}
+      {!firstLoad && !(error && all.length === 0) ? (
+        <Button label="New Tabung" variant="action" icon={PiggyBank} onPress={newTabung} fullWidth />
+      ) : null}
     </HeroScreen>
   );
 }

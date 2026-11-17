@@ -9,6 +9,7 @@ import { PendingRecurringModal } from '@/components/home/PendingRecurringModal';
 import { TransactionDetail } from '@/components/home/TransactionDetail';
 import { TransactionList } from '@/components/home/TransactionList';
 import { AffirmationCard } from '@/components/home/AffirmationCard';
+import { useSettings } from '@/src/hooks/useSettings';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -58,6 +59,9 @@ export default function HomeScreen() {
   const { pending, acting, fetchPending, approve, reject } = usePendingRecurring();
   const { affirmations, userAffirmations, fetchAffirmations, fetchUserAffirmations } = useAffirmations();
   const { categories: custom, fetchCategories } = useCustomCategories();
+  const { settings, fetchSettings } = useSettings();
+  // Settings › Affirmations › Daily affirmation also hides the Home card (journey §5.5.10).
+  const showAffirmations = settings?.show_affirmations !== false;
 
   const [cache, setCache] = useState<HomeCache | null>(null);
   const [fetchedOnce, setFetchedOnce] = useState(false);
@@ -79,6 +83,7 @@ export default function HomeScreen() {
   }, [fetchAccounts, fetchTx, fetchPending, fetchBudget, refreshSpent]);
 
   useFocusEffect(useCallback(() => { loadAll(); }, [loadAll]));
+  useFocusEffect(useCallback(() => { if (user) fetchSettings(user.id); }, [user, fetchSettings]));
 
   useEffect(() => {
     if (!user) return;
@@ -199,7 +204,7 @@ export default function HomeScreen() {
       )}
     </>
   );
-  const affirmation = affirmationTexts.length > 0 ? (
+  const affirmation = showAffirmations && affirmationTexts.length > 0 ? (
     <AffirmationCard text={affirmationTexts[affIndex % affirmationTexts.length]} onNext={affirmationTexts.length > 1 ? () => setAffIndex((i) => i + 1) : undefined} />
   ) : null;
   const links = (

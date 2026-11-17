@@ -5,6 +5,7 @@ import { ArrowDownRight, BellRing, Shield, Smartphone } from 'lucide-react-nativ
 import { colors, radius } from '@/theme/tokens';
 import { Button } from '@/components/ui/Button';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { InlineError } from '@/components/ui/InlineError';
 import { LogoWell } from '@/components/ui/LogoWell';
 import { institutionDomain } from '@/constants/institutionDomains';
 import { Text } from '@/components/ui/Text';
@@ -27,6 +28,8 @@ export default function NotificationAccess() {
   const { state } = useOnboarding();
   const { saving, complete } = useCompleteOnboarding();
   const [asked, setAsked] = useState(false);
+  // Back from system settings without granting access (journey §3.9).
+  const [stillOff, setStillOff] = useState(false);
 
   const finish = async () => {
     const res = await complete(state.name, state.draftAccounts);
@@ -43,9 +46,13 @@ export default function NotificationAccess() {
   useEffect(() => {
     if (!asked) return;
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active' && FloweNotifications.isPermissionGranted()) {
+      if (s !== 'active') return;
+      if (FloweNotifications.isPermissionGranted()) {
+        setStillOff(false);
         FloweNotifications.setEnabled(true);
         finish();
+      } else {
+        setStillOff(true);
       }
     });
     return () => sub.remove();
@@ -89,6 +96,7 @@ export default function NotificationAccess() {
         </View>
       ))}
       <View style={{ flex: 1, minHeight: 16 }} />
+      {stillOff ? <InlineError message="Access is still off" /> : null}
       <Button label="Allow" onPress={() => { setAsked(true); FloweNotifications.openSettings(); }} loading={saving} fullWidth />
       <Button label="Later" variant="text" onPress={finish} disabled={saving} style={{ alignSelf: 'center' }} />
     </HeroScreen>

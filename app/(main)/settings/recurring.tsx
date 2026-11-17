@@ -159,7 +159,7 @@ export default function RecurringScreen() {
                 {kind !== 'transfer' ? <AccountPill label={options.find((o) => o.value === category)?.label ?? category} plainIcon={categoryIcon(category)} onPress={() => setCatPicker(true)} accessibilityLabel="Category" /> : null}
                 <AccountPill label={end ? `Ends ${end.toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'No end date'} plainIcon={CalendarX} onPress={() => setDatePicker('end')} invalid={endInvalid} accessibilityLabel="End date" />
               </View>
-              {kind === 'transfer' ? <InlineError message="Recurring transfers aren’t supported yet. Use Tabung auto-save for savings." /> : null}
+              {kind === 'transfer' ? <InlineError message="Recurring transfers aren’t supported yet." /> : null}
               {endInvalid ? <InlineError message="The end date must be on or after the next date." /> : null}
               {end ? <Button label="Remove end date" variant="text" muted onPress={() => setEnd(null)} style={{ alignSelf: 'flex-start' }} /> : null}
               <View style={{ gap: 4 }}>

@@ -28,6 +28,12 @@ const ONBOARDING_GOALS = TABUNG_GOALS.filter((g) => ['emergency', 'travel', 'ray
 export interface AccountDraftFormProps {
   onAdd: (draft: DraftAccount) => void;
   submitLabel?: string;
+  /**
+   * Inside the app (Accounts › Add account) the Tabung tab also offers the
+   * goal-first flow at /tabung/new, which sets a target and date. Onboarding
+   * leaves it out.
+   */
+  onNewTabung?: () => void;
 }
 
 /**
@@ -35,7 +41,7 @@ export interface AccountDraftFormProps {
  * Missing fields: first empty field focused with a black outline and a chip
  * under each (k-onb-missing-fields). No modal.
  */
-export function AccountDraftForm({ onAdd, submitLabel = 'Continue' }: AccountDraftFormProps) {
+export function AccountDraftForm({ onAdd, submitLabel = 'Continue', onNewTabung }: AccountDraftFormProps) {
   const [kind, setKind] = useState<Kind>('bank');
   const [pick, setPick] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -127,6 +133,7 @@ export function AccountDraftForm({ onAdd, submitLabel = 'Continue' }: AccountDra
       <TextInput ref={nameRef} label="Account name" value={name} onChangeText={(t) => { setName(t); setErrors((e) => ({ ...e, name: undefined })); }} error={errors.name} autoCapitalize="words" returnKeyType="next" onSubmitEditing={() => amountRef.current?.focus()} />
       <AmountField ref={amountRef} label="Starting balance" value={amount} onChangeText={(t) => { setAmount(t); setErrors((e) => ({ ...e, amount: undefined })); }} error={errors.amount} />
       <Button label={submitLabel} onPress={submit} fullWidth />
+      {kind === 'tabung' && onNewTabung ? <Button label="New Tabung" variant="text" onPress={onNewTabung} style={{ alignSelf: 'center' }} /> : null}
       <BankDropdown visible={dropdown} onClose={() => setDropdown(false)} value={pick} onChange={(b) => choose(b.id, b.name)} />
     </View>
   );

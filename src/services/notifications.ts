@@ -2,6 +2,9 @@ import { Platform } from 'react-native';
 import { isRunningInExpoGo } from 'expo';
 import { supabase } from '../lib/supabase';
 import { notificationsRepository } from '../repositories/notifications.repository';
+import { bannerAllowed } from '../lib/notificationRules';
+import { getNotificationSettings } from './notificationPrefs';
+import { colors } from '../../theme/tokens';
 import type { NotificationType } from '../types';
 
 // OS notifications aren't supported in Expo Go on SDK 53+. Merely importing
@@ -56,7 +59,7 @@ export async function setupNotifications(): Promise<boolean> {
       name: 'Default',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#C5FF00',
+      lightColor: colors['primary-container'],
     });
   }
 
@@ -164,8 +167,11 @@ export async function notify(params: {
   sub_text?: string;
   related_entity_id?: string;
 }): Promise<void> {
-  // Banner first — it's local and shouldn't wait on the network round-trip.
-  presentLocalNotification(`${params.emoji} ${params.message}`, params.sub_text ?? '');
+  // The OS banner follows Settings › Notifications (notif_* per type). The
+  // in-app entry is the history behind the bell, so it is always written.
+  // The switches are cached in memory, so this rarely waits on the network.
+  const prefs = await getNotificationSettings();
+  if (bannerAllowed(params.type, prefs)) presentLocalNotification(`${params.emoji} ${params.message}`, params.sub_text ?? '');
   try {
     const { data } = await supabase.auth.getUser();
     const userId = data.user?.id;

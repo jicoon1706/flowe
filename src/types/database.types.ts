@@ -269,7 +269,7 @@ export interface Settings {
   currency: string;
   balance_visible: boolean;
   show_affirmations: boolean;
-  daily_reminder_time: string;
+  daily_reminder_time: string | null;
   affirmation_category: string;
   notif_expense: boolean;
   notif_income: boolean;

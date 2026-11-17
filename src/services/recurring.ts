@@ -7,6 +7,8 @@ import {
   scheduleLocalNotificationAt,
   cancelScheduledWithPrefix,
 } from './notifications';
+import { getNotificationSettings } from './notificationPrefs';
+import { dayBefore } from '../lib/notificationRules';
 import type { RecurringFrequency, RecurringRule, ReminderOffset, TransactionType } from '../types';
 import type { Result, SupabaseError } from '../utils/result';
 
@@ -20,6 +22,9 @@ import type { Result, SupabaseError } from '../utils/result';
  * doesn't post tomorrow's bills into tonight.
  */
 export const RECURRING_HOUR = 5;
+
+/** The day-before reminder fires at 9am, not at the 5am due hour. */
+const DAY_BEFORE_HOUR = 9;
 
 /**
  * The last date whose occurrences have actually come due.
@@ -55,21 +60,35 @@ export async function scheduleRecurringReminders(): Promise<void> {
   try {
     await cancelScheduledWithPrefix(REMINDER_PREFIX);
 
+    // Settings › Notifications › Recurring reminders ("Day before and on the day").
+    const prefs = await getNotificationSettings();
+    if (prefs?.notif_recurring === false) return;
+
     const rules = await recurringRepository.fetchAllActive();
     if (!rules.ok) return;
 
     await Promise.all(
       rules.data
         .filter((rule) => rule.status === 'active')
-        .map((rule) => {
+        .flatMap((rule) => {
           const occurrence = rule.next_date ?? rule.start_date;
-          if (rule.end_date && occurrence > rule.end_date) return Promise.resolve();
-          return scheduleLocalNotificationAt(
-            dueMoment(occurrence),
-            `🔁 ${rule.name} is due`,
-            `${formatRM(Number(rule.amount))} • open Flowe to confirm it`,
-            `${REMINDER_PREFIX}${rule.id}`
-          );
+          if (rule.end_date && occurrence > rule.end_date) return [];
+          const amount = formatRM(Number(rule.amount));
+          const [y, m, d] = dayBefore(occurrence).split('-').map(Number);
+          return [
+            scheduleLocalNotificationAt(
+              new Date(y, m - 1, d, DAY_BEFORE_HOUR, 0, 0, 0),
+              `🔁 ${rule.name} is due tomorrow`,
+              `${amount} • Flowe asks you to confirm it on the day`,
+              `${REMINDER_PREFIX}before-${rule.id}`
+            ),
+            scheduleLocalNotificationAt(
+              dueMoment(occurrence),
+              `🔁 ${rule.name} is due`,
+              `${amount} • open Flowe to confirm it`,
+              `${REMINDER_PREFIX}${rule.id}`
+            ),
+          ];
         })
     );
   } catch (e) {
@@ -208,8 +227,10 @@ export async function approveRecurring(rule: RecurringRule): Promise<Result<unkn
  */
 export async function skipRecurring(rule: RecurringRule): Promise<Result<void, SupabaseError>> {
   const occurrence = occurrenceDate(rule);
-  const res = await recurringRepository.advance(rule.id, rolledNextDate(rule));
-  if (res.ok) {
+  const moved = await recurringRepository.skipOccurrence(rule.id, occurrence, rolledNextDate(rule));
+  if (!moved.ok) return moved;
+  const res: Result<void, SupabaseError> = { ok: true, data: undefined };
+  if (moved.data) {
     await notify({
       type: 'recurring',
       emoji: '⏭️',
