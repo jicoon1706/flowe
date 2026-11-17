@@ -1,4 +1,5 @@
-import { Pressable, View, type StyleProp, type ViewStyle } from "react-native";
+import { View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable } from "@/components/ui/Pressable";
 import type { LucideIcon } from "lucide-react-native";
 import { colors } from "@/theme/tokens";
 

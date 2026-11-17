@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '@/components/ui/Pressable';
 import * as Haptics from 'expo-haptics';
 import { Delete, FingerprintPattern } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';

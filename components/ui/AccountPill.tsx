@@ -1,4 +1,4 @@
-import { Pressable } from 'react-native';
+import { Pressable } from '@/components/ui/Pressable';
 import { ChevronDown, Landmark, type LucideIcon } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 import { LogoWell } from './LogoWell';

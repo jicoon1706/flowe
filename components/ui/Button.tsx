@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable } from './Pressable';
 import type { LucideIcon } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 import { Text } from './Text';

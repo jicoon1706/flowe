@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '@/components/ui/Pressable';
 import type { LucideIcon } from 'lucide-react-native';
 import type { MoneyDirection } from '@/src/lib/money';
 import { LogoWell } from './LogoWell';

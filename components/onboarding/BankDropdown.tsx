@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '@/components/ui/Pressable';
 import { Check, Landmark, Search } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 import { MALAYSIAN_BANKS, type Bank } from '@/constants/banks';

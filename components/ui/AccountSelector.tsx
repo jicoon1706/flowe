@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '@/components/ui/Pressable';
 import { Check, Landmark, PiggyBank, Plus, TrendingUp, Wallet } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 import { accountBalance, accountDomain, ACCOUNT_GROUP_LABEL, type AnyAccount } from '@/src/utils/accountDisplay';

@@ -1,4 +1,5 @@
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
+import { Pressable } from '@/components/ui/Pressable';
 import { Check } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 import { Sheet } from './Sheet';

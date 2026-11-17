@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import { Pressable, RefreshControl, View } from 'react-native';
+import { RefreshControl, View } from 'react-native';
+import { Pressable } from '@/components/ui/Pressable';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import {
   ArrowDownRight, ArrowUpDown, ArrowUpRight, Bell, BookOpen, ChartPie, Check, Gauge, Landmark, RefreshCw, Repeat, Sparkles, Target, TrendingUp, type LucideIcon,

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, View } from 'react-native';
+import { RefreshControl, View } from 'react-native';
+import { Pressable } from '@/components/ui/Pressable';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BookOpen, Plus, RefreshCw } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
