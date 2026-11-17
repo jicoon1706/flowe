@@ -25,7 +25,7 @@ export function SettingsRow({ label, value, onPress, icon: Icon, domain, right, 
   const body = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, opacity: disabled ? 0.5 : 1 }}>
       {domain ? (
-        <LogoWell domain={domain} fallback={Icon} />
+        <LogoWell domain={domain} brand={label} fallback={Icon} />
       ) : Icon ? (
         <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={19} color={colors['on-surface']} strokeWidth={1.75} />

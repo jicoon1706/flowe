@@ -6,20 +6,20 @@
 type Entry = readonly [keyword: string, domain: string];
 
 const LIST: Entry[] = [
-  ['maybank', 'maybank2u.com.my'],
-  ['cimb', 'cimb.com.my'],
+  ['maybank', 'maybank.com'],
+  ['cimb', 'cimb.com'],
   ['public bank', 'pbebank.com'],
   ['pbe', 'pbebank.com'],
   ['rhb', 'rhbgroup.com'],
   ['hong leong', 'hlb.com.my'],
   ['hlb', 'hlb.com.my'],
-  ['ambank', 'ambank.com.my'],
+  ['ambank', 'ambankgroup.com'],
   ['bank islam', 'bankislam.com'],
   ['bank rakyat', 'bankrakyat.com.my'],
   ['bsn', 'bsn.com.my'],
-  ['affin', 'affinbank.com.my'],
+  ['affin', 'affinalways.com'],
   ['alliance', 'alliancebank.com.my'],
-  ['ocbc', 'ocbc.com.my'],
+  ['ocbc', 'ocbc.com'],
   ['uob', 'uob.com.my'],
   ['hsbc', 'hsbc.com.my'],
   ['standard chartered', 'sc.com'],
@@ -33,10 +33,10 @@ const LIST: Entry[] = [
   ['grab', 'grab.com'],
   ['shopeepay', 'shopee.com.my'],
   ['shopee', 'shopee.com.my'],
-  ['boost', 'myboost.com.my'],
+  ['boost', 'myboost.co'],
   ['bigpay', 'bigpayme.com'],
   ['setel', 'setel.com'],
-  ['mae', 'maybank2u.com.my'],
+  ['mae', 'maybank.com'],
 ];
 
 const INSTITUTIONS: Entry[] = LIST.slice().sort((a, b) => b[0].length - a[0].length);

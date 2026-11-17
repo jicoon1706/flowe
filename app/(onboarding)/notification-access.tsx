@@ -6,6 +6,7 @@ import { colors, radius } from '@/theme/tokens';
 import { Button } from '@/components/ui/Button';
 import { HeroScreen } from '@/components/ui/HeroScreen';
 import { LogoWell } from '@/components/ui/LogoWell';
+import { institutionDomain } from '@/constants/institutionDomains';
 import { Text } from '@/components/ui/Text';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -60,7 +61,7 @@ export default function NotificationAccess() {
       hero={
         <View style={{ alignItems: 'center', gap: 16, marginTop: 24 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <View style={{ width: 300, borderRadius: radius.md, backgroundColor: colors.glass, padding: 14, flexDirection: 'row', gap: 12 }}>
-            <LogoWell domain="maybank2u.com.my" size={36} on="gradient" />
+            <LogoWell domain={institutionDomain('Maybank')} size={36} on="gradient" />
             <View style={{ flex: 1 }}>
               <Text variant="label-sm" tone="soft">Bank alert · now</Text>
               <Text variant="body-md" tone="inverse">You spent RM 12.50 with your card.</Text>

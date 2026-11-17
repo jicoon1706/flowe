@@ -19,7 +19,7 @@ export function DraftAccountCard({ draft, onRemove }: { draft: DraftAccount; onR
   const icon = draft.kind === 'tabung' ? tabungIcon(draft.templateType, draft.icon) : draft.kind === 'wallet' ? Wallet : Landmark;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.md, backgroundColor: colors['surface-container'] }}>
-      <LogoWell domain={domain} fallback={icon} on="grey" />
+      <LogoWell domain={domain} brand={name} fallback={icon} on="grey" />
       <View style={{ flex: 1 }}>
         <Text variant="body-lg" numberOfLines={1}>{name}</Text>
         <Text variant="label-sm" tone="meta">{type}</Text>

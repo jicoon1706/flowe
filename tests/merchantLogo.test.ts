@@ -20,12 +20,12 @@ afterEach(() => setMerchantSources([]));
 
 describe('merchantDomain()', () => {
   it('matches a merchant anywhere in the transaction name', () => {
-    expect(merchantDomain('McDonalds KLCC')).toBe('mcdonalds.com.my');
-    expect(merchantDomain('Lunch at KFC')).toBe('kfc.com.my');
+    expect(merchantDomain('McDonalds KLCC')).toBe('mcdonalds.com');
+    expect(merchantDomain('Lunch at KFC')).toBe('kfc.com');
   });
 
   it('ignores case and punctuation around the keyword', () => {
-    expect(merchantDomain("mcdonald's drive thru")).toBe('mcdonalds.com.my');
+    expect(merchantDomain("mcdonald's drive thru")).toBe('mcdonalds.com');
     expect(merchantDomain('WATSONS #221')).toBe('watsons.com.my');
   });
 
@@ -41,7 +41,7 @@ describe('merchantDomain()', () => {
     expect(merchantDomain('Overtime claim')).toBeUndefined();
     expect(merchantDomain('Nutshell Cafe')).toBeUndefined();
     // …while the brands those rules protect still match.
-    expect(merchantDomain('Digi bill')).toBe('digi.com.my');
+    expect(merchantDomain('Digi bill')).toBe('celcomdigi.com');
     expect(merchantDomain('Shell Seksyen 13')).toBe('shell.com.my');
   });
 
@@ -98,7 +98,7 @@ describe('setMerchantSources()', () => {
   it('falls back to the bundled list when the fetch returns nothing', () => {
     // A failed or empty fetch must never leave the app with no logos at all.
     setMerchantSources([]);
-    expect(merchantDomain('KFC Bangi')).toBe('kfc.com.my');
+    expect(merchantDomain('KFC Bangi')).toBe('kfc.com');
   });
 
   it('notifies subscribers so rows already on screen re-match', () => {

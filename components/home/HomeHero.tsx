@@ -82,13 +82,13 @@ export function HomeHero({ name, balance, accounts, monthChangePct, masked, unre
           <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 92, borderRadius: 24, backgroundColor: colors.glass, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             {lead && !loading ? (
               <>
-                <LogoWell domain={accountDomain(lead)} fallback={lead.type === 'wallet' ? Wallet : Landmark} on="gradient" />
+                <LogoWell domain={accountDomain(lead)} brand={lead.name} fallback={lead.type === 'wallet' ? Wallet : Landmark} on="gradient" />
                 <View style={{ flex: 1 }}>
                   <Text variant="body-md" weight={500} tone="inverse" numberOfLines={1}>{lead.name}</Text>
                   {accountMask(lead) ? <Text variant="label-sm" weight={400} tone="soft" style={{ letterSpacing: 0.5 }}>{accountMask(lead)}</Text> : null}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  {others.slice(0, 2).map((a) => <LogoWell key={a.id} domain={accountDomain(a)} fallback={a.type === 'wallet' ? Wallet : Landmark} size={28} on="gradient" />)}
+                  {others.slice(0, 2).map((a) => <LogoWell key={a.id} domain={accountDomain(a)} brand={a.name} fallback={a.type === 'wallet' ? Wallet : Landmark} size={28} on="gradient" />)}
                   {others.length > 2 ? <Text variant="label-sm" weight={400} tone="soft">+{others.length - 2}</Text> : null}
                 </View>
               </>

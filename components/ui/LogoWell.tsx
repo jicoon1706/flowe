@@ -18,13 +18,15 @@ export interface LogoWellProps {
   /** Well fill: white sheet → #F5F5F5; grey card or gradient → white. */
   on?: 'surface' | 'grey' | 'gradient';
   accessibilityLabel?: string;
+  /** Brand name read out as "<brand> logo" while the logo itself is shown. Defaults to `merchant`. */
+  brand?: string;
 }
 
 /**
  * 40 px circle holding a logo at ~65% (logos unaltered), or a Lucide icon.
  * Logos come from logo.dev (or an uploaded file for a curated merchant).
  */
-export function LogoWell({ domain, merchant, fallback: Fallback = Store, size = 40, on = 'surface', accessibilityLabel }: LogoWellProps) {
+export function LogoWell({ domain, merchant, fallback: Fallback = Store, size = 40, on = 'surface', accessibilityLabel: explicitLabel, brand }: LogoWellProps) {
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   useEffect(() => subscribeMerchantSources(rerender), []);
   const url = domain ? logoDevUrl(domain, size * 2) : merchantLogoUrl(merchant, size * 2);
@@ -32,6 +34,8 @@ export function LogoWell({ domain, merchant, fallback: Fallback = Store, size = 
   useEffect(() => { setFailed(false); }, [url]);
   const inner = Math.round(size * 0.65);
   const fill = on === 'surface' ? colors['surface-container'] : colors.surface;
+  const name = brand ?? merchant;
+  const accessibilityLabel = explicitLabel ?? (url && !failed && name ? `${name} logo` : undefined);
 
   return (
     <View

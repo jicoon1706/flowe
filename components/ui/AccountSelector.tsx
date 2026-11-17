@@ -53,7 +53,7 @@ export function AccountSelector({ visible, onClose, accounts, selectedId, onSele
                   accessibilityLabel={a.name}
                   style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, opacity: pressed ? 0.7 : 1 })}
                 >
-                  <LogoWell domain={accountDomain(a)} fallback={a.type === 'tabung' ? PiggyBank : a.type === 'wallet' ? Wallet : Landmark} />
+                  <LogoWell domain={accountDomain(a)} brand={a.name} fallback={a.type === 'tabung' ? PiggyBank : a.type === 'wallet' ? Wallet : Landmark} />
                   <Text variant="body-lg" style={{ flex: 1 }} numberOfLines={1}>{a.name}</Text>
                   <Money amount={accountBalance(a)} variant="body-md" weight={500} masked={masked} />
                   <View

@@ -38,7 +38,7 @@ export function AccountPill({ label, domain, icon = Landmark, onPress, plainIcon
         flexShrink: 1,
       })}
     >
-      {Plain ? <Plain size={18} color={colors['on-surface']} strokeWidth={1.75} /> : <LogoWell domain={domain} fallback={icon} size={32} on="grey" />}
+      {Plain ? <Plain size={18} color={colors['on-surface']} strokeWidth={1.75} /> : <LogoWell domain={domain} brand={label} fallback={icon} size={32} on="grey" />}
       <Text variant="body-md" weight={500} numberOfLines={1} style={{ flexShrink: 1 }}>{label}</Text>
       <ChevronDown size={16} color={colors['on-surface']} strokeWidth={1.75} />
     </Pressable>

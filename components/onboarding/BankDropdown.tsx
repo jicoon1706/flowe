@@ -40,7 +40,7 @@ export function BankDropdown({ visible, onClose, value, onChange }: BankDropdown
       accessibilityState={{ checked: b.id === value }}
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, opacity: pressed ? 0.7 : 1 })}
     >
-      <LogoWell domain={institutionDomain(b.name, b.id)} fallback={Landmark} />
+      <LogoWell domain={institutionDomain(b.name, b.id)} brand={b.name} fallback={Landmark} />
       <Text variant="body-lg" style={{ flex: 1 }}>{b.name}</Text>
       {b.id === value ? <Check size={18} color={colors['on-surface']} strokeWidth={2} /> : null}
     </Pressable>

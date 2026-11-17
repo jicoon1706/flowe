@@ -140,7 +140,7 @@ export function AccountDetailScreen({ accountId, kind }: { accountId: string; ki
               </>
             ) : (
               <>
-                <LogoWell domain={accountDomain(account)} fallback={Icon} size={56} on="gradient" />
+                <LogoWell domain={accountDomain(account)} brand={account?.name} fallback={Icon} size={56} on="gradient" />
                 <Text variant="body-lg" tone="soft">{account?.name ?? ''}</Text>
                 <Money amount={balance} variant="numeric-lg" on="gradient" smallCurrency masked={locked} />
                 <View style={{ flexDirection: 'row', gap: 8 }}>

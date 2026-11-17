@@ -91,7 +91,7 @@ export function AccountDraftForm({ onAdd, submitLabel = 'Continue' }: AccountDra
             <opts.icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
           </View>
         ) : (
-          <LogoWell domain={opts.domain} fallback={opts.icon ?? Landmark} on="grey" />
+          <LogoWell domain={opts.domain} brand={label} fallback={opts.icon ?? Landmark} on="grey" />
         )}
         <Text variant="label-sm" align="center" numberOfLines={1}>{label}</Text>
       </Pressable>

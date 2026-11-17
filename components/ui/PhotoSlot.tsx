@@ -21,7 +21,7 @@ export interface PhotoSlotProps {
 export function PhotoSlot({ photo, style, showCredit = true }: PhotoSlotProps) {
   const spec = PHOTOS[photo];
   const [failed, setFailed] = useState(false);
-  const label = `Photo: ${spec.credit} on Unsplash`;
+  const label = `${spec.alt}. Photo by ${spec.credit} on Unsplash`;
   return (
     <View style={[{ overflow: 'hidden' }, style]} accessible accessibilityRole="image" accessibilityLabel={label}>
       <GradientFill />
@@ -31,7 +31,7 @@ export function PhotoSlot({ photo, style, showCredit = true }: PhotoSlotProps) {
       {showCredit ? (
         <View style={{ position: 'absolute', left: 12, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <ImageIcon size={14} color={colors['on-primary-soft']} strokeWidth={1.75} />
-          <Text variant="caption" tone="soft">Photo · {spec.credit} / Unsplash</Text>
+          <Text variant="caption" tone="soft">Photo by {spec.credit} on Unsplash</Text>
         </View>
       ) : null}
     </View>

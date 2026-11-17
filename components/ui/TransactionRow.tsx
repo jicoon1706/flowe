@@ -33,7 +33,7 @@ export function TransactionRow({ title, meta, amount, direction, merchant, domai
       accessibilityRole={onPress ? 'button' : undefined}
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, minHeight: 56, opacity: pressed ? 0.7 : 1 })}
     >
-      <LogoWell domain={domain} merchant={domain ? undefined : merchant ?? title} fallback={icon} on={on} />
+      <LogoWell domain={domain} merchant={domain ? undefined : merchant ?? title} brand={merchant ?? title} fallback={icon} on={on} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text variant="body-lg" numberOfLines={1}>{title}</Text>
         {meta ? <Text variant="label-sm" tone={on === 'grey' ? 'meta' : 'muted'} numberOfLines={1}>{meta}</Text> : null}
