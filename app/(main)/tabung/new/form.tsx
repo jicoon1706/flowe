@@ -50,7 +50,9 @@ export default function NewTabungForm() {
     setSaving(false);
     if (!res.ok) { toast.failure('Couldn’t create Tabung', { label: 'Retry', onPress: create }); return; }
     toast.success(`Tabung created · ${name.trim()}`);
-    router.dismissTo('/home/accounts');
+    // (main) routes are hidden tabs, not a stack: dismissTo had nothing to pop,
+    // so the form stayed open and every further tap created another Tabung.
+    router.navigate('/home/accounts');
   };
 
   return (

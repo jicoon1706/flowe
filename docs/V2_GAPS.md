@@ -616,16 +616,34 @@ Nothing the clients call is missing live. Phase 1 adds: the versioned `analysis-
 
 **Verification:** `npx tsc --noEmit` 0 errors · `npm run lint` 0 errors (12 baseline warnings) · `npm test` 39 suites, 319 tests passed.
 
+## Phase 3 results (phone, flowe-app-v2)
+
+| Item | Status | Where |
+|---|---|---|
+| Bottom nav Home · Calendar · + · Cashflow · Settings (§7.1); `navKeyFor` unchanged | ✅ Seen on the emulator | `components/ui/FloatingNav.tsx` |
+| 8 Android push types with the frame copy and actions: detected (Confirm / Edit), budget 80 % and 100 % (View), recurring day before (Remind me later, +3 h), recurring due grouped per date (Confirm all → due sheet, every bill ticked), Tabung milestone (Open), monthly summary (Open → Analysis), affirmation | ✅ Code and tests; budget 80 % and milestone seen live in the shade | `src/lib/notificationRules.ts`, `src/services/{notifications,alerts,recurring}.ts`, `src/hooks/usePushResponses.ts` |
+| Detected-transaction heads-up: Confirm / Edit, Flowe mark, token colour; off when Settings › Notifications › Detected transactions is off | ✅ Code + tests (`confirm` answer). **Difference from the frame:** the title is "RM 12.50 detected", not "RM 12.50 at Tealive · Confirm as Food & Drink?". The merchant and category are parsed in JS, which isn't running when the alert arrives. | `QuickCaptureNotifier.kt`, `CaptureStore.kt`, `autoFile.ts` |
+| Widgets Left today 2×2 / Budget 4×2 / Tabung 4×2 with normal, empty, stale ("Updated 2h ago") and loading faces, frame tap targets, colours from `flowe_tokens.xml` | ✅ Already in code (checked against the L frames). Not pinned on the emulator, so not seen on a home screen. | `modules/flowe-notifications` widget providers |
+| Live Update: 3 states + "Syncing…", ProgressStyle on Android 16+, plain ongoing below | ✅ Already in code; ongoing notification seen live ("RM 12.50 left today") on API 34 | `LiveBudgetNotifier.kt` |
+| Settings › Budget limits as tiles; onboarding name + starting balance as side-by-side pills | ✅ Seen on the emulator | `AmountField.tsx` (`look`) |
+| Add transaction on short phones: 48 dp keys under 780 dp tall | ✅ Account/date pills visible; "+ Note" still half-hidden on 731 dp (it scrolls) | `add-transaction.tsx` |
+| **Bug found in the walk:** New Tabung form stayed open after a successful save (`router.dismissTo` has nothing to pop in the tab navigator), so each extra tap created another Tabung | ✅ Fixed (`router.navigate('/home/accounts')`). The 3 duplicates created during the walk were removed with the app's own Delete Tabung. | `tabung/new/form.tsx` |
+| iOS widgets, Live Activity, Dynamic Island, iOS pushes | ⏭ Deferred (out of scope) | — |
+
+**Verification:** `npx tsc --noEmit` 0 errors · `npm run lint` 0 errors (12 baseline warnings) · `npm test` 39 suites, 325 tests passed · `npx expo export --platform android` OK (7.44 MB Hermes bundle).
+
 ## Verification log (Phase 3)
 
-| Step | Result |
-|---|---|
-| onboarding | — |
-| add account | — |
-| add expense | — |
-| detected-transaction island confirm | — |
-| recurring due modal | — |
-| Tabung add / pay out | — |
-| budget widget update | — |
-| export / import CSV | — |
-| desktop pairing code | — |
+Pixel 8 emulator (API 34), dev build 2026-11-17, live Supabase project `flowe`, fresh anonymous user onboarded by the owner.
+
+| Step | Result | Evidence |
+|---|---|---|
+| onboarding | ✅ Pass | Done by the owner on the emulator; Home showed CIMB · RM 50,000.00 |
+| add account | ✅ Pass | TNG eWallet RM 250 via Accounts › + ; list reloaded from Supabase: 2 accounts, RM 50,250.00 |
+| add expense | ✅ Pass | RM 12.50 Food & Drink from TNG eWallet; toast "Saved · RM 12.50 to Food & Drink" with Undo; Spent today RM 12.50 (server sum) |
+| detected-transaction island confirm | ⏭ Not run | No bank / e-wallet app on the emulator to raise an alert (owner's call: not testable here) |
+| recurring due modal | ✅ Pass | Netflix RM 55 due today → sheet opened by itself on Home; Confirm all → balance −RM 55, Spent today RM 67.50 |
+| Tabung add / pay out | ✅ Pass (after fix) | New Tabung (Emergency, RM 5,000) via Accounts › New Tabung; add RM 1,000 → 20 %; pay out RM 500 → progress stays 20 %, In Tabung RM 500, Paid out RM 500; milestone push "Emergency Fund passed 20%". Form bug found and fixed (see Phase 3 results). |
+| budget widget update | ✅ Pass (live notification) | Monthly RM 3,000 → daily RM 100; live update "RM 32.50 left today" → after RM 20 expense "RM 12.50 left today"; 80 % push "80% of today's budget used / RM 12.50 left of RM 100.00 today." Home-screen widget not pinned on the emulator (same BudgetStore data). |
+| export / import CSV | ✅ Pass | Export: share sheet with the CSV of all 5 rows; Import: picked flowe-import.csv from Downloads → "Import check" row in Transactions |
+| desktop pairing code | ✅ Pass | Settings › Security › Use Flowe on desktop → one-time code from the live `desktop-pair` function with an "Expires in m:ss" countdown |
