@@ -47,7 +47,10 @@ export function Text({ variant = 'body-md', weight, tone = 'default', tabular, a
     letterSpacing: spec.trackingEm * fontSize,
     lineHeight: Math.round(fontSize * lineHeightFor(spec.lineHeight, fontSize)),
     textAlign: align,
-    fontVariant: tabular ?? numeric ? ['tabular-nums'] : undefined,
+    // Always an array: when a style drops fontVariant, Fabric diffs the removed
+    // value as null and React Native's processFontVariant(null) throws
+    // ("Cannot read property 'split' of null"). [] means "no variant".
+    fontVariant: (tabular ?? numeric) ? ['tabular-nums'] : [],
   };
   if (tone !== 'inherit') base.color = colors[TONE[tone]];
   return <RNText style={[base, style]} {...rest} />;

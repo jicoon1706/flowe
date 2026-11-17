@@ -647,3 +647,22 @@ Pixel 8 emulator (API 34), dev build 2026-11-17, live Supabase project `flowe`, 
 | budget widget update | ✅ Pass (live notification) | Monthly RM 3,000 → daily RM 100; live update "RM 32.50 left today" → after RM 20 expense "RM 12.50 left today"; 80 % push "80% of today's budget used / RM 12.50 left of RM 100.00 today." Home-screen widget not pinned on the emulator (same BudgetStore data). |
 | export / import CSV | ✅ Pass | Export: share sheet with the CSV of all 5 rows; Import: picked flowe-import.csv from Downloads → "Import check" row in Transactions |
 | desktop pairing code | ✅ Pass | Settings › Security › Use Flowe on desktop → one-time code from the live `desktop-pair` function with an "Expires in m:ss" countdown |
+
+## Phase 4 results (desktop, flowe-desktop-v1)
+
+| Item | Status | Where (flowe-desktop) |
+|---|---|---|
+| Recurring-due dialog on Overview (dd-overview-recurring): opens once per load when bills are due; Confirm all, or Review one by one with Confirm / Skip this one | ✅ Built (no bill was due during the check, so the dialog itself wasn't seen live) | `components/overview/RecurringDueDialog.tsx`, `pages/OverviewPage.tsx` |
+| Recurring approve (one RPC) and skip (only while pending), ported from the phone with the same signatures | ✅ + Vitest | `lib/services/recurring.ts`, `lib/repositories/recurring.repository.ts` |
+| Cash flow patterns dialog (Poor / Middle class / Rich, yours marked "You"), from the class chip and the "Pattern" label | ✅ Seen in the browser; Esc closes | `components/cashflow/PatternsDialog.tsx`, `components/ui/InfoDialog.tsx` |
+| Sign out (Q1): desktop ends its session and returns to pairing | ✅ Already in code ("Sign out of this computer") | `components/settings/AccountSection.tsx` |
+| Reset (Q2): full reset via `reset_user_data` + storage purge, then sign out | ✅ Code (not run: it would wipe the test account) | `components/settings/DataSection.tsx`, `lib/repositories/userData.repository.ts` |
+| Overview locked (Q5): straight to the lock screen | ✅ As decided; lock seen on every reload | `screens/LockScreen.tsx` |
+| Phone-only features absent: fingerprint ("phone-only" note), numpad, listener setup, detected review, widgets, live updates, camera; Auto-detect is a read-only card | ✅ Checked in Settings › Security and › Auto-detect | — |
+| Shortcuts N (add), ⌘/Ctrl+↵ (save), Esc (close), ⌘/Ctrl+K (search) | ✅ N and Ctrl+↵ used in the check; Esc on dialogs | `app/useHotkey.ts` |
+
+**Pairing, PIN and sync check (live `flowe`, 2026-11-17):** one-time code from the emulator (Settings › Security) → entered on desktop → PIN typed by the owner → Overview showed the phone's data (RM 49,655.50, CIMB + TNG eWallet, Emergency Fund 20 %). Desktop added "Desktop check" RM 3.00 (N, Ctrl+↵) → it appeared on the phone's Transactions; both showed RM 49,652.50. Desktop relocks on every launch and keeps the pairing.
+
+**Phone fix found while pairing:** render error "Cannot read property 'split' of null" (React Native's processFontVariant when a text style drops fontVariant). `Text` now always passes an array (`[]` for no variant). `components/ui/Text.tsx` (flowe-app).
+
+**Verification (desktop):** `npm run build` OK · `npm run lint` 0 errors (baseline warnings) · `npx vitest run` 8 files, 60 tests passed.
