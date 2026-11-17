@@ -7,8 +7,11 @@ import { gradient } from '@/theme/tokens';
  * the parent decides the shape (radius + overflow hidden).
  */
 export function GradientFill({ opacity = 1 }: { opacity?: number }) {
+  // No width/height props: "100%" on an absolute child resolves against the
+  // parent's content box (minus padding), so a padded parent left the bottom
+  // uncovered. absoluteFill alone spans the full padding box.
   return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none" preserveAspectRatio="none" width="100%" height="100%">
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none" preserveAspectRatio="none">
       <Defs>
         <LinearGradient id="floweHero" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor={gradient.from} stopOpacity={opacity} />
