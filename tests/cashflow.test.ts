@@ -1,4 +1,4 @@
-import { coverRatio, financialClass, monthChangePct, spendByCategory, CLASS_LABEL } from '../src/lib/cashflow';
+import { cashAtMonthEnd, coverRatio, entityValuesAsOf, financialClass, monthChangePct, monthlyFlows, monthsEnding, monthsWithValue, netWorthTrend, passiveCoveragePct, spendByCategory, CLASS_LABEL } from '../src/lib/cashflow';
 
 describe('financialClass (cashflow/info chip)', () => {
   it('is Poor with no assets, whatever the income', () => {
@@ -77,5 +77,65 @@ describe('monthChangePct', () => {
   });
   it('is null when the start would be zero or less', () => {
     expect(monthChangePct(100, [{ type: 'income', amount: 100, to_account_id: 'bank' }], ids)).toBeNull();
+  });
+});
+
+describe('Cashflow tab: net worth trend', () => {
+  const live = '2026-11-01';
+  const asb = { id: 'asb', name: 'ASB', amount: 12000, since: '2026-01-01', monthly: 52 };
+  const ptptn = { id: 'ptptn', name: 'PTPTN', amount: 9850, since: '2026-01-01', monthly: 150 };
+
+  it('lists the months ending at the selected one, oldest first, across a year end', () => {
+    expect(monthsEnding('2026-02-01', 4)).toEqual(['2025-11-01', '2025-12-01', '2026-01-01', '2026-02-01']);
+  });
+
+  it('carries the latest recorded value forward and uses live values from the current month', () => {
+    const history = [{ id: 'asb', month: '2026-07-01', amount: 10000 }, { id: 'asb', month: '2026-09-01', amount: 11000 }];
+    expect(entityValuesAsOf([asb], history, '2026-06-01', live).get('asb')).toBe(0);
+    expect(entityValuesAsOf([asb], history, '2026-08-01', live).get('asb')).toBe(10000);
+    expect(entityValuesAsOf([asb], history, '2026-10-01', live).get('asb')).toBe(11000);
+    expect(entityValuesAsOf([asb], history, '2026-11-01', live).get('asb')).toBe(12000);
+  });
+
+  it('counts an entity with no history at its live value once it existed', () => {
+    const later = { ...asb, since: '2026-09-01' };
+    expect(entityValuesAsOf([later], [], '2026-08-01', live).get('asb')).toBe(0);
+    expect(entityValuesAsOf([later], [], '2026-09-01', live).get('asb')).toBe(12000);
+  });
+
+  it('rolls cash back by every later leg on the accounts', () => {
+    const legs = [
+      { type: 'income', amount: 3000, to_account_id: 'bank', date: '2026-11-01' },
+      { type: 'expense', amount: 500, from_account_id: 'bank', date: '2026-10-31' },
+      { type: 'expense', amount: 200, from_account_id: 'bank', date: '2026-10-15' },
+    ];
+    expect(cashAtMonthEnd(5000, legs, ['bank'], '2026-11-01', live)).toBe(5000);
+    expect(cashAtMonthEnd(5000, legs, ['bank'], '2026-10-01', live)).toBe(2000);
+    expect(cashAtMonthEnd(5000, legs, ['bank'], '2026-09-01', live)).toBe(2700);
+  });
+
+  it('builds assets, liabilities and net worth per month', () => {
+    const points = netWorthTrend({
+      months: ['2026-10-01', '2026-11-01'], liveMonth: live, cashNow: 1000, accountIds: ['bank'],
+      legs: [{ type: 'income', amount: 400, to_account_id: 'bank', date: '2026-11-05' }],
+      assets: [asb], assetHistory: [{ id: 'asb', month: '2026-10-01', amount: 11000 }],
+      liabilities: [ptptn], liabilityHistory: [{ id: 'ptptn', month: '2026-10-01', amount: 10000 }],
+    });
+    expect(points).toEqual([
+      { month: '2026-10-01', assets: 11600, liabilities: 10000, netWorth: 1600 },
+      { month: '2026-11-01', assets: 13000, liabilities: 9850, netWorth: 3150 },
+    ]);
+    expect(monthsWithValue(points)).toBe(2);
+  });
+
+  it('sums monthly flows only from entities held that month', () => {
+    const flows = monthlyFlows([asb, { ...ptptn, id: 'x', name: 'Later', since: '2026-12-01', monthly: 10 }], [], '2026-10-01', live);
+    expect(flows).toEqual({ total: 52, items: [{ name: 'ASB', amount: 52 }] });
+  });
+
+  it('gives passive coverage as a whole percentage, null without expenses', () => {
+    expect(passiveCoveragePct(52, 2486.7)).toBe(2);
+    expect(passiveCoveragePct(3000, 2500)).toBe(120);
+    expect(passiveCoveragePct(50, 0)).toBeNull();
   });
 });

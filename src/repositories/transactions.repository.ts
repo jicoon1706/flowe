@@ -208,6 +208,22 @@ async function reverseInvestment(
 }
 
 export const transactionsRepository = {
+  /**
+   * The balance-moving fields of every transaction dated on or after `startYmd`
+   * (Cashflow net worth trend: rolls account balances back month by month).
+   */
+  async fetchLegsSince(startYmd: string): Promise<Result<{ type: string; amount: number; from_account_id: string | null; to_account_id: string | null; date: string }[], SupabaseError>> {
+    const { data, error } = await fetchAllPages<{ type: string; amount: number; from_account_id: string | null; to_account_id: string | null; date: string }>((from, to) => supabase
+      .from('transactions')
+      .select('id, type, amount, from_account_id, to_account_id, date')
+      .gte('date', startYmd)
+      .order('date', { ascending: true })
+      .order('id')
+      .range(from, to));
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data };
+  },
+
   async fetchByMonth(year: number, month: number): Promise<Result<Transaction[], SupabaseError>> {
     const start = `${year}-${String(month).padStart(2, '0')}-01`;
     const lastDay = new Date(year, month, 0).getDate();

@@ -1,129 +1,191 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ArrowLeft, ChevronDown, Info, Plus, RefreshCw } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
-import { expenseCategories } from '@/constants/categories';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, radius } from '@/theme/tokens';
+import { expenseCategories, incomeCategories } from '@/constants/categories';
 import { categoryIcon } from '@/constants/categoryIcons';
-import { CategoryBubble } from '@/components/ui/CategoryBubble';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { GlassIconButton } from '@/components/ui/GlassIconButton';
-import { HeroScreen } from '@/components/ui/HeroScreen';
-import { Money } from '@/components/ui/Money';
+import { CashFlowDiagramCard } from '@/components/cashflow/CashFlowDiagramCard';
+import { CashFlowPatternDiagram } from '@/components/cashflow/CashFlowPatternDiagram';
+import { ExpensesSection } from '@/components/cashflow/ExpensesSection';
+import { NetWorthHero } from '@/components/cashflow/NetWorthHero';
+import { NetWorthTrendCard } from '@/components/cashflow/NetWorthTrendCard';
+import { PatternCard } from '@/components/cashflow/PatternCard';
+import { FullScreenModal } from '@/components/ui/FullScreenModal';
+import { Hero } from '@/components/ui/Hero';
 import { MonthPickerSheet } from '@/components/ui/MonthPickerSheet';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { Skeleton } from '@/components/ui/Skeleton';
-import { StatTile } from '@/components/ui/StatTile';
 import { Text } from '@/components/ui/Text';
 import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
+import { TABLET_LAYOUT, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useCashflowOverview } from '@/src/hooks/useCashflowOverview';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
-import { useTransactions } from '@/src/hooks/useTransactions';
-import { useBreakpoint } from '@/src/hooks/useBreakpoint';
-import { spendByCategory } from '@/src/lib/cashflow';
+import { useFocusStatusBar } from '@/src/hooks/useFocusStatusBar';
+import { monthStart } from '@/src/utils/monthStart';
 import { describeTransaction } from '@/src/utils/transactionDisplay';
 import type { Transaction } from '@/src/types';
 
-/** Bubble slots on a 390-wide hero (ins-cashflow): [left, top, size], largest first. */
-const STAGE_WIDTH = 390;
-const SLOTS: [number, number, number][] = [
-  [14, 72, 150], [196, 82, 134], [120, 216, 122], [268, 254, 108], [16, 284, 92], [150, 374, 76],
-];
+/**
+ * Starting height of the hero content (top row, net worth, chip, Assets |
+ * Liabilities); the real height is measured. The hero is keyed by it because
+ * the gradient keeps the size it was first drawn at: a hero that grew from
+ * skeleton to data (or with a larger system font) left its lower part white.
+ */
+const HERO_CONTENT = 316;
+
+/** 12,680.42 → '12,680.42'; 12,000 → '12,000' (diagram box lines). */
+const plain = (v: number) => v.toLocaleString('en-MY', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
 /**
- * cashflow — glass bubbles sized by share of spend (bright arc = %), month pill
- * pre-set to this month. Tap a bubble → that category's transactions.
+ * cashflow (ins-cashflow / t-ins-cashflow): net worth hero, net worth trend,
+ * cash flow diagram, your pattern, expenses. One month drives every card.
  */
 export default function CashflowScreen() {
   const router = useRouter();
   const { width, isTablet } = useBreakpoint();
   const { user } = useAuth();
   const { locked } = useLock();
+  const insets = useSafeAreaInsets();
+  const [heroContent, setHeroContent] = useState(HERO_CONTENT);
   const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
   const [picker, setPicker] = useState(false);
-  const { transactions, loading, error, refetch } = useTransactions(month.getFullYear(), month.getMonth() + 1);
+  const [patterns, setPatterns] = useState(false);
+  const { data, errors, loading, refetch } = useCashflowOverview(month);
   const { categories: custom, fetchCategories } = useCustomCategories();
-  const [fetched, setFetched] = useState(false);
+  useFocusStatusBar('dark', isTablet);
 
-  useFocusEffect(useCallback(() => { refetch().then(() => setFetched(true)); if (user) fetchCategories(user.id); }, [refetch, fetchCategories, user]));
+  // The hook loads on mount and on month change; focus only needs a refresh when coming back.
+  const focused = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (focused.current) refetch(); else focused.current = true;
+    if (user) fetchCategories(user.id);
+  }, [refetch, fetchCategories, user]));
 
-  const { total, items } = useMemo(() => spendByCategory(transactions as Transaction[]), [transactions]);
-  const labelOf = (cat: string) => describeTransaction({ type: 'expense', category: cat } as Transaction, custom).label;
-  const scale = Math.min(1, width / STAGE_WIDTH);
-  const iconKeyOf = (cat: string) => expenseCategories.find((c) => c.id === cat)?.id ?? custom.find((c) => c.name === cat)?.icon ?? cat;
-  const openCategory = (cat: string) => router.push({ pathname: '/transactions', params: { category: cat, month: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}` } });
-  const firstLoad = loading && !fetched;
+  const key = monthStart(month);
+  const monthParam = key.slice(0, 7);
   const monthLabel = month.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' });
+  const monthShort = month.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' });
+  const monthName = month.toLocaleDateString('en-MY', { month: 'long' });
+  // Picking a month reloads every card: skeletons until that month's data lands.
+  const current = data && data.month === key ? data : null;
+  const busy = loading && !current;
 
-  const bubbles = firstLoad
-    ? SLOTS.map(([l, t, s], i) => (
-        <View key={i} style={{ position: 'absolute', left: l * scale, top: t, width: s * scale, height: s * scale, borderRadius: 9999, backgroundColor: colors.glass }} />
-      ))
-    : items.length === 0
-    ? SLOTS.slice(0, 4).map(([l, t, s], i) => (
-        <View key={i} style={{ position: 'absolute', left: l * scale, top: t }}>
-          <CategoryBubble label="" share={0} icon={Plus} size={s * scale} ghost />
-        </View>
-      ))
-    : items.slice(0, SLOTS.length).map((c, i) => {
-        const [l, t, s] = SLOTS[i];
-        return (
-          <View key={c.category} style={{ position: 'absolute', left: l * scale, top: t }}>
-            <CategoryBubble label={labelOf(c.category)} share={c.share} icon={categoryIcon(iconKeyOf(c.category))} size={s * scale} onPress={() => openCategory(c.category)} />
-          </View>
-        );
-      });
+  const labelOf = (cat: string) => describeTransaction({ type: 'expense', category: cat } as Transaction, custom).label;
+  const iconOf = (cat: string) => categoryIcon(expenseCategories.find((c) => c.id === cat)?.id ?? custom.find((c) => c.name === cat)?.icon ?? cat);
+  const incomeName = (cat: string) => incomeCategories.find((c) => c.id === cat)?.name ?? cat.charAt(0).toUpperCase() + cat.slice(1);
+  const openCategory = (cat: string) => router.push({ pathname: '/transactions', params: { category: cat, month: monthParam } });
+
+  const balanceRetry = errors.balance && !busy ? refetch : null;
+  const monthRetry = (errors.balance || errors.month) && !busy ? refetch : null;
+
+  const hero = (
+    <NetWorthHero
+      monthLabel={monthLabel}
+      onBack={() => (router.canGoBack() ? router.back() : router.navigate('/(main)'))}
+      onMonth={() => setPicker(true)}
+      onInfo={() => router.push('/cashflow/info')}
+      onClass={() => setPatterns(true)}
+      data={current}
+      loading={busy}
+      onRetry={balanceRetry}
+      masked={locked}
+    />
+  );
+
+  const heroBody = (
+    <View onLayout={(e) => { const h = Math.ceil(e.nativeEvent.layout.height); if (h > heroContent) setHeroContent(h); }}>{hero}</View>
+  );
+
+  const trend = <NetWorthTrendCard points={current?.trend ?? []} loading={busy} onRetry={(errors.trend || errors.balance) && !busy ? refetch : null} masked={locked} />;
+  const spendNames = (current?.spend ?? []).map((s) => labelOf(s.category));
+  const diagram = (
+    <CashFlowDiagramCard
+      monthLabel={monthShort}
+      income={current?.income ?? 0}
+      incomeLines={(current?.incomeLines ?? []).map((l) => `${incomeName(l.name)} ${plain(Math.round(l.amount))}`)}
+      expenses={current?.expenses ?? 0}
+      expenseLines={[spendNames.slice(0, 2).join(', '), spendNames.slice(2).join(', ')].filter(Boolean)}
+      assets={current?.assets ?? 0}
+      assetLines={[`Cash ${plain(current?.cash ?? 0)}`, ...(current?.assetLines ?? []).slice(0, 1).map((a) => `${a.name} ${plain(a.amount)}`)]}
+      liabilities={current?.liabilities ?? 0}
+      liabilityLines={(current?.liabilityLines ?? []).slice(0, 2).map((l) => l.name)}
+      passive={current?.passive ?? { total: 0, items: [] }}
+      repayments={current?.repayments ?? { total: 0, items: [] }}
+      loading={busy}
+      onRetry={monthRetry}
+      masked={locked}
+    />
+  );
+  const pattern = (
+    <PatternCard
+      cls={current?.cls ?? 'poor'}
+      passive={current?.passive.total ?? 0}
+      expenses={current?.expenses ?? 0}
+      pct={current?.passivePct ?? null}
+      onSeeAll={() => setPatterns(true)}
+      loading={busy}
+      onRetry={monthRetry}
+      masked={locked}
+    />
+  );
+  const expenses = (
+    <ExpensesSection
+      monthName={monthName}
+      total={current?.expenses ?? 0}
+      items={current?.spend ?? []}
+      labelOf={labelOf}
+      iconOf={iconOf}
+      onCategory={openCategory}
+      onViewAll={() => router.push({ pathname: '/transactions', params: { type: 'expense', month: monthParam } })}
+      onAdd={() => router.push({ pathname: '/add-transaction', params: { nonce: String(Date.now()) } })}
+      loading={busy}
+      onRetry={errors.month && !busy ? refetch : null}
+      layout={isTablet ? 'tablet' : 'phone'}
+      masked={locked}
+    />
+  );
+
+  const padX = isTablet ? Math.max(TABLET_LAYOUT.cardPadding, (width - TABLET_WIDTH.dashboard) / 2 + TABLET_LAYOUT.cardPadding) : 16;
 
   return (
-    <HeroScreen
-      heroHeight={580}
-      refreshControl={<RefreshControl refreshing={loading && fetched} onRefresh={refetch} tintColor={colors['on-primary']} />}
-      hero={
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
-            <GlassIconButton icon={ArrowLeft} accessibilityLabel="Back" onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(main)'))} />
-            <Pressable
-              onPress={() => setPicker(true)}
-              accessibilityRole="button"
-              accessibilityLabel={`Month: ${monthLabel}. Change month`}
-              style={{ height: 44, paddingHorizontal: 16, borderRadius: 9999, backgroundColor: colors.glass, flexDirection: 'row', alignItems: 'center', gap: 6 }}
-            >
-              <Text variant="body-md" weight={500} tone="inverse">{monthLabel}</Text>
-              <ChevronDown size={16} color={colors['on-primary']} strokeWidth={1.75} />
-            </Pressable>
-            <GlassIconButton icon={Info} accessibilityLabel="Cashflow info" onPress={() => router.push('/cashflow/info')} />
-          </View>
-          <View style={{ flex: 1, ...(isTablet ? { width: STAGE_WIDTH, alignSelf: 'center' } as const : null) }} accessibilityLabel={items.length ? 'Spending by category' : undefined}>
-            {bubbles}
-            {!firstLoad && items.length === 0 && !error ? (
-              <View style={{ position: 'absolute', left: 24, right: 24, bottom: 48, alignItems: 'center' }}>
-                <Text variant="body-md" tone="soft" align="center">Your spending shows up here as bubbles.</Text>
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={loading && !!current} onRefresh={refetch} />}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
+        {isTablet ? (
+          <Hero key={heroContent} tablet="card" height={24 + heroContent} contentMaxWidth={TABLET_LAYOUT.cardHeroColumn}>{heroBody}</Hero>
+        ) : (
+          <Hero key={heroContent} height={insets.top + 12 + heroContent} style={{ margin: 8, borderRadius: radius.xl }}>{heroBody}</Hero>
+        )}
+        <View style={{ paddingHorizontal: padX, paddingTop: isTablet ? 0 : 8, gap: isTablet ? 16 : 12 }}>
+          {isTablet ? (
+            <>
+              <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, minWidth: 0 }}>{trend}</View>
+                <View style={{ flex: 1, minWidth: 0 }}>{pattern}</View>
               </View>
-            ) : null}
-          </View>
+              <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, minWidth: 0 }}>{diagram}</View>
+                <View style={{ flex: 1, minWidth: 0 }}>{expenses}</View>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text variant="headline-md" accessibilityRole="header" style={{ marginTop: 4 }}>{'Cashflow & net worth'}</Text>
+              {trend}
+              {diagram}
+              {pattern}
+              <View style={{ marginTop: 12 }}>{expenses}</View>
+            </>
+          )}
         </View>
-      }
-      overlay={<MonthPickerSheet visible={picker} onClose={() => setPicker(false)} value={month} onChange={setMonth} />}
-    >
-      {error && transactions.length === 0 ? (
-        <EmptyState icon={RefreshCw} title="Couldn’t load cashflow" body="Check your connection and try again." ctaLabel="Try again" ctaIcon={RefreshCw} onCta={refetch} />
-      ) : !firstLoad && items.length === 0 ? (
-        <EmptyState title="No spending yet this month" body="Add a transaction and Flowe sorts it into categories here." ctaLabel="Add transaction" ctaIcon={Plus} onCta={() => router.push({ pathname: '/add-transaction', params: { nonce: String(Date.now()) } })} />
-      ) : (
-        <>
-          <SectionHeader title="Expenses" onAction={() => router.push('/transactions')} />
-          {firstLoad ? <Skeleton width={180} height={32} /> : <Money amount={total} variant="display-md" masked={locked} />}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {firstLoad
-              ? [0, 1].map((i) => <View key={i} style={{ width: '48.8%' }}><Skeleton height={84} radius={12} /></View>)
-              : items.map((c) => (
-                  <View key={c.category} style={{ width: '48.8%' }}>
-                    <StatTile label={labelOf(c.category)} icon={categoryIcon(iconKeyOf(c.category))} amount={c.amount} masked={locked} onPress={() => openCategory(c.category)} />
-                  </View>
-                ))}
-          </View>
-        </>
-      )}
-    </HeroScreen>
+      </ScrollView>
+      <MonthPickerSheet visible={picker} onClose={() => setPicker(false)} value={month} onChange={setMonth} />
+      <FullScreenModal visible={patterns} title="Cash flow patterns" onClose={() => setPatterns(false)}>
+        <CashFlowPatternDiagram current={current?.cls ?? 'poor'} />
+      </FullScreenModal>
+    </View>
   );
 }

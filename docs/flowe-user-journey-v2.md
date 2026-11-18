@@ -60,6 +60,7 @@ flowchart TD
   subgraph TAB4["④ Cashflow tab"]
     CFI["/cashflow"]
     CINFO["/cashflow/info"]
+    CPAT(["Cash flow patterns modal"])
   end
 
   subgraph TAB5["⑤ Settings tab (Stack)"]
@@ -94,8 +95,9 @@ flowchart TD
   H --> S_BUD
   CAL --> ADD
   CFI --> CINFO
-  CFI --> TX
+  CFI -- "bubble / tile: category + month<br/>View All: type=expense + month" --> TX
   CFI --> ADD
+  CFI -- "class chip / See all patterns" --> CPAT
   TX --> S_AD
   TX --> ADD
   ACCS --> BANK
@@ -386,9 +388,9 @@ Everything reached from the Home dashboard. The nav shows **Home** active on all
 
 #### 5.1.2 Transactions list — `app/(main)/transactions.tsx`
 - **Design:** D · transactions; D · transactions · search; D · transactions · category filter; D · transaction/[id] · sheet; M · transactions · empty; M · transactions · loading; M · transactions · error
-- **Route:** `/transactions?category=&month=YYYY-MM` · **Locked?** PIN required · **Nav:** yes
-- **Entry points:** Home "Recent Transactions" header; Cashflow "Expenses" header; Cashflow bubbles and tiles (`category` + `month`); notifications for expense, income and transfer items.
-- **Purpose:** the full month list, optionally filtered by expense category and searchable.
+- **Route:** `/transactions?category=&type=expense&month=YYYY-MM` · **Locked?** PIN required · **Nav:** yes
+- **Entry points:** Home "Recent Transactions" header; Cashflow "Expenses" **View All** (`type=expense` + `month`: that month's expenses only); Cashflow bubbles and tiles (`category` + `month`); notifications for expense, income and transfer items.
+- **Purpose:** the full month list, optionally filtered by expense category or to expenses only, and searchable.
 - **What's on screen:** hero titled "Recent Transactions" (or the category label), back, a **search** toggle (🔍/×); the search field "Search name, category or note"; the transaction list.
 - **Loading / empty / error:**
   - "Couldn't load transactions" → **Try again**.
@@ -669,18 +671,51 @@ The centre nav item. It is never shown as active, and the nav is hidden while th
 Spending by category (`/cashflow`) and the net-worth / assets / liabilities screen (`/cashflow/info`). The nav shows **Cashflow** active on both.
 
 #### 5.4.1 Cashflow — `app/(main)/cashflow/index.tsx`
-- **Design:** I · cashflow; I · cashflow · month picker; M · cashflow · empty; M · cashflow · loading; M · cashflow · error
+- **Design:** I · cashflow (redesigned, mobile `ins-cashflow`, tablet `t-ins-cashflow`); I · cashflow · month picker; I · CashFlowDiagram · restyled; I · CashFlowPatternDiagram · restyled; M · cashflow · empty; M · cashflow · loading; M · cashflow · error
 - **Route:** `/cashflow` · **Locked?** PIN required · **Nav:** yes (Cashflow active)
 - **Entry points:** FloatingNav.
-- **Purpose:** this month's spending by category, drawn as bubbles.
-- **What's on screen:**
-  - Hero: back (or `navigate('/(main)')` if there's no history); a month button "{Month YYYY} ▾" (opens MonthPickerSheet); **ⓘ** → `/cashflow/info`.
-  - Up to 6 category bubbles, sized by share. Tapping a bubble → `/transactions?category&month`.
-  - Below: **Expenses** header (action → `/transactions`), the month total, and a 2-column grid of category stat tiles (tap → filtered transactions).
-- **Loading / empty / error:** glass placeholder bubbles. Empty: 4 ghost "+" bubbles, "Your spending shows up here as bubbles.", and the empty state "No spending yet this month" → **Add transaction**. Error: "Couldn't load cashflow" → **Try again**.
-- **Sub-flows:** **MonthPickerSheet** "Choose month" (the last 12 months).
-- **Data:** `useTransactions(month)`, `useCustomCategories`, `spendByCategory`.
-- **Exits:** cashflow/info; transactions; add-transaction.
+- **Purpose:** one month of cash flow and net worth: where you stand, how it moved over six months, how money flows between income, expenses, assets and liabilities, which cash-flow class that makes you, and where the month's spending went.
+- **Month:** one selected month (default: the current month) drives **every** card. Changing it reloads all five cards at once.
+- **What's on screen (top to bottom, same content on phone and tablet):**
+  1. **Net worth hero** (navy→cobalt gradient field, 40 px radius):
+     - Top row: back (or `navigate('/(main)')` if there's no history); the month pill "{Month YYYY} ▾" (opens the month picker); **ⓘ** → `/cashflow/info`.
+     - "Net worth" and the amount, = assets − liabilities. Assets = account balances (cash) + the `assets` table; liabilities = the `liabilities` table.
+     - Glass chip "{Poor | Middle class | Rich} · {n}× coverage", where coverage = assets ÷ liabilities to one decimal. With no liabilities the chip reads "{class} · No debts". Tap → **Cash flow patterns**.
+     - Two glass stats: **Assets** | **Liabilities**.
+  2. Section heading **"Cashflow & net worth"**.
+  3. **Net worth trend** card (#F5F5F5, 20 px radius):
+     - Title "Net worth trend"; range "{Mon} – {Mon YYYY}" (the six months ending at the selected month); "+RM X since {first month}" (or "−RM X").
+     - Line chart, six points: net worth (bold cobalt line with a light fill), assets (light line), liabilities (dashed grey line); y-axis labels; the selected month's label in black.
+     - Legend with the selected month's values for net worth, assets and liabilities.
+     - Read-only; the chart has an accessible label summarising each series' first and last value.
+  4. **Cash flow diagram** card:
+     - Title "Cash flow diagram" with "{Mon YYYY}". Two rows: INCOME STATEMENT (Income, Expenses boxes) and BALANCE SHEET (Assets, Liabilities boxes), each with its amount and top lines.
+     - Arrows, thickness proportional to the amount: Income → Expenses; Income → Assets labelled "+RM X saved" (income − expenses, shown only when positive); Assets → Income labelled with the asset names and "RM X/mo" (passive income, the **only** strong-cobalt arrow); Liabilities → Expenses labelled with the liability names and "RM X/mo" (monthly repayments).
+     - Insight line: "Your assets pay RM X a month. Grow that line to pass your RM Y expenses." With no passive income: "None of your assets pay you yet. Income-producing assets are what eventually cover your RM Y expenses."
+     - Read-only; the diagram has an accessible label describing every flow.
+  5. **Your pattern** card:
+     - Title "Your pattern" with "Cash flow class". A track **Poor → Middle class → Rich** with a black **You** marker over the user's class.
+     - The user's flow as pills: Poor = Job → Expenses; Middle class = Job → Liabilities → Assets; Rich = Assets → Income → Expenses, with its one-line explanation.
+     - Bar "Passive income covers N% of expenses. Rich = 100%." with "RM X / mo" and "RM Y / mo" under it (N = passive income ÷ expenses, capped at 100 for the bar).
+     - **See all patterns** → **Cash flow patterns**.
+  6. **Expenses:**
+     - Header "Expenses" with **View All** → `/transactions?type=expense&month=YYYY-MM`.
+     - The month total; category bubbles on a gradient panel (up to 6, sized by share, bright arc = %); category stat tiles (2-up on phone).
+     - Tap a bubble or tile → `/transactions?category=…&month=YYYY-MM`.
+- **Tablet (≥ 600 dp short side, `t-ins-cashflow`):** hero full width (inset 16, r40); below it two 368 px columns: **trend | pattern**, then **diagram | expenses**. Expense tiles are 3-up. Nav pill centred at 480 px. The month picker opens as a centred dialog.
+- **Loading / empty / error (per card):**
+  - **Whole screen, first load:** every card shows its skeleton in its final position (hero: glass blocks for amount, chip and stats; chart, diagram and pattern cards: grey blocks; expenses: empty glass discs, arcs draw in once data lands — M · cashflow · loading).
+  - **Hero:** loading as above. Error → the hero keeps the month pill and ⓘ and shows "Couldn’t load this month" → **Try again** (only action) — M · cashflow · error. No assets and no liabilities → amount RM 0.00, chip "Poor · No debts", stats RM 0.00. [TBD: no dedicated artboard]
+  - **Net worth trend:** loading → grey chart block. Error → "Couldn’t load the trend" → **Try again**. Fewer than two months with any value → the chart is replaced by "Your trend appears once you have two months of history." [TBD: copy not drawn]
+  - **Cash flow diagram:** loading → grey block. Error → shares the screen error (it is built from the same month's data). Empty month (no income and no expenses) → boxes show RM 0.00, no arrows except Assets → Income when passive income exists, and the insight line.
+  - **Your pattern:** loading → grey block. Error → shares the hero error. Always has a class, so it has no empty state.
+  - **Expenses:** loading → glass discs and grey tiles. No expenses this month → dashed ghost bubbles, "No spending in {Month} yet / Log or confirm a transaction and your categories will bubble up here." → **Add transaction** (M · cashflow · empty). Error → "Couldn’t load this month / Your transactions are safe. We couldn’t total them just now." → **Try again**.
+  - Pull to refresh reloads every card.
+- **Sub-flows:**
+  - **MonthPickerSheet** "Choose month" (last 12 months, current one ticked; phone: bottom sheet; tablet: centred dialog). Picking a month closes it and reloads every card.
+  - **FullScreenModal "Cash flow patterns"** (`CashFlowPatternDiagram`, opened by the class chip or **See all patterns**): Poor, Middle class, Rich; the user's own pattern has the black outline and **You** pill. Read-only.
+- **Data:** `useAccounts`, `useAssets`, `useLiabilities`, `useTransactions(month)`, the asset / liability value history (`asset_values`, `liability_values`), `useCustomCategories`; `spendByCategory`, `financialClass`, `coverRatio` (`src/lib/cashflow`). The six-month cash line is rebuilt from today's account balances by rolling back each later month's transactions (no snapshot table). Passive income = Σ `assets.monthly_income`; repayments = Σ `liabilities.monthly_payment` (both current values, also used for past months).
+- **Exits:** cashflow/info; transactions (category or expense filter); add-transaction; the patterns modal.
 
 #### 5.4.2 Cashflow info · net worth, assets & liabilities — `app/(main)/cashflow/info.tsx`
 - **Design:** I · cashflow/info; I · cashflow/info · add asset; I · cashflow/info · edit asset; I · cashflow/info · add liability; M · cashflow/info · remove asset; I · CashFlowDiagram · restyled; I · CashFlowPatternDiagram · restyled
@@ -710,6 +745,37 @@ Spending by category (`/cashflow`) and the net-worth / assets / liabilities scre
   - **FullScreenModal "Cash flow patterns"** (`CashFlowPatternDiagram`): Poor (Job → Expenses), Middle class (Job → Liabilities → Assets), Rich (Assets → Income → Expenses). The user's own pattern is outlined.
 - **Data:** `useTransactions` (current month), `useAssets`, `useLiabilities`, `useAccounts`, `useRecurring`, `transactionsRepository`, `financialClass` / `coverRatio` (`src/lib/cashflow`).
 - **Exits:** back.
+
+
+#### 5.4.3 Desktop · Cashflow — `flowe-desktop/src/pages/CashflowPage.tsx`
+- **Design:** H · desktop/cashflow (redesigned, `d-cashflow`); H · desktop/cashflow · month picker (`dd-cashflow-month-picker`); H · desktop/cashflow/info (`d-cashflow-info`); H · desktop/cashflow/info · cash flow diagram (`dd-cashflow-diagram`, the patterns dialog uses the same dialog frame). Desktop has no empty / loading / error artboards: it mirrors the phone states (§5.4.1) inside the grid.
+- **Route:** `/cashflow` · **Locked?** PIN required (desktop lock) · **Shell:** sidebar with **Cashflow** active; page header "Cashflow" with search (⌘K), the month button, notifications and avatar.
+- **Entry points:** sidebar **Cashflow**.
+- **Purpose:** the same five cards as the phone (§5.4.1), on a 12-column grid. Same data, same rules, same copy.
+- **Month:** the header month button "{Month YYYY} ▾" (shared `MonthProvider`) opens a popover "Choose month · last 12" listing the last 12 months, current one selected (black). Picking a month closes it and reloads **every** card.
+- **Layout (12-column grid, 24 px gap):**
+  - Row 1: **Net worth** (span 5, gradient field, 40 px radius) | **Net worth trend** (span 7).
+  - Row 2: **Cash flow diagram** (span 7) | **Your pattern** (span 5; **See all patterns** pinned to the bottom).
+  - Row 3: **Expenses** (span 12): header "Expenses" + **View All**, the month total, then the bubbles and the category tiles side by side.
+  - **Below 1100 px** every card spans the full width (one column, same order).
+- **What's on screen:** as §5.4.1, items 1 and 3–6. Desktop differences:
+  - The month control lives in the page header, not in the hero.
+  - The Net worth card has an **ⓘ** glass icon button → `/cashflow/info`. [TBD: `d-cashflow` draws no info button; the old entry, the "Cashflow info" link on the By category card, is removed with that card, so the button is placed on the Net worth card]
+  - No "Cashflow & net worth" heading; the page title is the header's "Cashflow".
+- **Interactions:**
+  - Header month button → month popover → reloads every card.
+  - **ⓘ** → `/cashflow/info`.
+  - Class chip "{class} · {n}× coverage" (or "· No debts") and **See all patterns** → **Cash flow patterns** dialog (`PatternsDialog`, 720 px, **Done**; Esc closes).
+  - Bubble or tile → `/transactions?category=…&month=YYYY-MM`.
+  - **View All** → `/transactions?types=expense&month=YYYY-MM` (the Transactions page already reads `types` and `month`).
+- **Loading / empty / error:** per card, same rules and copy as §5.4.1, drawn inside each card's grid cell (skeleton blocks in place; "Couldn’t load this month" → **Try again**; Expenses empty → dashed ghost bubbles + "No spending in {Month} yet" → **Add transaction**, which opens the Add transaction drawer).
+- **Removed from this page:**
+  - ~~**By category** table card~~ (`CategoryTable`) — **REMOVED**. Category amounts are in the Expenses tiles; clicking a tile does what a table row did.
+  - ~~**Income vs expense** card~~ (`IncomeExpenseCard`) — **REMOVED**. Income and expenses are in the Cash flow diagram.
+  - ~~"Expenses · {Month}" spending hero with the vs-last-month chip~~ — **REPLACED** by the Net worth card; the month's spend is the Expenses total.
+  - The component files stay; only this page stops using them.
+- **Data:** `useAppData` (accounts, categories), assets, liabilities and their value history (`asset_values`, `liability_values`), `useMonthTransactions(month)`; `spendByCategory`, `financialClass`, `coverRatio` (`src/lib/cashflow`, identical to the app's). Trend, passive income and repayments are computed exactly as in §5.4.1.
+- **Exits:** cashflow/info; transactions (category or expense filter); Add transaction drawer; patterns dialog.
 
 ---
 
@@ -949,6 +1015,14 @@ These exist on the canvas but go beyond what v1 found in `app/`. Each entry says
 ---
 
 ## 7. Changes
+
+### 7.0 Changes in v2.1 (2026-11-18) · Cashflow tab redesign
+
+- **§5.4.1 Cashflow** is redesigned to the canvas artboards `ins-cashflow` (phone) and `t-ins-cashflow` (tablet). The tab now has five cards in this order: Net worth hero, Net worth trend, Cash flow diagram, Your pattern, Expenses. It was a bubbles-only hero with category tiles.
+- New interactions: the class chip and **See all patterns** open the Cash flow patterns modal (before, only from cashflow/info); the month picker reloads **every** card; **View All** now opens that month's expenses (`/transactions?type=expense&month=`), which **§5.1.2** gains as a filter.
+- Loading, empty and error states are given per card. Card-level states the canvas does not draw are marked **[TBD]**.
+- **§5.4.3 Desktop · Cashflow** is new: the same five cards on a 12-column grid (`d-cashflow`), stacking below 1100 px. It **removes** the By category table and the Income vs expense card.
+- The class rule is the existing `financialClass` (same as cashflow/info). Coverage with no liabilities reads "No debts". The trend has no "Sample data" label: every figure is real.
 
 ### 7.1 Changes in v2 (2026-11-17)
 

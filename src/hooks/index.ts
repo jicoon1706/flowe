@@ -3,6 +3,7 @@ export { useAccounts } from './useAccounts';
 export { useBankPresets } from './useBankPresets';
 export { useTransactions } from './useTransactions';
 export { useCashflow } from './useCashflow';
+export { useCashflowOverview } from './useCashflowOverview';
 export { useAnalysis } from './useAnalysis';
 export { useAssets } from './useAssets';
 export { useLiabilities } from './useLiabilities';

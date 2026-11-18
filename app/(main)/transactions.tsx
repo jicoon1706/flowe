@@ -23,7 +23,7 @@ export default function TransactionsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { locked } = useLock();
-  const params = useLocalSearchParams<{ category?: string; month?: string }>();
+  const params = useLocalSearchParams<{ category?: string; type?: string; month?: string }>();
   const now = new Date();
   const [py, pm] = (params.month ?? '').split('-').map(Number);
   const year = py || now.getFullYear();
@@ -41,10 +41,13 @@ export default function TransactionsScreen() {
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = (transactions as TxWithAccounts[]).filter((t) => !params.category || (t.type === 'expense' && (t.category || 'others') === params.category));
+    // Cashflow: a category (bubble / tile) or expenses only (View All).
+    const list = (transactions as TxWithAccounts[])
+      .filter((t) => !params.category || (t.type === 'expense' && (t.category || 'others') === params.category))
+      .filter((t) => params.type !== 'expense' || t.type === 'expense');
     if (!q) return list;
     return list.filter((t) => t.name.toLowerCase().includes(q) || describeTransaction(t, custom).label.toLowerCase().includes(q) || (t.note ?? '').toLowerCase().includes(q));
-  }, [transactions, query, custom, params.category]);
+  }, [transactions, query, custom, params.category, params.type]);
 
   const body = error && transactions.length === 0 ? (
     <EmptyState icon={RefreshCw} title="Couldn’t load transactions" body="Check your connection and try again." ctaLabel="Try again" ctaIcon={RefreshCw} onCta={refetch} />
@@ -68,7 +71,7 @@ export default function TransactionsScreen() {
       contentWidth="form"
       hero={
         <TopBar
-          title={params.category ? describeTransaction({ type: 'expense', category: params.category } as TxWithAccounts, custom).label : 'Recent Transactions'}
+          title={params.category ? describeTransaction({ type: 'expense', category: params.category } as TxWithAccounts, custom).label : params.type === 'expense' ? 'Expenses' : 'Recent Transactions'}
           onBack={() => router.back()}
           right={<GlassIconButton icon={searching ? X : Search} accessibilityLabel={searching ? 'Close search' : 'Search transactions'} onPress={() => { setSearching((s) => !s); setQuery(''); }} />}
         />

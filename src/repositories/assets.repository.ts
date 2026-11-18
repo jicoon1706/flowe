@@ -56,6 +56,16 @@ async function hasLaterValue(assetId: string, month: string): Promise<Result<boo
 }
 
 export const assetsRepository = {
+  /** Every recorded "worth X as of month M" row, oldest first (net worth trend). */
+  async fetchValueHistory(): Promise<Result<{ id: string; month: string; amount: number }[], SupabaseError>> {
+    const { data, error } = await supabase
+      .from('asset_values')
+      .select('asset_id, month, value')
+      .order('month', { ascending: true });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: (data ?? []).map((r) => ({ id: r.asset_id as string, month: r.month as string, amount: Number(r.value) })) };
+  },
+
   async fetchAll(): Promise<Result<Asset[], SupabaseError>> {
     const { data, error } = await supabase
       .from('assets')

@@ -1,14 +1,8 @@
 import { View } from 'react-native';
 import { ArrowRight } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
-import { CLASS_LABEL, type FinancialClass } from '@/src/lib/cashflow';
+import { CLASS_LABEL, PATTERNS, type FinancialClass } from '@/src/lib/cashflow';
 import { Text } from '../ui/Text';
-
-const PATTERNS: { key: FinancialClass; steps: string[]; body: string }[] = [
-  { key: 'poor', steps: ['Job', 'Expenses'], body: 'Every ringgit earned is spent.' },
-  { key: 'middle', steps: ['Job', 'Liabilities', 'Assets'], body: 'Income pays debts first; some flows into assets.' },
-  { key: 'rich', steps: ['Assets', 'Income', 'Expenses'], body: 'Assets produce the income that pays expenses.' },
-];
 
 /** Three cash flow patterns (m-cashflow-pattern); yours gets the black outline + "You" pill. Read-only. */
 export function CashFlowPatternDiagram({ current }: { current: FinancialClass }) {
