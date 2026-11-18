@@ -1,7 +1,10 @@
 /**
- * Expo config on top of app.json: brand colours come from the token module
- * (theme/tokens.js), so the splash, adaptive icon and notification accent use
- * the same values as the app. Icon PNGs: scripts/generate-brand-assets.js.
+ * Expo config on top of app.json. This file wins: Expo passes app.json in as
+ * `config` and uses what this returns. app.json holds only the static image
+ * paths; every brand colour is set here from the token module (theme/tokens.js),
+ * so the splash, adaptive icon background (#011A4D) and notification accent use
+ * the same values as the app. Keep colours out of app.json.
+ * Icon PNGs: `node scripts/generate-icons.mjs` (from assets/brand/*.svg).
  */
 const { colors } = require('./theme/tokens');
 

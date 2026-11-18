@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Flowe app icon master: 1024 rounded square (r 228), vertical gradient #011A4D → #1665B1, white mark ~600px centred. -->
+  <defs>
+    <linearGradient id="flowe-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#011A4D"/>
+      <stop offset="1" stop-color="#1665B1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" ry="228" fill="url(#flowe-bg)"/>
+  <svg x="212" y="212" width="600" height="600" viewBox="0 0 64 64" fill="none" stroke="#FFFFFF" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 56V27c0-10 6-16 15-16 5 0 9 2 12 5"/>
+    <path d="M10 35c5-5 10-5 15 0s10 5 15 0 10-5 15 0"/>
+  </svg>
+</svg>
