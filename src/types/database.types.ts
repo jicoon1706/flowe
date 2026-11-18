@@ -65,6 +65,8 @@ export interface TabungAccount {
   account_id: string;
   target_amount: number;
   saved_amount: number;
+  /** Starting amount; the repair rebuilds saved_amount from it. Migration 20261121. */
+  opening_amount?: number;
   from_date: string;
   to_date: string;
   linked_bank_id?: string;

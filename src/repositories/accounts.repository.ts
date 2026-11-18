@@ -131,6 +131,11 @@ export const accountsRepository = {
         account_id: account.id,
         target_amount: req.target_amount,
         saved_amount: req.starting_amount ?? 0,
+        // The starting amount is also the jar's opening amount, so Recalculate
+        // balances (opening + Σ transactions) keeps it (AUDIT-2026-11 B10).
+        // Sent only when set, so creating an empty jar doesn't depend on
+        // migration 20261121 having added the column.
+        ...(req.starting_amount ? { opening_amount: req.starting_amount } : {}),
         from_date: req.from_date,
         to_date: req.to_date,
         linked_bank_id: req.linked_bank_id,
