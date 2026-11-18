@@ -115,7 +115,13 @@ export async function scheduleRecurringReminders(): Promise<void> {
 export function addInterval(dateStr: string, frequency: RecurringFrequency, anchorDay: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   if (frequency === 'weekly') return localYMD(new Date(y, m - 1, d + 7));
-  if (frequency === 'yearly') return localYMD(new Date(y + 1, m - 1, d));
+  if (frequency === 'yearly') {
+    // Same month next year, re-anchored and clamped like monthly: a rule on
+    // 29 Feb is on 28 Feb in common years and back on the 29th in leap years,
+    // instead of rolling over to 1 Mar for good (AUDIT-2026-11 B3).
+    const lastDayNextYear = new Date(y + 1, m, 0).getDate();
+    return localYMD(new Date(y + 1, m - 1, Math.min(anchorDay, lastDayNextYear)));
+  }
   // monthly: m is 1-based, so the 0-based index of the *next* month is `m`.
   const year = y + Math.floor(m / 12);
   const monthIndex = m % 12;

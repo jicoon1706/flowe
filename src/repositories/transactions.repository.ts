@@ -111,6 +111,33 @@ function reportBalanceFailure(error: SupabaseError) {
   console.error('[balance] account balance was not moved for a saved transaction:', error.message);
 }
 
+// ─── Paging ─────────────────────────────────────────────────────────────
+
+/**
+ * Rows per request. PostgREST silently truncates a response at the project's
+ * Max Rows (Supabase default 1,000), so any read that must see every row asks
+ * for pages of this size until a short page comes back (AUDIT-2026-11 B4).
+ */
+const PAGE_SIZE = 1000;
+
+/**
+ * Reads every row of a query, a page at a time. `page` must build a fresh,
+ * fully ordered query (with a unique tie-break such as `id`) for the given
+ * inclusive range, so pages neither overlap nor skip rows.
+ */
+export async function fetchAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<{ data: T[]; error: unknown }> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) return { data: out, error };
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) return { data: out, error: null };
+  }
+}
+
 // ─── Change notification ───────────────────────────────────────────────
 
 // Anything that depends on the set of transactions rather than on one screen's
@@ -238,7 +265,7 @@ export const transactionsRepository = {
 
   /** Every transaction, newest first, with account names joined (Settings › Data › Export). */
   async fetchAll(): Promise<Result<Transaction[], SupabaseError>> {
-    const { data, error } = await supabase
+    const { data, error } = await fetchAllPages<Transaction>((from, to) => supabase
       .from('transactions')
       .select(`
         *,
@@ -246,9 +273,11 @@ export const transactionsRepository = {
         to_account:accounts!to_account_id(id, name, type)
       `)
       .order('date', { ascending: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to));
     if (error) return { ok: false, error: fromSupabaseError(error) };
-    return { ok: true, data: data as Transaction[] };
+    return { ok: true, data };
   },
 
   /** How many transactions the user has (reset confirmation copy). */
@@ -259,7 +288,7 @@ export const transactionsRepository = {
   },
 
   async fetchByAccount(accountId: string): Promise<Result<Transaction[], SupabaseError>> {
-    const { data, error } = await supabase
+    const { data, error } = await fetchAllPages<Transaction>((from, to) => supabase
       .from('transactions')
       .select(`
         *,
@@ -267,9 +296,12 @@ export const transactionsRepository = {
         to_account:accounts!to_account_id(id, name, type)
       `)
       .or(`from_account_id.eq.${accountId},to_account_id.eq.${accountId}`)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to));
     if (error) return { ok: false, error: fromSupabaseError(error) };
-    return { ok: true, data: data as Transaction[] };
+    return { ok: true, data };
   },
 
   async fetchDetail(id: string): Promise<Result<TransactionDetail, SupabaseError>> {

@@ -101,7 +101,7 @@ export function AccountDetailScreen({ accountId, kind }: { accountId: string; ki
     if (bal === null) { setFormError('Enter a valid balance'); return; }
     setSaving(true);
     const r1 = await accountsRepository.updateAccount(account.id, { name });
-    const r2 = bal !== balance ? (kind === 'bank' ? await accountsRepository.updateBankBalance(account.id, bal) : await accountsRepository.updateWalletBalance(account.id, bal)) : { ok: true as const, data: undefined };
+    const r2 = bal !== balance ? await accountsRepository.setBalance(account.id, kind, bal) : { ok: true as const, data: undefined };
     const r3 = kind === 'bank' && form.last4 !== (account.bank_accounts?.account_number ?? '') ? await accountsRepository.updateBankAccountNumber(account.id, form.last4) : { ok: true as const, data: undefined };
     setSaving(false);
     if (!r1.ok || !r2.ok || !r3.ok) { toast.failure('Couldn’t save changes', { label: 'Retry', onPress: saveEdit }); return; }

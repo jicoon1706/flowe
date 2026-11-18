@@ -121,6 +121,13 @@ describe('addInterval()', () => {
   it('monthly rolls December into next January', () => {
     expect(addInterval('2026-12-15', 'monthly', 15)).toBe('2027-01-15');
   });
+
+  // AUDIT-2026-11 B3: 29 Feb used to roll over to 1 Mar and stay there.
+  it('yearly keeps a 29 Feb rule in February and returns to the 29th in leap years', () => {
+    expect(addInterval('2028-02-29', 'yearly', 29)).toBe('2029-02-28');
+    expect(addInterval('2029-02-28', 'yearly', 29)).toBe('2030-02-28');
+    expect(addInterval('2031-02-28', 'yearly', 29)).toBe('2032-02-29');
+  });
 });
 
 // --- occurrenceDate ---------------------------------------------------------

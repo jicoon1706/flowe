@@ -1,4 +1,4 @@
-import { coverRatio, financialClass, spendByCategory, CLASS_LABEL } from '../src/lib/cashflow';
+import { coverRatio, financialClass, monthChangePct, spendByCategory, CLASS_LABEL } from '../src/lib/cashflow';
 
 describe('financialClass (cashflow/info chip)', () => {
   it('is Poor with no assets, whatever the income', () => {
@@ -50,5 +50,32 @@ describe('spendByCategory (cashflow bubbles)', () => {
     expect(total).toBe(500);
     expect(items[0]).toEqual(expect.objectContaining({ category: 'food', amount: 400 }));
     expect(items[1]).toEqual(expect.objectContaining({ category: 'transport', amount: 100 }));
+  });
+});
+
+// AUDIT-2026-11 B5: the Home/Overview "x% this month" chip.
+describe('monthChangePct', () => {
+  const ids = ['bank', 'wallet'];
+  it('counts a tabung top-up out of the bank, not just income − expense', () => {
+    // Started at 4,500: +1,000 salary, −500 into a tabung → 5,000 now, +11.1 %.
+    const rows = [
+      { type: 'income', amount: 1000, to_account_id: 'bank' },
+      { type: 'tabung_topup', amount: 500, from_account_id: 'bank', to_account_id: 'jar' },
+    ];
+    expect(monthChangePct(5000, rows, ids)).toBeCloseTo((500 / 4500) * 100, 6);
+  });
+  it('counts a pay-out back into the bank and an investment out of it', () => {
+    const rows = [
+      { type: 'tabung_withdraw', amount: 200, from_account_id: 'bank', to_account_id: 'jar' },
+      { type: 'transfer', amount: 300, from_account_id: 'wallet', to_account_id: null },
+    ];
+    // net −100 → started at 1,100
+    expect(monthChangePct(1000, rows, ids)).toBeCloseTo((-100 / 1100) * 100, 6);
+  });
+  it('ignores transfers between two spendable accounts', () => {
+    expect(monthChangePct(1000, [{ type: 'transfer', amount: 50, from_account_id: 'bank', to_account_id: 'wallet' }], ids)).toBeNull();
+  });
+  it('is null when the start would be zero or less', () => {
+    expect(monthChangePct(100, [{ type: 'income', amount: 100, to_account_id: 'bank' }], ids)).toBeNull();
   });
 });

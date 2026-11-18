@@ -1,4 +1,4 @@
-import { amountProblem, MAX_AMOUNT, formatRM } from './money';
+import { amountProblem, MAX_AMOUNT, formatRM, roundCents } from './money';
 
 export type TxKind = 'expense' | 'income' | 'transfer';
 
@@ -29,7 +29,9 @@ export function addFormError(s: AddFormState): AddFieldError | null {
   if (!s.accountId) return { field: 'account', message: 'Add an account first, then save.', saveLabel: 'Choose an account' };
   if (s.kind === 'transfer' && !s.toId) return { field: 'to', message: 'Choose where the money goes.', saveLabel: 'Choose a destination' };
   if (s.kind === 'transfer' && s.toId === s.accountId) return { field: 'to', message: 'Pick two different accounts.', saveLabel: 'Choose a different account' };
-  if ((s.kind === 'expense' || s.kind === 'transfer') && s.available !== undefined && s.available !== null && s.amount !== null && s.amount > s.available) {
+  // Compared in whole cents: the available figure is often a float sum
+  // (0.7 + 0.1 = 0.7999…), which wrongly refused an exact spend (AUDIT-2026-11 B8).
+  if ((s.kind === 'expense' || s.kind === 'transfer') && s.available !== undefined && s.available !== null && s.amount !== null && roundCents(s.amount) > roundCents(s.available)) {
     const who = s.sourceName ?? 'This account';
     return {
       field: 'account',

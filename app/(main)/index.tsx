@@ -36,6 +36,7 @@ import { scheduleRecurringReminders } from '@/src/services/recurring';
 import { refreshSpentToday, syncBudgetLimits } from '@/src/services/dailyBudget';
 import { readHomeCache, syncedLabel, writeHomeCache, type HomeCache } from '@/src/lib/homeCache';
 import { sumBalances, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
+import { monthChangePct as monthChange } from '@/src/lib/cashflow';
 import { editParams, type TxWithAccounts } from '@/src/utils/transactionDisplay';
 import { TABLET_LAYOUT, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useFocusStatusBar } from '@/src/hooks/useFocusStatusBar';
@@ -134,17 +135,10 @@ export default function HomeScreen() {
   const shownLeft = useCountDown(left);
   const shownSpent = useCountDown(spent);
 
-  const monthChangePct = useMemo(() => {
-    if (liveBalance === null) return null;
-    let net = 0;
-    for (const t of transactions) {
-      if (t.type === 'income') net += Number(t.amount);
-      else if (t.type === 'expense') net -= Number(t.amount);
-    }
-    const start = liveBalance - net;
-    if (start <= 0 || net === 0) return null;
-    return (net / start) * 100;
-  }, [transactions, liveBalance]);
+  const monthChangePct = useMemo(
+    () => (liveBalance === null ? null : monthChange(liveBalance, transactions, spendableAccounts(all).map((a) => a.id))),
+    [transactions, liveBalance, all],
+  );
 
   const recent = useMemo(
     () => (transactions as TxWithAccounts[]).filter((t) => t.type === 'expense' || t.type === 'income' || t.type === 'transfer').slice(0, 5),

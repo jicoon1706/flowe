@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { Result, SupabaseError } from '../utils/result';
 import { fromSupabaseError } from '../utils/result';
+import { roundCents } from '../lib/money';
 import type {
   Account,
   BankAccount,
@@ -178,12 +179,42 @@ export const accountsRepository = {
     return { ok: true, data: undefined };
   },
 
-  async updateBankBalance(accountId: string, newBalance: number): Promise<Result<void, SupabaseError>> {
-    const { error } = await supabase
-      .from('bank_accounts')
-      .update({ current_balance: newBalance })
+  /**
+   * Sets a bank or wallet balance by hand (Account › Edit › Balance).
+   *
+   * Moves the opening balance by the same delta as the current balance, so
+   * Settings › Data › Recalculate balances (opening + Σ transactions) lands on
+   * the corrected figure instead of undoing it; and moves the current balance
+   * through the atomic `adjust_account_balance` instead of overwriting it
+   * (AUDIT-2026-11 B2). The delta is worked out from the stored balance read
+   * here, not from what the screen showed, so a retry after a partial failure
+   * finds nothing left to move instead of applying the correction twice.
+   */
+  async setBalance(accountId: string, type: 'bank' | 'wallet', newBalance: number): Promise<Result<void, SupabaseError>> {
+    const table = type === 'bank' ? 'bank_accounts' : 'wallet_accounts';
+    const { data: row, error: readError } = await supabase
+      .from(table)
+      .select('current_balance, opening_balance')
+      .eq('account_id', accountId)
+      .single();
+    if (readError) return { ok: false, error: fromSupabaseError(readError) };
+
+    const delta = roundCents(newBalance - (Number(row.current_balance) || 0));
+    if (!delta) return { ok: true, data: undefined };
+    const opening = Number(row.opening_balance) || 0;
+
+    const { error: openingError } = await supabase
+      .from(table)
+      .update({ opening_balance: roundCents(opening + delta) })
       .eq('account_id', accountId);
-    if (error) return { ok: false, error: fromSupabaseError(error) };
+    if (openingError) return { ok: false, error: fromSupabaseError(openingError) };
+
+    const { error } = await supabase.rpc('adjust_account_balance', { p_account_id: accountId, p_delta: delta });
+    if (error) {
+      // Put the opening balance back so nothing has moved and a retry starts clean.
+      await supabase.from(table).update({ opening_balance: opening }).eq('account_id', accountId);
+      return { ok: false, error: fromSupabaseError(error) };
+    }
     return { ok: true, data: undefined };
   },
 
@@ -197,15 +228,6 @@ export const accountsRepository = {
     const { error } = await supabase
       .from('bank_accounts')
       .update({ account_number: digits || null })
-      .eq('account_id', accountId);
-    if (error) return { ok: false, error: fromSupabaseError(error) };
-    return { ok: true, data: undefined };
-  },
-
-  async updateWalletBalance(accountId: string, newBalance: number): Promise<Result<void, SupabaseError>> {
-    const { error } = await supabase
-      .from('wallet_accounts')
-      .update({ current_balance: newBalance })
       .eq('account_id', accountId);
     if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: undefined };

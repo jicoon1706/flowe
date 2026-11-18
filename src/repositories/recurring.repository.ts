@@ -2,6 +2,16 @@ import { supabase } from '../lib/supabase';
 import { fromSupabaseError, type Result, type SupabaseError } from '../utils/result';
 import type { RecurringRule, RecurringStatus, RecurringFrequency } from '../types';
 
+/**
+ * Whether a rule's pending occurrence (next_date, or start_date before the
+ * first run) is on or before its end date. A rule with no end date never ends.
+ * PostgREST can't compare two columns, so `fetchDue` applies this after the read.
+ */
+export function isWithinEndDate(rule: Pick<RecurringRule, 'next_date' | 'start_date' | 'end_date'>): boolean {
+  if (!rule.end_date) return true;
+  return (rule.next_date ?? rule.start_date) <= rule.end_date;
+}
+
 export interface CreateRecurringRuleRequest {
   user_id: string;
   type: 'expense' | 'income';
@@ -57,8 +67,8 @@ export const recurringRepository = {
 
   /**
    * Active rules whose next occurrence is due (next_date on or before `today`,
-   * a 'YYYY-MM-DD' string). Paused/ended rules are skipped. Used by the
-   * recurring processor to materialize due rules into real transactions.
+   * a 'YYYY-MM-DD' string). Paused rules, and rules whose pending occurrence
+   * falls after their end date, are skipped (AUDIT-2026-11 B1).
    */
   async fetchDue(today: string): Promise<Result<RecurringRule[], SupabaseError>> {
     const { data, error } = await supabase
@@ -67,7 +77,7 @@ export const recurringRepository = {
       .eq('status', 'active')
       .lte('next_date', today);
     if (error) return { ok: false, error: fromSupabaseError(error) };
-    return { ok: true, data: data as RecurringRule[] };
+    return { ok: true, data: (data as RecurringRule[]).filter(isWithinEndDate) };
   },
 
   /**

@@ -74,3 +74,14 @@ describe('add-transaction validation (section K)', () => {
     expect(addFormError({ ...base, amount: 50, available: 20, sourceName: 'Maybank', locked: true })?.message).toBe("Maybank doesn't have enough for this.");
   });
 });
+
+// AUDIT-2026-11 B8: editing an RM 0.10 expense on an account holding RM 0.70
+// leaves RM 0.80 available, but 0.7 + 0.1 is 0.7999… in floating point.
+describe('addFormError: available balance in whole cents', () => {
+  it('allows spending exactly the available amount', () => {
+    expect(addFormError({ kind: 'expense', amount: 0.8, accountId: 'a', toId: null, available: 0.7 + 0.1 })).toBeNull();
+  });
+  it('still refuses one cent more', () => {
+    expect(addFormError({ kind: 'expense', amount: 0.81, accountId: 'a', toId: null, available: 0.7 + 0.1 })?.saveLabel).toBe('Not enough balance');
+  });
+});
