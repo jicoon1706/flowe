@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
+import { ImageViewer } from '@/components/ui/ImageViewer';
 import { SettingsRow } from '@/components/ui/SettingsRow';
 import { Sheet } from '@/components/ui/Sheet';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -17,6 +18,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useLock } from '@/context/LockContext';
 import { useLearnProject } from '@/src/hooks/useLearnProject';
 import { isPdfPath, pdfLabel } from '@/src/utils/attachments';
+import { viewerPhotos } from '@/src/utils/imageViewer';
 import { splitEntry } from '@/src/utils/learnEntry';
 
 /** learn/[projectId]/entry — read view. Primary: Edit. Delete = text button → confirm. */
@@ -28,12 +30,13 @@ export default function EntryScreen() {
   const { project, entries, imageUrls, loading, refresh, deleteEntry } = useLearnProject(projectId);
   const [menu, setMenu] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const entry = entries.find((e) => e.id === entryId);
   const { title, notes } = splitEntry(entry?.body);
   const files = entry?.learn_entry_images ?? [];
-  const photos = files.filter((f) => !isPdfPath(f.storage_path));
+  const photos = viewerPhotos(files);
   const pdfs = files.filter((f) => isPdfPath(f.storage_path));
   const back = () => router.replace({ pathname: '/home/learn/[projectId]', params: { projectId: projectId ?? '' } });
   const edit = () => router.push({ pathname: '/home/learn/[projectId]/add-entry', params: { projectId: projectId ?? '', entryId: entryId ?? '' } });
@@ -76,6 +79,11 @@ export default function EntryScreen() {
             onConfirm={remove}
             onCancel={() => setDeleting(false)}
           />
+          <ImageViewer
+            images={photos.map((p) => ({ key: p.id, uri: imageUrls[p.storage_path] }))}
+            index={viewing}
+            onClose={() => setViewing(null)}
+          />
         </>
       }
     >
@@ -90,8 +98,10 @@ export default function EntryScreen() {
           {notes.split(/\n{2,}/).filter(Boolean).map((para, i) => <Text key={i} variant="body-lg">{para}</Text>)}
           {photos.length ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {photos.map((p) => (
-                <Image key={p.id} source={{ uri: imageUrls[p.storage_path] }} style={{ width: 104, height: 104, borderRadius: radius.sm, backgroundColor: colors['surface-container'] }} contentFit="cover" accessibilityLabel="Attached photo" />
+              {photos.map((p, i) => (
+                <Pressable key={p.id} onPress={() => setViewing(i)} accessibilityRole="imagebutton" accessibilityLabel={`Open photo ${i + 1} of ${photos.length}`}>
+                  <Image source={{ uri: imageUrls[p.storage_path] }} style={{ width: 104, height: 104, borderRadius: radius.sm, backgroundColor: colors['surface-container'] }} contentFit="cover" />
+                </Pressable>
               ))}
             </View>
           ) : null}
