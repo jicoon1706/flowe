@@ -1,5 +1,6 @@
 import type { Account, AccountWithDetails } from '../types/database.types';
 import { institutionDomain } from '../../constants/institutionDomains';
+import { MALAYSIAN_BANKS } from '../../constants/banks';
 
 /** The detail rows Supabase joins onto an `accounts` row. */
 export type AnyAccount = Account & Partial<Pick<AccountWithDetails, 'bank_accounts' | 'wallet_accounts' | 'tabung_accounts'>>;
@@ -14,7 +15,10 @@ export function accountBalance(a: AnyAccount): number {
 /** Logo domain for a bank or wallet (by bank name, then account name). */
 export function accountDomain(a: AnyAccount | undefined | null): string | undefined {
   if (!a || a.type === 'tabung') return undefined;
-  return institutionDomain(a.bank_accounts?.bank_name, a.name);
+  // bank_name holds the preset id ('public'), which alone matches no keyword; try the preset's name first.
+  const bankName = a.bank_accounts?.bank_name;
+  const preset = MALAYSIAN_BANKS.find((b) => b.id === bankName)?.name;
+  return institutionDomain(preset, bankName, a.name);
 }
 
 /** Last 4 digits for the hero card ('•••• 4021'), when the user stored them. */

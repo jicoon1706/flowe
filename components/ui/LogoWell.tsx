@@ -27,6 +27,9 @@ export interface LogoWellProps {
  * Logos come from logo.dev (or an uploaded file for a curated merchant).
  */
 export function LogoWell({ domain, merchant, fallback: Fallback = Store, size = 40, on = 'surface', accessibilityLabel: explicitLabel, brand }: LogoWellProps) {
+  // The URL reads the merchant list, a module-level table swapped in after launch. The React
+  // Compiler cached it on the props alone, so the rerender below never picked up the new list.
+  'use no memo';
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   useEffect(() => subscribeMerchantSources(rerender), []);
   const url = domain ? logoDevUrl(domain, size * 2) : merchantLogoUrl(merchant, size * 2);
