@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
+import { Platform, TextInput as RNTextInput, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowRight, CalendarDays, Landmark, LayoutGrid, Plus, ReceiptText, Wallet } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { ArrowRight, CalendarDays, Landmark, LayoutGrid, Plus, ReceiptText, Tag, Wallet } from 'lucide-react-native';
+import { colors, familyForWeight, radius } from '@/theme/tokens';
 import { expenseCategories, incomeCategories } from '@/constants/categories';
 import { categoryOptions, type CategoryOption } from '@/constants/categoryIcons';
 import { AccountPill } from '@/components/ui/AccountPill';
@@ -17,6 +18,7 @@ import { Hero } from '@/components/ui/Hero';
 import { InlineError } from '@/components/ui/InlineError';
 import { Money } from '@/components/ui/Money';
 import { Numpad, applyAmountKey, type NumpadKey } from '@/components/ui/Numpad';
+import { Pressable } from '@/components/ui/Pressable';
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
 import { Sheet } from '@/components/ui/Sheet';
 import { TextInput } from '@/components/ui/TextInput';
@@ -28,6 +30,8 @@ import { useAssets } from '@/src/hooks/useAssets';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
 import { useReceiptScan } from '@/src/hooks/useReceiptScan';
 import { useTransactions } from '@/src/hooks/useTransactions';
+import { useKeyboardHeight } from '@/src/hooks/useKeyboardHeight';
+import { TX_NAME_MAX, clampTxName, resolveTxName } from '@/src/lib/transactionName';
 import { TABLET_LAYOUT, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { GradientFill } from '@/components/ui/GradientFill';
 import { ResponsiveContainer } from '@/src/components/ui/ResponsiveContainer';
@@ -82,7 +86,11 @@ export default function AddTransactionScreen() {
   // Short phones (< 780 dp tall, e.g. 411 × 731): 48 dp keys (still above the 44 dp
   // touch target) so the category, account, date and note pills stay in view.
   const { height: windowHeight } = useWindowDimensions();
-  const numpadKeyHeight = windowHeight < 780 ? 48 : undefined;
+  const short = windowHeight < 780;
+  const numpadKeyHeight = short ? 48 : undefined;
+  // Short phones also take the canvas's tighter spacing (core-add-1/2, 384 × 725:
+  // 10 gaps, 16 sheet padding) so the name field fits without scrolling.
+  const sheetGap = short ? 10 : 12;
   const padX = isTablet ? Math.max(16, (width - 2 * TABLET_LAYOUT.inset - TABLET_LAYOUT.panelColumn) / 2) : 16;
   const p = useLocalSearchParams<Params>();
   const toast = useToast();
@@ -108,6 +116,16 @@ export default function AddTransactionScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<Transaction | null>(null);
   const submittingRef = useRef(false);
+  // Name field: while it has the text keyboard, the numpad steps aside.
+  const nameRef = useRef<RNTextInput>(null);
+  const [nameFocused, setNameFocused] = useState(false);
+  const keyboardHeight = useKeyboardHeight();
+  const insets = useSafeAreaInsets();
+  const typingName = nameFocused && keyboardHeight > 0;
+  // Android's back key closes the keyboard without blurring: blur so the numpad returns.
+  useEffect(() => {
+    if (keyboardHeight === 0) nameRef.current?.blur();
+  }, [keyboardHeight]);
 
   const now = new Date();
   const { accounts, fetchAccounts } = useAccounts();
@@ -132,7 +150,7 @@ export default function AddTransactionScreen() {
       const t = p.type === 'income' || p.type === 'transfer' ? p.type : 'expense';
       setKind(t);
       setAmountText(p.amount ? String(Number(p.amount)) : '');
-      setName(p.name ?? '');
+      setName(clampTxName(p.name ?? ''));
       setCategory(p.category || null);
       setNote(p.note ?? '');
       setNoteOpen(!!p.note);
@@ -223,7 +241,7 @@ export default function AddTransactionScreen() {
     }
     setKind('expense');
     if (data.total_amount && data.total_amount > 0) setAmountText(String(data.total_amount));
-    if (data.merchant_name) { setName(data.merchant_name); setCategory(null); }
+    if (data.merchant_name) { setName(clampTxName(data.merchant_name.trim())); setCategory(null); }
     if (data.transaction_date) {
       const d = parseDateParam(data.transaction_date);
       if (d && d.getTime() <= Date.now()) setDate(d);
@@ -239,7 +257,7 @@ export default function AddTransactionScreen() {
     setSaving(true);
     const slow = setTimeout(() => toast.failure('Save failed. Your entry is kept.', { label: 'Retry', onPress: save }), SLOW_SAVE_MS);
     try {
-      const txName = name.trim() || (kind === 'transfer' ? `Transfer to ${destAccount?.name ?? destAsset?.name ?? 'account'}` : categoryLabel);
+      const txName = resolveTxName(name, kind === 'transfer' ? `Transfer to ${destAccount?.name ?? destAsset?.name ?? 'account'}` : categoryLabel);
       const fromId = kind === 'expense' || kind === 'transfer' ? accountId : undefined;
       const toAccount = kind === 'income' ? accountId : kind === 'transfer' && destAccount ? destAccount.id : undefined;
       const wasInvestment = isEdit && p.type === 'transfer' && !p.toAccountId;
@@ -344,9 +362,9 @@ export default function AddTransactionScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: isTablet ? undefined : colors.surface }}>
       {isTablet ? <GradientFill /> : null}
-      <Hero height={undefined} style={{ paddingBottom: isTablet ? 24 : 48 }} tablet="clear" contentMaxWidth={TABLET_LAYOUT.panelColumn}>
+      <Hero height={undefined} style={{ paddingBottom: isTablet ? 24 : short ? 40 : 48 }} tablet="clear" contentMaxWidth={TABLET_LAYOUT.panelColumn}>
         <TopBar title={isEdit ? 'Edit transaction' : 'Add transaction'} onBack={close} close />
-        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+        <View style={{ paddingHorizontal: 16, marginTop: short ? 8 : 16 }}>
           <SegmentedToggle
             on="glass"
             accessibilityLabel="Transaction type"
@@ -364,11 +382,13 @@ export default function AddTransactionScreen() {
 
       <View
         style={[
-          { flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 20, paddingHorizontal: padX, paddingBottom: 24, gap: 12 },
+          { flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: short ? 16 : 20, paddingHorizontal: padX, paddingBottom: typingName ? keyboardHeight + insets.bottom + 8 : short ? 16 : 24, gap: sheetGap },
           isTablet ? { marginTop: 0, marginHorizontal: TABLET_LAYOUT.inset, marginBottom: TABLET_LAYOUT.inset, borderRadius: 32, paddingTop: 24 } : null,
         ]}
       >
-        <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {/* Android 15 draws under the keyboard instead of resizing, so while the name has the
+            keyboard the sheet lifts by its height and the chips / pills step aside. */}
+        <ScrollView style={{ flexGrow: 0, flexShrink: 1, display: typingName ? 'none' : 'flex' }} contentContainerStyle={{ gap: sheetGap }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {kind === 'transfer' ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <AccountPill label={source?.name ?? 'From'} domain={accountDomain(source)} icon={source?.type === 'wallet' ? Wallet : Landmark} onPress={() => setPicker('from')} invalid={!!accountError} accessibilityLabel={`From account: ${source?.name ?? 'none'}`} />
@@ -403,8 +423,31 @@ export default function AddTransactionScreen() {
             <TextInput value={note} onChangeText={setNote} placeholder="Add a note" accessibilityLabel="Note" autoFocus={!note} maxLength={200} returnKeyType="done" />
           ) : null}
         </ScrollView>
+        {/* Transaction name (core-add-1 / core-add-2): optional, opens the text keyboard. */}
+        <Pressable
+          onPress={() => nameRef.current?.focus()}
+          accessible={false}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: radius.full, backgroundColor: colors['surface-container'], paddingHorizontal: 16 }}
+        >
+          <Tag size={18} color={colors['on-surface']} strokeWidth={1.75} />
+          <RNTextInput
+            ref={nameRef}
+            value={name}
+            onChangeText={(t) => setName(clampTxName(t))}
+            onFocus={() => setNameFocused(true)}
+            onBlur={() => setNameFocused(false)}
+            placeholder={kind === 'transfer' ? 'Transfer name (optional)' : 'Transaction name (e.g. Nasi lemak)'}
+            placeholderTextColor={colors['on-surface-variant']}
+            accessibilityLabel={kind === 'transfer' ? 'Transfer name' : 'Transaction name'}
+            maxLength={TX_NAME_MAX}
+            autoCapitalize="sentences"
+            returnKeyType="done"
+            testID="add-name"
+            style={{ flex: 1, minWidth: 0, height: 44, padding: 0, fontFamily: familyForWeight[500], fontSize: 15, color: colors['on-surface'] }}
+          />
+        </Pressable>
         <View style={{ flex: 1 }} />
-        <Numpad onKey={onKey} keyHeight={numpadKeyHeight} />
+        {typingName ? null : <Numpad onKey={onKey} keyHeight={numpadKeyHeight} />}
         <Button
           label={saveLabel}
           onPress={save}
