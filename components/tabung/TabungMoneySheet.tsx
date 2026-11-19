@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Modal, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { View } from 'react-native';
 import { ArrowUpRight, Check, Info, Landmark, Wallet } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
 import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
@@ -14,6 +14,7 @@ import { Hero } from '../ui/Hero';
 import { InlineError } from '../ui/InlineError';
 import { Money } from '../ui/Money';
 import { Numpad, applyAmountKey } from '../ui/Numpad';
+import { SystemModal, useModalBottomPadding } from '../ui/SystemModal';
 import { Text } from '../ui/Text';
 import { TopBar } from '../ui/TopBar';
 
@@ -76,7 +77,7 @@ export function TabungMoneySheet(p: TabungMoneySheetProps) {
   const quick = Array.from(new Set([...(p.usual ? [p.usual] : []), ...p.quickAmounts].filter((v) => v > 0).map(roundCents))).sort((a, b) => a - b).slice(0, 3);
 
   return (
-    <Modal visible={p.visible} animationType="slide" onRequestClose={() => !saving && p.onClose()} statusBarTranslucent>
+    <SystemModal visible={p.visible} animationType="slide" onRequestClose={() => !saving && p.onClose()}>
       <View style={{ flex: 1, backgroundColor: colors.surface }}>
         <Hero style={{ paddingBottom: 48 }} contentMaxWidth={TABLET_WIDTH.keypad}>
           <TopBar title={p.mode === 'in' ? `Add to ${p.tabungName}` : `Pay out of ${p.tabungName}`} onBack={() => !saving && p.onClose()} close />
@@ -95,7 +96,7 @@ export function TabungMoneySheet(p: TabungMoneySheetProps) {
             {tried && error && amount <= 0 ? <InlineError on="gradient" message={error} /> : null}
           </View>
         </Hero>
-        <View style={{ flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: 16, paddingHorizontal: padX, paddingTop: 20, paddingBottom: 24, gap: 12 }}>
+        <NumpadPanel padX={padX}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text variant="body-md" tone="muted">{p.mode === 'in' ? 'From' : 'To'}</Text>
             <AccountPill
@@ -123,7 +124,7 @@ export function TabungMoneySheet(p: TabungMoneySheetProps) {
           <View style={{ flex: 1 }} />
           <Numpad onKey={(k) => setText((cur) => applyAmountKey(cur, k))} />
           <Button label={p.mode === 'in' ? 'Add money' : 'Pay out'} onPress={submit} loading={saving} loadingLabel="Saving…" disabled={tried && !!error} fullWidth />
-        </View>
+        </NumpadPanel>
         <AccountSelector
           visible={picker}
           onClose={() => setPicker(false)}
@@ -133,6 +134,19 @@ export function TabungMoneySheet(p: TabungMoneySheetProps) {
           onSelect={setAccountId}
         />
       </View>
-    </Modal>
+    </SystemModal>
+  );
+}
+
+/**
+ * White numpad panel riding over the hero. Rendered inside SystemModal, so its bottom
+ * padding clears the nav bar / home indicator of the modal window once (24 dp when none).
+ */
+function NumpadPanel({ padX, children }: { padX: number; children: ReactNode }) {
+  const paddingBottom = useModalBottomPadding();
+  return (
+    <View style={{ flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: 16, paddingHorizontal: padX, paddingTop: 20, paddingBottom, gap: 12 }}>
+      {children}
+    </View>
   );
 }

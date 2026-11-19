@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius } from '@/theme/tokens';
 import { TABLET_SHEET_MAX_HEIGHT, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { SystemModal, useModalBottomPadding } from './SystemModal';
 import { Text } from './Text';
 
 export interface SheetProps {
@@ -26,44 +26,55 @@ export interface SheetProps {
 /**
  * White bottom sheet: 32 px top radius, grabber, 45% ink scrim, 12/24/24 padding.
  * No shadow — separation comes from the scrim and the colour jump.
+ * The white panel runs to the physical bottom edge; its content stops 12 dp above
+ * the nav bar / home indicator (24 dp when there is none).
  */
-export function Sheet({ visible, onClose, title, children, scroll, maxHeightRatio = 0.9, dismissible = true, testID, tabletMaxWidth = TABLET_WIDTH.sheet }: SheetProps) {
-  const insets = useSafeAreaInsets();
+export function Sheet({ visible, onClose, dismissible = true, ...rest }: SheetProps) {
+  const close = () => { if (dismissible) onClose(); };
+  return (
+    <SystemModal visible={visible} transparent animationType="none" onRequestClose={close}>
+      <SheetContent {...rest} close={close} />
+    </SystemModal>
+  );
+}
+
+type SheetContentProps = Omit<SheetProps, 'visible' | 'onClose' | 'dismissible'> & { close: () => void };
+
+/** Rendered inside the modal's own SafeAreaProvider, so the bottom inset is the modal window's. */
+function SheetContent({ title, children, scroll, maxHeightRatio = 0.9, testID, tabletMaxWidth = TABLET_WIDTH.sheet, close }: SheetContentProps) {
+  const paddingBottom = useModalBottomPadding();
   const { isTablet } = useBreakpoint();
   // Tablet: still bottom-anchored, but centred, width-capped and at most 85% tall.
   const heightRatio = isTablet ? Math.min(maxHeightRatio, TABLET_SHEET_MAX_HEIGHT) : maxHeightRatio;
-  const close = () => { if (dismissible) onClose(); };
   const Body = scroll ? ScrollView : View;
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={close} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Animated.View entering={FadeIn.duration(160)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.scrim }}>
-          <Pressable style={{ flex: 1 }} onPress={close} accessibilityRole="button" accessibilityLabel="Close sheet" />
-        </Animated.View>
-        <Animated.View
-          entering={SlideInDown.duration(240)}
-          testID={testID ?? 'sheet'}
-          accessibilityViewIsModal
-          style={{
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.lg,
-            borderTopRightRadius: radius.lg,
-            paddingTop: 12,
-            paddingHorizontal: 24,
-            paddingBottom: Math.max(24, insets.bottom + 12),
-            maxHeight: `${Math.round(heightRatio * 100)}%`,
-            ...(isTablet ? { width: '100%', maxWidth: tabletMaxWidth, alignSelf: 'center' } as const : null),
-          }}
-        >
-          <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 9999, backgroundColor: colors['surface-container-high'], marginBottom: 16 }} />
-          {title ? (
-            <Text variant="headline-md" accessibilityRole="header" style={{ marginBottom: 16 }}>{title}</Text>
-          ) : null}
-          <Body {...(scroll ? { keyboardShouldPersistTaps: 'handled' as const, showsVerticalScrollIndicator: false } : {})}>
-            {children}
-          </Body>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </Modal>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <Animated.View entering={FadeIn.duration(160)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.scrim }}>
+        <Pressable style={{ flex: 1 }} onPress={close} accessibilityRole="button" accessibilityLabel="Close sheet" />
+      </Animated.View>
+      <Animated.View
+        entering={SlideInDown.duration(240)}
+        testID={testID ?? 'sheet'}
+        accessibilityViewIsModal
+        style={{
+          backgroundColor: colors.surface,
+          borderTopLeftRadius: radius.lg,
+          borderTopRightRadius: radius.lg,
+          paddingTop: 12,
+          paddingHorizontal: 24,
+          paddingBottom,
+          maxHeight: `${Math.round(heightRatio * 100)}%`,
+          ...(isTablet ? { width: '100%', maxWidth: tabletMaxWidth, alignSelf: 'center' } as const : null),
+        }}
+      >
+        <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 9999, backgroundColor: colors['surface-container-high'], marginBottom: 16 }} />
+        {title ? (
+          <Text variant="headline-md" accessibilityRole="header" style={{ marginBottom: 16 }}>{title}</Text>
+        ) : null}
+        <Body {...(scroll ? { keyboardShouldPersistTaps: 'handled' as const, showsVerticalScrollIndicator: false } : {})}>
+          {children}
+        </Body>
+      </Animated.View>
+    </KeyboardAvoidingView>
   );
 }

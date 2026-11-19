@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, PanResponder, Pressable, View } from 'react-native';
+import { PanResponder, Pressable, View } from 'react-native';
 import Animated, { FadeIn, SlideInUp, SlideOutUp } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BellRing, CalendarDays, Wallet, X } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
 import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
@@ -18,6 +18,7 @@ import { GlassIconButton } from '../ui/GlassIconButton';
 import { GradientFill } from '../ui/GradientFill';
 import { LogoWell } from '../ui/LogoWell';
 import { Money } from '../ui/Money';
+import { SystemModal } from '../ui/SystemModal';
 import { Text } from '../ui/Text';
 import { useToast } from '../ui/ToastProvider';
 import { DetectedTransactionForm, alertTimeLabel } from './DetectedTransactionForm';
@@ -125,14 +126,16 @@ export function DetectedTransactionIsland({ detected, accounts, onSave, onDismis
         </Animated.View>
       ) : null}
 
-      <Modal visible={expanded && !editing} transparent animationType="none" onRequestClose={() => !saving && setExpanded(false)} statusBarTranslucent>
+      <SystemModal visible={expanded && !editing} transparent animationType="none" onRequestClose={() => !saving && setExpanded(false)}>
         <Animated.View entering={FadeIn.duration(160)} style={{ flex: 1, backgroundColor: colors.scrim }}>
           <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => !saving && setExpanded(false)} accessibilityLabel="Close" />
+          {/* Insets of the modal's own window (SystemModal's provider), not the screen's. */}
+          <SafeAreaInsetsContext.Consumer>{(modalInsets) => (
           <Animated.View
             entering={SlideInUp.duration(220)}
             accessibilityViewIsModal
             accessibilityLabel="Detected transaction"
-            style={{ marginTop: insets.top + 8, marginHorizontal: 12, borderRadius: radius.lg, overflow: 'hidden', padding: 20, gap: 16, ...(isTablet ? { width: '100%', maxWidth: TABLET_WIDTH.dialog, alignSelf: 'center' } as const : null) }}
+            style={{ marginTop: (modalInsets ?? insets).top + 8, marginHorizontal: 12, borderRadius: radius.lg, overflow: 'hidden', padding: 20, gap: 16, ...(isTablet ? { width: '100%', maxWidth: TABLET_WIDTH.dialog, alignSelf: 'center' } as const : null) }}
           >
             <GradientFill />
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -167,8 +170,9 @@ export function DetectedTransactionIsland({ detected, accounts, onSave, onDismis
               <Text variant="body-md" weight={600} tone="inverse">Dismiss</Text>
             </Pressable>
           </Animated.View>
+          )}</SafeAreaInsetsContext.Consumer>
         </Animated.View>
-      </Modal>
+      </SystemModal>
 
       <DetectedTransactionForm
         visible={editing}
