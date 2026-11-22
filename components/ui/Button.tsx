@@ -1,7 +1,7 @@
 import { ActivityIndicator, type StyleProp, type ViewStyle } from 'react-native';
 import { Pressable } from './Pressable';
 import type { LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Text } from './Text';
 
 /**
@@ -93,7 +93,7 @@ export function Button({
         {
           height: variant === 'text' ? 44 : height,
           minWidth: 44,
-          borderRadius: 9999,
+          borderRadius: radius.full,
           backgroundColor: fill,
           paddingHorizontal: padH,
           flexDirection: 'row',

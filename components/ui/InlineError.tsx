@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { CircleAlert } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Text } from './Text';
 
 export interface InlineErrorProps {
@@ -30,7 +30,7 @@ export function InlineError({ message, on = 'surface', testID }: InlineErrorProp
         gap: 6,
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 9999,
+        borderRadius: radius.full,
         backgroundColor: glass ? colors.glass : colors['surface-container-high'],
       }}
     >

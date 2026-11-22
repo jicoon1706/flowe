@@ -115,7 +115,7 @@ export function TabungMoneySheet(p: TabungMoneySheetProps) {
           ) : null}
           {p.mode === 'out' && p.target > 0 ? (
             <View style={{ flexDirection: 'row', gap: 12, padding: 14, paddingHorizontal: 16, borderRadius: radius.md, backgroundColor: colors['surface-container'], alignItems: 'center' }}>
-              <View style={{ width: 36, height: 36, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
                 <Info size={17} color={colors['on-surface']} strokeWidth={1.75} />
               </View>
               <Text variant="body-md" size={13} style={{ flex: 1 }}>Paying out lowers the balance only. What you’ve saved toward {formatRM(p.target)} doesn’t change.</Text>

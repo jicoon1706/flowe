@@ -49,7 +49,7 @@ const ymdDate = (ymd: string) => { const [y, m, d] = ymd.split('-').map(Number);
 function Edited() {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-      <View style={{ width: 6, height: 6, borderRadius: 9999, backgroundColor: colors.secondary }} />
+      <View style={{ width: 6, height: 6, borderRadius: radius.full, backgroundColor: colors.secondary }} />
       <Text variant="caption" weight={600}>Edited</Text>
     </View>
   );
@@ -237,7 +237,7 @@ export default function EditTabungScreen() {
                     style={{ width: '32%', height: isTablet ? 72 : 44, borderRadius: isTablet ? radius.md : 9999, borderWidth: 2, borderColor: on ? colors.secondary : 'transparent', backgroundColor: colors['surface-container'], flexDirection: 'row', alignItems: 'center', gap: isTablet ? 10 : 6, paddingHorizontal: isTablet ? 12 : 10 }}
                   >
                     {isTablet ? (
-                      <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
                         <g.icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
                       </View>
                     ) : (
@@ -294,7 +294,7 @@ export default function EditTabungScreen() {
               <AccountPill label={isTablet ? `Start: ${dayMonthYear(from)}` : dayMonthYear(from)} plainIcon={CalendarDays} onPress={() => setPicking('from')} accessibilityLabel="Start date" />
               <AccountPill label={isTablet ? `Target: ${monthLabel(toDate)}` : monthLabel(toDate)} plainIcon={CalendarDays} onPress={() => setPicking('to')} accessibilityLabel="Target date" />
               {dateMoved ? (
-                <View style={{ height: 20, paddingHorizontal: 8, borderRadius: 9999, backgroundColor: colors.secondary, justifyContent: 'center' }}>
+                <View style={{ height: 20, paddingHorizontal: 8, borderRadius: radius.full, backgroundColor: colors.secondary, justifyContent: 'center' }}>
                   <Text variant="caption" weight={600} tone="inverse">Updated</Text>
                 </View>
               ) : null}
@@ -319,7 +319,7 @@ export default function EditTabungScreen() {
           ) : null}
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors['surface-container'], borderRadius: radius.md, paddingVertical: 4, paddingRight: 4, paddingLeft: 12 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            <View style={{ width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
               {coverUri ? <Image source={{ uri: coverUri }} style={{ width: 36, height: 36 }} accessibilityIgnoresInvertColors /> : <ImageIcon size={18} color={colors['on-surface']} strokeWidth={1.75} />}
             </View>
             <View style={{ flex: 1 }}>
@@ -340,7 +340,7 @@ export default function EditTabungScreen() {
 
           {changed.target && t && !shown.target && initial ? (
             <View accessibilityRole="text" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors['surface-container'], borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 14 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 28, height: 28, borderRadius: radius.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
                 <Check size={14} color={colors['on-surface']} strokeWidth={1.75} />
               </View>
               <Text variant="body-md" size={13} style={{ flex: 1 }}>

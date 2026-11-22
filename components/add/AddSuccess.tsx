@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { ArrowDownRight, Check, Wallet } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { categoryIcon } from '@/constants/categoryIcons';
 import { useAuth } from '@/context/AuthContext';
 import { useDailyBudget } from '@/src/hooks/useDailyBudget';
@@ -55,7 +55,7 @@ export function AddSuccess({ transaction, categoryLabel, accountName, onDone, on
       <Hero style={{ paddingBottom: 56 }} contentMaxWidth={TABLET_WIDTH.form}>
         <View style={{ alignItems: 'center', gap: 24, marginTop: 48 }}>
           <ProgressRing progress={sweep} size={132} stroke={8} accessibilityLabel="Saved">
-            <View style={{ width: 92, height: 92, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 92, height: 92, borderRadius: radius.full, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
               <Check size={44} color={colors['on-primary']} strokeWidth={2} />
             </View>
           </ProgressRing>
@@ -63,7 +63,7 @@ export function AddSuccess({ transaction, categoryLabel, accountName, onDone, on
           <Money amount={Number(transaction.amount)} direction={dir} variant="numeric-lg" on="gradient" smallCurrency />
         </View>
       </Hero>
-      <View style={{ flex: 1, marginTop: -32, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 16, paddingHorizontal: padX, paddingTop: 24, gap: 16 }}>
+      <View style={{ flex: 1, marginTop: -32, backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: 16, paddingHorizontal: padX, paddingTop: 24, gap: 16 }}>
         <TransactionRow title={transaction.name} meta={meta} amount={Number(transaction.amount)} direction={dir} icon={categoryIcon(transaction.category)} />
         {transaction.type === 'expense' ? (
           <View style={{ flexDirection: 'row', gap: 8 }}>

@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Image } from 'expo-image';
 import type { LucideIcon } from 'lucide-react-native';
 import { Store } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { logoDevUrl } from '@/src/utils/logoDev';
 import { merchantLogoUrl, subscribeMerchantSources } from '@/src/utils/merchantLogo';
 
@@ -45,7 +45,7 @@ export function LogoWell({ domain, merchant, fallback: Fallback = Store, size = 
       accessible={!!accessibilityLabel}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityLabel ? 'image' : undefined}
-      style={{ width: size, height: size, borderRadius: 9999, backgroundColor: fill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+      style={{ width: size, height: size, borderRadius: radius.full, backgroundColor: fill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
     >
       {url && !failed ? (
         <Image

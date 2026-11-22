@@ -14,7 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
-import { ResponsiveColumns } from '@/src/components/ui/ResponsiveGrid';
+import { ResponsiveColumns } from '@/components/ui/ResponsiveGrid';
 import { Money } from '@/components/ui/Money';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -176,7 +176,7 @@ export default function TabungScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Edit name, target and dates"
                   onPress={() => router.push(`/tabung/edit/${id}` as Href)}
-                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 14, paddingRight: 18, borderRadius: 9999, backgroundColor: colors.glass, opacity: pressed ? 0.8 : 1 })}
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 14, paddingRight: 18, borderRadius: radius.full, backgroundColor: colors.glass, opacity: pressed ? 0.8 : 1 })}
                 >
                   <Pencil size={18} color={colors['on-primary']} strokeWidth={1.75} />
                   <Text variant="label-lg" tone="inverse">Edit</Text>

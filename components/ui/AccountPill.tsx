@@ -1,6 +1,6 @@
 import { Pressable } from '@/components/ui/Pressable';
 import { ChevronDown, Landmark, type LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { LogoWell } from './LogoWell';
 import { Text } from './Text';
 
@@ -30,7 +30,7 @@ export function AccountPill({ label, domain, icon = Landmark, onPress, plainIcon
         gap: 8,
         paddingLeft: Plain ? 12 : 6,
         paddingRight: 12,
-        borderRadius: 9999,
+        borderRadius: radius.full,
         backgroundColor: colors['surface-container-high'],
         borderWidth: 1.5,
         borderColor: invalid ? colors.secondary : 'transparent',

@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Pressable } from '@/components/ui/Pressable';
 import type { LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 
 export interface GlassIconButtonProps {
   icon: LucideIcon;
@@ -24,7 +24,7 @@ export function GlassIconButton({ icon: Icon, onPress, accessibilityLabel, dot, 
       style={({ pressed }) => ({
         width: 44,
         height: 44,
-        borderRadius: 9999,
+        borderRadius: radius.full,
         backgroundColor: colors.glass,
         alignItems: 'center',
         justifyContent: 'center',
@@ -34,7 +34,7 @@ export function GlassIconButton({ icon: Icon, onPress, accessibilityLabel, dot, 
       <Icon size={20} color={colors['on-primary']} strokeWidth={1.75} />
       {dot ? (
         <View
-          style={{ position: 'absolute', top: 10, right: 11, width: 8, height: 8, borderRadius: 9999, backgroundColor: colors['on-primary'] }}
+          style={{ position: 'absolute', top: 10, right: 11, width: 8, height: 8, borderRadius: radius.full, backgroundColor: colors['on-primary'] }}
         />
       ) : null}
     </Pressable>

@@ -1,7 +1,7 @@
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { Pressable } from "@/components/ui/Pressable";
 import type { LucideIcon } from "lucide-react-native";
-import { colors } from "@/theme/tokens";
+import { colors, radius } from "@/theme/tokens";
 
 export interface IconButtonProps {
   icon: LucideIcon;
@@ -31,7 +31,7 @@ export function IconButton({ icon: Icon, onPress, accessibilityLabel, variant = 
         {
           width: wide ? 60 : size,
           height: size,
-          borderRadius: 9999,
+          borderRadius: radius.full,
           backgroundColor: fill,
           alignItems: 'center',
           justifyContent: 'center',

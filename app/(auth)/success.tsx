@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowRight, Check } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Button } from '@/components/ui/Button';
 import { GradientFill } from '@/components/ui/GradientFill';
 import { IconButton } from '@/components/ui/IconButton';
@@ -59,7 +59,7 @@ export default function Success() {
       <GradientFill />
       <View style={{ gap: 32 }}>
         <ProgressRing progress={status === 'ready' ? 1 : 0.72} size={168} stroke={10} accessibilityLabel={status === 'ready' ? 'Done' : 'Saving'}>
-          <View style={{ width: 112, height: 112, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 112, height: 112, borderRadius: radius.full, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
             <Check size={56} color={colors['on-primary']} strokeWidth={2} />
           </View>
         </ProgressRing>

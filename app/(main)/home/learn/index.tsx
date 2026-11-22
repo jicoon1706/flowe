@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
-import { ResponsiveGrid } from '@/src/components/ui/ResponsiveGrid';
+import { ResponsiveGrid } from '@/components/ui/ResponsiveGrid';
 import { PhotoSlot } from '@/components/ui/PhotoSlot';
 import { Sheet } from '@/components/ui/Sheet';
 import { Skeleton } from '@/components/ui/Skeleton';

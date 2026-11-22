@@ -34,7 +34,7 @@ import { useKeyboardHeight } from '@/src/hooks/useKeyboardHeight';
 import { TX_NAME_MAX, clampTxName, resolveTxName } from '@/src/lib/transactionName';
 import { TABLET_LAYOUT, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { GradientFill } from '@/components/ui/GradientFill';
-import { ResponsiveContainer } from '@/src/components/ui/ResponsiveContainer';
+import { ResponsiveContainer } from '@/components/ui/ResponsiveContainer';
 import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
 import { transactionsRepository, type CreateTransactionRequest } from '@/src/repositories/transactions.repository';
@@ -382,8 +382,8 @@ export default function AddTransactionScreen() {
 
       <View
         style={[
-          { flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: short ? 16 : 20, paddingHorizontal: padX, paddingBottom: typingName ? keyboardHeight + insets.bottom + 8 : short ? 16 : 24, gap: sheetGap },
-          isTablet ? { marginTop: 0, marginHorizontal: TABLET_LAYOUT.inset, marginBottom: TABLET_LAYOUT.inset, borderRadius: 32, paddingTop: 24 } : null,
+          { flex: 1, marginTop: -24, backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingTop: short ? 16 : 20, paddingHorizontal: padX, paddingBottom: typingName ? keyboardHeight + insets.bottom + 8 : short ? 16 : 24, gap: sheetGap },
+          isTablet ? { marginTop: 0, marginHorizontal: TABLET_LAYOUT.inset, marginBottom: TABLET_LAYOUT.inset, borderRadius: radius.lg, paddingTop: 24 } : null,
         ]}
       >
         {/* Android 15 draws under the keyboard instead of resizing, so while the name has the

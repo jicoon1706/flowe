@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { ResponsiveContainer } from '@/src/components/ui/ResponsiveContainer';
+import { ResponsiveContainer } from '@/components/ui/ResponsiveContainer';
 import { Bell, Clock, Plus, Quote, Trash2 } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 import { AffirmationCard } from '@/components/home/AffirmationCard';

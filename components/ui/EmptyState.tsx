@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import type { LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Button } from './Button';
 import { Text } from './Text';
 
@@ -25,7 +25,7 @@ export function EmptyState({ icon: Icon, title, body, ctaLabel, ctaIcon, onCta, 
   return (
     <View style={{ alignItems: 'center', gap: 16, paddingHorizontal: 16, paddingVertical: 8 }}>
       {art ?? (Icon ? (
-        <View style={{ width: 120, height: 120, borderRadius: 9999, backgroundColor: g ? colors.glass : colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 120, height: 120, borderRadius: radius.full, backgroundColor: g ? colors.glass : colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={48} color={g ? colors['on-primary'] : colors['on-surface']} strokeWidth={1.5} />
         </View>
       ) : null)}

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { FingerprintPattern } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Button } from '@/components/ui/Button';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { GradientFill } from '@/components/ui/GradientFill';
@@ -48,8 +48,8 @@ export default function Fingerprint() {
       <GradientFill />
       <TopBar onBack={() => router.back()} />
       <View style={{ alignItems: 'center', paddingHorizontal: padX, marginTop: 64, gap: 32 }}>
-        <View style={{ width: 200, height: 200, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: 136, height: 136, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 200, height: 200, borderRadius: radius.full, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 136, height: 136, borderRadius: radius.full, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
             <FingerprintPattern size={64} color={colors['on-primary']} strokeWidth={1.5} />
           </View>
         </View>

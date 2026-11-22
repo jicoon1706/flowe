@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import type { LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Text } from './Text';
 
 export interface GlassChipProps {
@@ -25,7 +25,7 @@ export function GlassChip({ label, icon: Icon, onPress, role, accessibilityLabel
         minHeight: 32,
         paddingHorizontal: 12,
         paddingVertical: 6,
-        borderRadius: 9999,
+        borderRadius: radius.full,
         backgroundColor: colors.glass,
       }}
     >

@@ -107,7 +107,7 @@ export default function EntryScreen() {
           ) : null}
           {pdfs.map((p) => (
             <Pressable key={p.id} onPress={() => openPdf(p.storage_path)} accessibilityRole="link" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
                 <FileText size={19} color={colors['on-surface']} strokeWidth={1.75} />
               </View>
               <Text variant="body-md" style={{ flex: 1 }} numberOfLines={1}>{pdfLabel(p.storage_path)}</Text>

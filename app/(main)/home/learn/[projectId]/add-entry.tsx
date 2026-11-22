@@ -172,7 +172,7 @@ export default function AddEntryScreen() {
               ) : (
                 <Image source={{ uri: f.uri }} style={{ width: 88, height: 88 }} contentFit="cover" accessibilityLabel="Attached photo" />
               )}
-              <Pressable onPress={() => removeFile(i)} accessibilityRole="button" accessibilityLabel="Remove attachment" hitSlop={8} style={{ position: 'absolute', top: 4, right: 4, width: 28, height: 28, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <Pressable onPress={() => removeFile(i)} accessibilityRole="button" accessibilityLabel="Remove attachment" hitSlop={8} style={{ position: 'absolute', top: 4, right: 4, width: 28, height: 28, borderRadius: radius.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
                 <X size={14} color={colors['on-surface']} strokeWidth={2} />
               </Pressable>
             </View>

@@ -50,7 +50,7 @@ export default function TransactionsScreen() {
   }, [transactions, query, custom, params.category, params.type]);
 
   const body = error && transactions.length === 0 ? (
-    <EmptyState icon={RefreshCw} title="Couldn’t load transactions" body="Check your connection and try again." ctaLabel="Try again" ctaIcon={RefreshCw} onCta={refetch} />
+    <EmptyState icon={RefreshCw} title="Couldn’t load transactions" body="Check your connection and try again." ctaLabel="Try again" onCta={refetch} />
   ) : !loading && transactions.length === 0 ? (
     <EmptyState
       icon={BellRing}

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Pen, Plus, Tag } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { expenseCategories, incomeCategories } from '@/constants/categories';
 import { CUSTOM_ICONS, CUSTOM_ICON_KEYS, categoryIcon, categoryOptions } from '@/constants/categoryIcons';
 import { SettingsScreen } from '@/components/settings/SettingsScreen';
@@ -104,7 +104,7 @@ export default function CategoriesScreen() {
                     const sel = k === icon;
                     return (
                       <Pressable key={k} onPress={() => setIcon(k)} accessibilityRole="radio" accessibilityLabel={k.replace(/-/g, ' ')} accessibilityState={{ checked: sel }}
-                        style={{ width: isTablet ? 52 : '14.9%', height: 52, borderRadius: 9999, backgroundColor: sel ? colors.secondary : colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+                        style={{ width: isTablet ? 52 : '14.9%', height: 52, borderRadius: radius.full, backgroundColor: sel ? colors.secondary : colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
                         <Icon size={20} color={sel ? colors['on-secondary'] : colors['on-surface']} strokeWidth={1.75} />
                       </Pressable>
                     );

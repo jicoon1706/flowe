@@ -1,6 +1,6 @@
 import { Pressable } from '@/components/ui/Pressable';
 import type { LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Text } from './Text';
 
 export interface ChipProps {
@@ -33,7 +33,7 @@ export function Chip({ label, icon: Icon, selected, onPress, on = 'surface', hei
         gap: 8,
         paddingLeft: Icon ? 12 : 16,
         paddingRight: 16,
-        borderRadius: 9999,
+        borderRadius: radius.full,
         backgroundColor: fill,
         opacity: pressed ? 0.8 : 1,
       })}

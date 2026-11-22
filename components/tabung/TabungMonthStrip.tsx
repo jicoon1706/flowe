@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { chart, colors } from '@/theme/tokens';
+import { chart, colors, radius } from '@/theme/tokens';
 import type { TabungMonth } from '@/src/lib/tabungProgress';
 import { formatRM } from '@/src/lib/money';
 import { Text } from '../ui/Text';
@@ -39,8 +39,8 @@ export function TabungMonthStrip({ months, projected, count = 4 }: TabungMonthSt
         {shown.map((m) => (
           <View key={m.month} style={{ alignItems: 'center', gap: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR }}>
-              <View style={{ width: 14, height: h(m.toppedUp), borderRadius: 9999, backgroundColor: chart[0] }} />
-              <View style={{ width: 14, height: h(m.paidOut), borderRadius: 9999, backgroundColor: chart[2] }} />
+              <View style={{ width: 14, height: h(m.toppedUp), borderRadius: radius.full, backgroundColor: chart[0] }} />
+              <View style={{ width: 14, height: h(m.paidOut), borderRadius: radius.full, backgroundColor: chart[2] }} />
             </View>
             <Text variant="label-sm" tone="muted">{shortMonth(m.month)}</Text>
           </View>
@@ -48,7 +48,7 @@ export function TabungMonthStrip({ months, projected, count = 4 }: TabungMonthSt
         {projected && last ? (
           <View style={{ alignItems: 'center', gap: 6 }}>
             <View style={{ height: BAR, justifyContent: 'flex-end' }}>
-              <View style={{ width: 14, height: h(projected), borderRadius: 9999, borderWidth: 1.5, borderStyle: 'dashed', borderColor: chart[0] }} />
+              <View style={{ width: 14, height: h(projected), borderRadius: radius.full, borderWidth: 1.5, borderStyle: 'dashed', borderColor: chart[0] }} />
             </View>
             <Text variant="label-sm" tone="muted">{shortMonth(nextMonth(last))}</Text>
           </View>
@@ -57,13 +57,13 @@ export function TabungMonthStrip({ months, projected, count = 4 }: TabungMonthSt
       <View style={{ flexDirection: 'row', gap: 16 }}>
         {[{ c: chart[0], t: 'In ↗' }, { c: chart[2], t: 'Out ↘' }].map((k) => (
           <View key={k.t} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 9999, backgroundColor: k.c }} />
+            <View style={{ width: 10, height: 10, borderRadius: radius.full, backgroundColor: k.c }} />
             <Text variant="label-sm" weight={400} tone="muted">{k.t}</Text>
           </View>
         ))}
         {projected ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 9999, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primary }} />
+            <View style={{ width: 10, height: 10, borderRadius: radius.full, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primary }} />
             <Text variant="label-sm" weight={400} tone="muted">Projected</Text>
           </View>
         ) : null}

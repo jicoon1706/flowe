@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ChevronLeft, ChevronRight, Plus, RefreshCw } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { TransactionDetail } from '@/components/home/TransactionDetail';
 import { TransactionList } from '@/components/home/TransactionList';
 import { Button } from '@/components/ui/Button';
@@ -144,12 +144,12 @@ export default function CalendarScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={label}
                       accessibilityState={{ selected: isToday }}
-                      style={{ ...(isTablet ? { width: 48, alignSelf: 'center' } as const : null), height: 48, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', gap: 3, backgroundColor: isToday ? colors.secondary : 'transparent' }}
+                      style={{ ...(isTablet ? { width: 48, alignSelf: 'center' } as const : null), height: 48, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', gap: 3, backgroundColor: isToday ? colors.secondary : 'transparent' }}
                     >
                       <Text variant="body-md" size={15} weight={500} tone="inherit" style={{ color: isToday ? colors['on-secondary'] : future ? colors['on-surface-variant'] : colors['on-surface'] }}>{d}</Text>
                       <View style={{ flexDirection: 'row', gap: 2, height: 4 }}>
                         {Array.from({ length: level }).map((_, k) => (
-                          <View key={k} style={{ width: 4, height: 4, borderRadius: 9999, backgroundColor: isToday ? colors['on-secondary'] : colors['primary-container'] }} />
+                          <View key={k} style={{ width: 4, height: 4, borderRadius: radius.full, backgroundColor: isToday ? colors['on-secondary'] : colors['primary-container'] }} />
                         ))}
                       </View>
                     </Pressable>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { TextInput as RNTextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors, familyForWeight, type } from '@/theme/tokens';
+import { colors, familyForWeight, type, radius } from '@/theme/tokens';
 import { Button } from '@/components/ui/Button';
 import { HeroScreen } from '@/components/ui/HeroScreen';
 import { InlineError } from '@/components/ui/InlineError';
@@ -28,7 +28,7 @@ export default function Name() {
     <HeroScreen contentWidth="form" hero={<OnboardingHero title="What should we call you?" step={1} onBack={router.canGoBack() ? () => router.back() : undefined} />} bottomPadding={32} sheetPadding={{ top: 28, horizontal: 24 }}>
       <View style={{ gap: 8 }}>
         <Text variant="label-sm" tone="muted">Your name</Text>
-        <View style={{ backgroundColor: colors['surface-container'], borderRadius: 20, paddingHorizontal: 20, paddingVertical: 16, borderWidth: 1.5, borderColor: error ? colors.secondary : 'transparent' }}>
+        <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, paddingHorizontal: 20, paddingVertical: 16, borderWidth: 1.5, borderColor: error ? colors.secondary : 'transparent' }}>
           <RNTextInput
             value={value}
             onChangeText={(t) => { setValue(t); setError(null); }}

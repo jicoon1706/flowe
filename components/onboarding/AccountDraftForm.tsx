@@ -93,7 +93,7 @@ export function AccountDraftForm({ onAdd, submitLabel = 'Continue', onNewTabung 
         style={{ flex: 1, height: 96, borderRadius: radius.md, borderWidth: 2, borderColor: selected ? colors.secondary : 'transparent', backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 4 }}
       >
         {opts.icon && !opts.domain ? (
-          <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
             <opts.icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
           </View>
         ) : (

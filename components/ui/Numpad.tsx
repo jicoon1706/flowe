@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { Pressable } from '@/components/ui/Pressable';
 import * as Haptics from 'expo-haptics';
 import { Delete, FingerprintPattern } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Text } from './Text';
 
 export type NumpadKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' | 'del' | 'bio';
@@ -47,7 +47,7 @@ export function Numpad({ onKey, variant = 'white', extra = 'decimal', keyHeight,
         style={({ pressed }) => ({
           flex: 1,
           height: h,
-          borderRadius: 9999,
+          borderRadius: radius.full,
           backgroundColor: isIcon ? 'transparent' : fill,
           alignItems: 'center',
           justifyContent: 'center',

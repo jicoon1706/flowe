@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
-import { ResponsiveContainer } from '@/src/components/ui/ResponsiveContainer';
+import { ResponsiveContainer } from '@/components/ui/ResponsiveContainer';
 import { PhotoSlot } from '@/components/ui/PhotoSlot';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SettingsRow } from '@/components/ui/SettingsRow';

@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Text } from '../ui/Text';
 import { TopBar } from '../ui/TopBar';
 
@@ -18,9 +18,9 @@ export function OnboardingHero({ title, step, onBack }: OnboardingHeroProps) {
         title={undefined}
         right={<View style={{ width: 44 }} />}
       />
-      <View style={{ position: 'absolute', top: 6, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 10, height: 32, paddingHorizontal: 12, borderRadius: 9999, backgroundColor: colors.glass }} accessible accessibilityRole="progressbar" accessibilityLabel={`Step ${step} of 2`}>
-        <View style={{ width: 120, height: 6, borderRadius: 9999, backgroundColor: colors.glass, overflow: 'hidden' }}>
-          <View style={{ width: step === 1 ? '50%' : '100%', height: 6, borderRadius: 9999, backgroundColor: colors['on-primary'] }} />
+      <View style={{ position: 'absolute', top: 6, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 10, height: 32, paddingHorizontal: 12, borderRadius: radius.full, backgroundColor: colors.glass }} accessible accessibilityRole="progressbar" accessibilityLabel={`Step ${step} of 2`}>
+        <View style={{ width: 120, height: 6, borderRadius: radius.full, backgroundColor: colors.glass, overflow: 'hidden' }}>
+          <View style={{ width: step === 1 ? '50%' : '100%', height: 6, borderRadius: radius.full, backgroundColor: colors['on-primary'] }} />
         </View>
         <Text variant="label-sm" tone="inverse">Step {step} of 2</Text>
       </View>

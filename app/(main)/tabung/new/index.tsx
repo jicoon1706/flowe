@@ -35,7 +35,7 @@ export default function NewTabung() {
               accessibilityLabel={`${g.label}, ${g.hint}`}
               style={{ width: '48.8%', height: 128, padding: 16, borderRadius: radius.md, borderWidth: 2, borderColor: selected ? colors.secondary : 'transparent', backgroundColor: colors['surface-container'], justifyContent: 'space-between' }}
             >
-              <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
                 <g.icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
               </View>
               <View>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 
 export interface PinDotsProps {
   /** Digits entered so far. */
@@ -35,7 +35,7 @@ export function PinDots({ length, total = 6, errorKey = 0 }: PinDotsProps) {
       {Array.from({ length: total }).map((_, i) => (
         <View
           key={i}
-          style={{ width: 14, height: 14, borderRadius: 9999, backgroundColor: i < length ? colors['on-primary'] : colors.glass }}
+          style={{ width: 14, height: 14, borderRadius: radius.full, backgroundColor: i < length ? colors['on-primary'] : colors.glass }}
         />
       ))}
     </Animated.View>

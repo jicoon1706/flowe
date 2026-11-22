@@ -6,7 +6,7 @@ import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import {
   ArrowDownRight, ArrowUpDown, ArrowUpRight, Bell, BookOpen, ChartPie, Check, Gauge, Landmark, RefreshCw, Repeat, Sparkles, Target, TrendingUp, type LucideIcon,
 } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
@@ -105,7 +105,7 @@ export default function NotificationsScreen() {
                   accessibilityLabel={`${n.is_read ? '' : 'Unread. '}${n.message}. ${n.sub_text ?? ''}`}
                   style={({ pressed }) => ({ flexDirection: 'row', gap: 12, paddingVertical: 10, opacity: pressed ? 0.7 : 1 })}
                 >
-                  <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
                     <Icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
@@ -113,7 +113,7 @@ export default function NotificationsScreen() {
                     {n.sub_text ? <Text variant="body-md" size={13} tone="muted">{n.sub_text}</Text> : null}
                     <Text variant="label-sm" tone="muted">{when(n.created_at)}</Text>
                   </View>
-                  <View style={{ width: 8, height: 8, borderRadius: 9999, marginTop: 6, backgroundColor: n.is_read ? 'transparent' : colors.secondary }} />
+                  <View style={{ width: 8, height: 8, borderRadius: radius.full, marginTop: 6, backgroundColor: n.is_read ? 'transparent' : colors.secondary }} />
                 </Pressable>
               );
             })}

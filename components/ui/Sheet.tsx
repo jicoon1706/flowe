@@ -67,7 +67,7 @@ function SheetContent({ title, children, scroll, maxHeightRatio = 0.9, testID, t
           ...(isTablet ? { width: '100%', maxWidth: tabletMaxWidth, alignSelf: 'center' } as const : null),
         }}
       >
-        <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 9999, backgroundColor: colors['surface-container-high'], marginBottom: 16 }} />
+        <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: radius.full, backgroundColor: colors['surface-container-high'], marginBottom: 16 }} />
         {title ? (
           <Text variant="headline-md" accessibilityRole="header" style={{ marginBottom: 16 }}>{title}</Text>
         ) : null}

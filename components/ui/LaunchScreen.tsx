@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { BrandMark } from './BrandMark';
 import { GradientFill } from './GradientFill';
 import { Text } from './Text';
@@ -25,8 +25,8 @@ export function LaunchScreen({ syncingLabel, progress = 0 }: LaunchScreenProps) 
         <BrandMark size={syncingLabel ? 88 : 104} />
         {syncingLabel ? (
           <>
-            <View style={{ width: 140, height: 4, borderRadius: 9999, backgroundColor: colors.glass, overflow: 'hidden' }} accessibilityRole="progressbar">
-              <Animated.View style={[{ height: 4, borderRadius: 9999, backgroundColor: colors['on-primary'] }, bar]} />
+            <View style={{ width: 140, height: 4, borderRadius: radius.full, backgroundColor: colors.glass, overflow: 'hidden' }} accessibilityRole="progressbar">
+              <Animated.View style={[{ height: 4, borderRadius: radius.full, backgroundColor: colors['on-primary'] }, bar]} />
             </View>
             <Text variant="body-md" tone="soft">{syncingLabel}</Text>
           </>

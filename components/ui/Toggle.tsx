@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Pressable } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 
 export interface ToggleProps {
   value: boolean;
@@ -25,14 +25,14 @@ export function Toggle({ value, onValueChange, disabled = false, accessibilityLa
       style={{
         width: 52,
         height: 32,
-        borderRadius: 9999,
+        borderRadius: radius.full,
         backgroundColor: value ? colors.secondary : colors['surface-container-high'],
         opacity: disabled ? 0.5 : 1,
       }}
     >
       <Animated.View
         style={[
-          { position: 'absolute', top: 4, width: 24, height: 24, borderRadius: 9999, backgroundColor: value ? colors.surface : colors['on-surface-variant'] },
+          { position: 'absolute', top: 4, width: 24, height: 24, borderRadius: radius.full, backgroundColor: value ? colors.surface : colors['on-surface-variant'] },
           knob,
         ]}
       />

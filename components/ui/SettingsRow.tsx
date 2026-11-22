@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { Pressable } from '@/components/ui/Pressable';
 import { ChevronRight, type LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { LogoWell } from './LogoWell';
 import { Text } from './Text';
 
@@ -27,7 +27,7 @@ export function SettingsRow({ label, value, onPress, icon: Icon, domain, right, 
       {domain ? (
         <LogoWell domain={domain} brand={label} fallback={Icon} />
       ) : Icon ? (
-        <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
         </View>
       ) : null}

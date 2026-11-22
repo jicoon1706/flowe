@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { ArrowDownRight, ArrowUpRight, Bell, Clock, Landmark, Lock, RefreshCw, Wallet } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { accountDomain, accountMask, type AnyAccount } from '@/src/utils/accountDisplay';
 import { GlassChip } from '../ui/GlassChip';
 import { GlassIconButton } from '../ui/GlassIconButton';
@@ -39,7 +39,7 @@ export function HomeHero({ name, balance, accounts, monthChangePct, masked, unre
     <View style={{ height: 420 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 }}>
         {loading ? <Skeleton width={44} height={44} tone="glass" /> : (
-          <Pressable onPress={onAvatar} accessibilityRole="button" accessibilityLabel={`${name || 'Profile'}, settings`} style={{ width: 44, height: 44, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={onAvatar} accessibilityRole="button" accessibilityLabel={`${name || 'Profile'}, settings`} style={{ width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
             <Text variant="body-lg" weight={600} tone="inverse">{initial}</Text>
           </Pressable>
         )}

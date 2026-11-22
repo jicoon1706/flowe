@@ -77,7 +77,7 @@ export function TabungSettingsSheet({ visible, onClose, initial, contributed, ba
               accessibilityState={{ checked: selected }}
               style={{ flexDirection: 'row', gap: 12, padding: 16, borderRadius: radius.md, borderWidth: 2, borderColor: selected ? colors.secondary : 'transparent', backgroundColor: colors['surface-container'] }}
             >
-              <View style={{ width: 24, height: 24, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.secondary : 'transparent', borderWidth: selected ? 0 : 1.5, borderColor: colors['on-surface-variant'] }}>
+              <View style={{ width: 24, height: 24, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.secondary : 'transparent', borderWidth: selected ? 0 : 1.5, borderColor: colors['on-surface-variant'] }}>
                 {selected ? <Check size={14} color={colors['on-secondary']} strokeWidth={2.5} /> : null}
               </View>
               <View style={{ flex: 1, gap: 4 }}>

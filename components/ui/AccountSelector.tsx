@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Pressable } from '@/components/ui/Pressable';
 import { Check, Landmark, PiggyBank, Plus, TrendingUp, Wallet } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { accountBalance, accountDomain, ACCOUNT_GROUP_LABEL, type AnyAccount } from '@/src/utils/accountDisplay';
 import { Button } from './Button';
 import { LogoWell } from './LogoWell';
@@ -58,7 +58,7 @@ export function AccountSelector({ visible, onClose, accounts, selectedId, onSele
                   <Money amount={accountBalance(a)} variant="body-md" weight={500} masked={masked} />
                   <View
                     style={{
-                      width: 24, height: 24, borderRadius: 9999, alignItems: 'center', justifyContent: 'center',
+                      width: 24, height: 24, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
                       backgroundColor: selected ? colors.secondary : 'transparent',
                       borderWidth: selected ? 0 : 1.5, borderColor: colors['on-surface-variant'],
                     }}
@@ -87,7 +87,7 @@ export function AccountSelector({ visible, onClose, accounts, selectedId, onSele
                   <LogoWell fallback={TrendingUp} />
                   <Text variant="body-lg" style={{ flex: 1 }} numberOfLines={1}>{a.name}</Text>
                   <Money amount={a.value} variant="body-md" weight={500} masked={masked} />
-                  <View style={{ width: 24, height: 24, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.secondary : 'transparent', borderWidth: selected ? 0 : 1.5, borderColor: colors['on-surface-variant'] }}>
+                  <View style={{ width: 24, height: 24, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.secondary : 'transparent', borderWidth: selected ? 0 : 1.5, borderColor: colors['on-surface-variant'] }}>
                     {selected ? <Check size={14} color={colors['on-secondary']} strokeWidth={2.5} /> : null}
                   </View>
                 </Pressable>

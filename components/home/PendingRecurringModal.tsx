@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Check, Repeat } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import type { RecurringRule } from '@/src/types';
 import { Button } from '../ui/Button';
 import { Money } from '../ui/Money';
@@ -51,7 +51,7 @@ export function PendingRecurringModal({ visible, pending, acting, accountNames, 
     <Sheet visible={visible && pending.length > 0} onClose={onClose} dismissible={!acting} scroll testID="recurring-due">
       <View style={{ gap: 14 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={{ width: 44, height: 44, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
             <Repeat size={21} color={colors['on-surface']} strokeWidth={1.75} />
           </View>
           <View style={{ flex: 1 }}>
@@ -81,7 +81,7 @@ export function PendingRecurringModal({ visible, pending, acting, accountNames, 
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
                 >
                   <View style={{ flex: 1 }}><RecurringRuleRow rule={r} /></View>
-                  <View style={{ width: 24, height: 24, borderRadius: 9999, alignItems: 'center', justifyContent: 'center', backgroundColor: ticked.has(r.id) ? colors.secondary : 'transparent', borderWidth: ticked.has(r.id) ? 0 : 1.5, borderColor: colors['on-surface-variant'] }}>
+                  <View style={{ width: 24, height: 24, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: ticked.has(r.id) ? colors.secondary : 'transparent', borderWidth: ticked.has(r.id) ? 0 : 1.5, borderColor: colors['on-surface-variant'] }}>
                     {ticked.has(r.id) ? <Check size={14} color={colors['on-secondary']} strokeWidth={2.5} /> : null}
                   </View>
                 </Pressable>

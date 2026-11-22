@@ -74,12 +74,12 @@ export default function NotificationAccess() {
               <Text variant="body-md" tone="inverse">You spent RM 12.50 with your card.</Text>
             </View>
           </View>
-          <View style={{ width: 44, height: 44, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
             <ArrowDownRight size={20} color={colors['on-primary']} strokeWidth={1.75} />
           </View>
           <View style={{ width: 300, borderRadius: radius.md, backgroundColor: colors.surface, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Text variant="body-md" style={{ flex: 1 }}>RM 12.50 · one tap to log</Text>
-            <View style={{ height: 32, paddingHorizontal: 12, borderRadius: 9999, backgroundColor: colors.secondary, justifyContent: 'center' }}>
+            <View style={{ height: 32, paddingHorizontal: 12, borderRadius: radius.full, backgroundColor: colors.secondary, justifyContent: 'center' }}>
               <Text variant="label-sm" weight={600} tone="inherit" style={{ color: colors['on-secondary'] }}>Confirm</Text>
             </View>
           </View>
@@ -89,7 +89,7 @@ export default function NotificationAccess() {
       <Text variant="display-md" accessibilityRole="header">Let Flowe read bank alerts</Text>
       {POINTS.map((p) => (
         <View key={p.text} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
             <p.icon size={17} color={colors['on-surface']} strokeWidth={1.75} />
           </View>
           <Text variant="body-md" style={{ flex: 1 }}>{p.text}</Text>

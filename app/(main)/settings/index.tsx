@@ -2,10 +2,10 @@ import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BellRing, Database, Gauge, Lock, Repeat, Shield, Sparkles, Store, Tags, User, Bell } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { HeroScreen } from '@/components/ui/HeroScreen';
-import { ResponsiveColumns } from '@/src/components/ui/ResponsiveGrid';
+import { ResponsiveColumns } from '@/components/ui/ResponsiveGrid';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { SettingsGroup } from '@/components/ui/SettingsGroup';
 import { SettingsRow } from '@/components/ui/SettingsRow';
@@ -49,7 +49,7 @@ export default function SettingsIndex() {
       hero={
         <View style={{ paddingHorizontal: 24, marginTop: 16, gap: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-            <View style={{ width: 64, height: 64, borderRadius: 9999, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 64, height: 64, borderRadius: radius.full, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center' }}>
               <Text variant="display-md" size={24} tone="inverse">{initial}</Text>
             </View>
             <View style={{ flex: 1 }}>

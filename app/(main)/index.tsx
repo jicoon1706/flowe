@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowDownRight, ArrowUpDown, BookOpen, ChartLine, Gauge, Plus, RefreshCw, ScanLine, Wallet } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { HomeHero } from '@/components/home/HomeHero';
 import { PendingEntriesCard } from '@/components/home/PendingEntriesCard';
 import { PendingRecurringModal } from '@/components/home/PendingRecurringModal';
@@ -247,7 +247,7 @@ export default function HomeScreen() {
             </>
           ) : empty ? (
             <EmptyState
-              art={<PhotoSlot photo="homeEmpty" style={{ width: 200, height: 140, borderRadius: 20 }} />}
+              art={<PhotoSlot photo="homeEmpty" style={{ width: 200, height: 140, borderRadius: radius.md }} />}
               title="Add your first account"
               body="Connect a bank, e-wallet or Tabung and Flowe starts counting from today."
               ctaLabel="Add account"

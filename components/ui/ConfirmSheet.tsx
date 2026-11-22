@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { Trash2, type LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { TABLET_WIDTH } from '@/src/hooks/useBreakpoint';
 import { Button } from './Button';
 import { Sheet } from './Sheet';
@@ -42,7 +42,7 @@ export function ConfirmSheet({
   return (
     <Sheet visible={visible} onClose={onCancel} dismissible={!busy} testID="confirm-sheet" tabletMaxWidth={TABLET_WIDTH.dialog}>
       <View style={{ gap: 14 }}>
-        <View style={{ width: 64, height: 64, borderRadius: 9999, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 64, height: 64, borderRadius: radius.full, backgroundColor: colors['surface-container'], alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={30} color={colors['on-surface']} strokeWidth={1.5} />
         </View>
         <Text variant="headline-md" accessibilityRole="header">{title}</Text>

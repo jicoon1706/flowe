@@ -3,7 +3,7 @@ import { Pressable } from '@/components/ui/Pressable';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarDays, ChartPie, House, Plus, Settings2, type LucideIcon } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { centeredPadding, TABLET_WIDTH, useBreakpoint } from '@/src/hooks/useBreakpoint';
 
 export type NavKey = 'home' | 'cashflow' | 'add' | 'calendar' | 'settings';
@@ -51,7 +51,7 @@ export function FloatingNav({ active, onNavigate }: FloatingNavProps) {
           right: inset,
           bottom,
           height: 60,
-          borderRadius: 9999,
+          borderRadius: radius.full,
           backgroundColor: colors['surface-container-high'],
           paddingHorizontal: 4,
           flexDirection: 'row',
@@ -71,7 +71,7 @@ export function FloatingNav({ active, onNavigate }: FloatingNavProps) {
               style={({ pressed }) => ({
                 width: 52,
                 height: 52,
-                borderRadius: 9999,
+                borderRadius: radius.full,
                 backgroundColor: on ? colors.secondary : 'transparent',
                 alignItems: 'center',
                 justifyContent: 'center',

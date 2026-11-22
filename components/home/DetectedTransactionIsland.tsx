@@ -113,7 +113,7 @@ export function DetectedTransactionIsland({ detected, accounts, onSave, onDismis
             onPress={() => setExpanded(true)}
             accessibilityRole="button"
             accessibilityLabel={`New detected transaction: ${formatRM(detected.parsed.amount)} at ${name}. Opens details.`}
-            style={{ height: 60, borderRadius: 9999, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 10, paddingRight: 8 }}
+            style={{ height: 60, borderRadius: radius.full, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 10, paddingRight: 8 }}
           >
             <GradientFill />
             <LogoWell merchant={name} on="gradient" />

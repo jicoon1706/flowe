@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Check, CircleAlert } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Text } from './Text';
 
 export type ToastKind = 'success' | 'failure';
@@ -33,7 +33,7 @@ export function Toast({ kind, message, action, onDismiss }: ToastProps) {
         paddingVertical: 4,
         paddingLeft: 8,
         paddingRight: action ? 6 : 18,
-        borderRadius: 9999,
+        borderRadius: radius.full,
         backgroundColor: colors['surface-container-high'],
         alignSelf: 'center',
         maxWidth: '100%',
@@ -45,7 +45,7 @@ export function Toast({ kind, message, action, onDismiss }: ToastProps) {
         accessibilityLabel={`${message}. Dismiss`}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 }}
       >
-        <View style={{ width: 36, height: 36, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={18} color={colors['on-surface']} strokeWidth={2} />
         </View>
         <Text variant="body-md" weight={500} style={{ flexShrink: 1 }} accessibilityRole={kind === 'failure' ? 'alert' : undefined}>{message}</Text>

@@ -1,5 +1,5 @@
 import { Pressable, View } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, radius } from '@/theme/tokens';
 import { Text } from './Text';
 
 export interface SegmentedOption<T extends string> {
@@ -27,7 +27,7 @@ export function SegmentedToggle<T extends string>({ options, value, onChange, on
         flexDirection: 'row',
         gap: 4,
         padding: 4,
-        borderRadius: 9999,
+        borderRadius: radius.full,
         backgroundColor: glass ? colors.glass : colors['surface-container-high'],
       }}
     >
@@ -43,7 +43,7 @@ export function SegmentedToggle<T extends string>({ options, value, onChange, on
             style={{
               flex: 1,
               height: 44,
-              borderRadius: 9999,
+              borderRadius: radius.full,
               alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: selected ? colors.secondary : 'transparent',

@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { chart, colors } from '@/theme/tokens';
+import { chart, colors, radius } from '@/theme/tokens';
 import type { TabungMonth } from '@/src/lib/tabungProgress';
 import { Money } from '../ui/Money';
 import { Sheet } from '../ui/Sheet';
@@ -34,8 +34,8 @@ export function TabungBreakdownSheet({ visible, onClose, name, months, target }:
               </View>
               <Money amount={m.towardGoal} weight={600} />
             </View>
-            <View accessible accessibilityRole="progressbar" accessibilityLabel={`${Math.round(share * 1000) / 10}% of target`} style={{ height: 8, borderRadius: 9999, backgroundColor: colors['surface-container-high'], overflow: 'hidden' }}>
-              <View style={{ width: `${share * 100}%`, height: 8, borderRadius: 9999, backgroundColor: chart[0] }} />
+            <View accessible accessibilityRole="progressbar" accessibilityLabel={`${Math.round(share * 1000) / 10}% of target`} style={{ height: 8, borderRadius: radius.full, backgroundColor: colors['surface-container-high'], overflow: 'hidden' }}>
+              <View style={{ width: `${share * 100}%`, height: 8, borderRadius: radius.full, backgroundColor: chart[0] }} />
             </View>
           </View>
         );
