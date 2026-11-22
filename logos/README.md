@@ -67,6 +67,8 @@ this is just what Flowe ships with.
 | `foodpanda.png` | foodpanda | — | Food & Drink |
 | `luckin.png` | luckin | — | Food & Drink |
 | `krispy.png` | krispy | — | Food & Drink |
+| `baskin.png` | baskin | baskin robbins | Food & Drink |
+| `mixue.png` | mixue | — | Food & Drink |
 
 ### Groceries (filed as Food & Drink)
 
@@ -79,6 +81,10 @@ this is just what Flowe ships with.
 | `giant.png` | giant | — | Food & Drink |
 | `jaya-grocer.png` | jaya grocer | — | Food & Drink |
 | `village-grocer.png` | village grocer | — | Food & Drink |
+| `7-eleven.png` | 7 eleven | 7-eleven, 7eleven | Food & Drink |
+| `familymart.png` | familymart | family mart | Food & Drink |
+| `mynews.png` | mynews | — | Food & Drink |
+| `cu-mart.png` | cu mart | — | Food & Drink |
 
 ### Health & pharmacy
 
