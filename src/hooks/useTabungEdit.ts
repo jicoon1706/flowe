@@ -3,6 +3,7 @@ import { accountsRepository } from '../repositories/accounts.repository';
 import { storageService } from '../services/storage';
 import {
   fieldOfServerError,
+  undoValues,
   validateTabungEdit,
   type TabungEditErrors,
   type TabungEditValues,
@@ -12,6 +13,8 @@ import type { Result, SupabaseError } from '../utils/result';
 /** A save that worked: what to restore if the user taps Undo on the toast. */
 export interface TabungEditSaved {
   previous: TabungEditValues;
+  /** What the save wrote. */
+  written: TabungEditValues;
 }
 
 /**
@@ -63,7 +66,7 @@ export function useTabungEdit(accountId: string) {
         return res;
       }
       replaced.current = initial.coverPath !== values.coverPath ? { old: initial.coverPath, current: values.coverPath } : null;
-      return { ok: true, data: { previous: initial } };
+      return { ok: true, data: { previous: initial, written: values } };
     },
     [write],
   );
@@ -72,7 +75,7 @@ export function useTabungEdit(accountId: string) {
   const undo = useCallback(
     async (savedEdit: TabungEditSaved): Promise<Result<void, SupabaseError>> => {
       setSaving(true);
-      const res = await write(savedEdit.previous);
+      const res = await write(undoValues(savedEdit.previous, savedEdit.written));
       setSaving(false);
       if (res.ok && replaced.current) {
         // The cover saved a moment ago is no longer referenced.

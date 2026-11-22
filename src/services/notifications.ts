@@ -183,10 +183,8 @@ export async function cancelScheduledWithPrefix(prefix: string): Promise<void> {
   }
 }
 
-/** Format a number as a Malaysian Ringgit amount, e.g. 1234.5 -> "RM 1,234.50". */
-export function formatRM(value: number): string {
-  return `RM ${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
-}
+/** The one RM formatter (lib/money), re-exported for the callers that import it from here. */
+export { formatRM } from '../lib/money';
 
 /**
  * Record a notification for an app event: writes the in-app entry (bell screen)

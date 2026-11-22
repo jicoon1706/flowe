@@ -9,6 +9,16 @@ import type {
   WalletAccount,
 } from '../types';
 
+// Edit Tabung's Undo runs after its screen has gone back, so the Tabung screen
+// behind it listens here to re-read the row.
+const tabungListeners = new Set<(accountId: string) => void>();
+
+/** Called after `updateTabung` writes a Tabung (Edit Tabung save or Undo). */
+export function onTabungChanged(listener: (accountId: string) => void): () => void {
+  tabungListeners.add(listener);
+  return () => { tabungListeners.delete(listener); };
+}
+
 export interface CreateBankAccountRequest {
   user_id: string;
   name: string;
@@ -306,6 +316,7 @@ export const accountsRepository = {
       p_cover_path: req.coverPath ?? '',
     });
     if (error) return { ok: false, error: fromSupabaseError(error) };
+    tabungListeners.forEach((listener) => { try { listener(req.accountId); } catch {} });
     return { ok: true, data: undefined };
   },
 };

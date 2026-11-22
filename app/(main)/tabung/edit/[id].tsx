@@ -21,6 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useTabungEdit } from '@/src/hooks/useTabungEdit';
 import { useTabungProgress } from '@/src/hooks/useTabungProgress';
+import { dayMonthYear } from '@/src/lib/assetDisplay';
 import { formatRM, parseAmount } from '@/src/lib/money';
 import {
   discardCopy,
@@ -31,6 +32,7 @@ import {
   savedTowardGoal,
   tabungEditValues,
   validateTabungEdit,
+  visibleEditErrors,
   type TabungEditErrors,
   type TabungEditValues,
   type TabungGoalType,
@@ -42,7 +44,6 @@ import { localYMD } from '@/src/utils/date';
 const cleanMoney = (raw: string) => raw.replace(/[^\d.]/g, '').replace(/^(\d{0,9}\.?\d{0,2}).*$/, '$1');
 const text2 = (n: number | null) => (n === null ? '' : n.toFixed(2));
 const ymdDate = (ymd: string) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, m - 1, d); };
-const dayMonthYear = (ymd: string) => ymdDate(ymd).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
 
 /** "Edited" beside a changed field's label (n-tabung-edit-dirty). */
 function Edited() {
@@ -121,13 +122,7 @@ export default function EditTabungScreen() {
     monthlyTopup: !!initial && m !== initial.monthlyTopup,
   };
   const rules = loaded ? validateTabungEdit(values, saved) : {};
-  const shown: TabungEditErrors = { ...edit.errors };
-  if (initial) {
-    (['name', 'target', 'monthlyTopup', 'goalType', 'dates'] as const).forEach((k) => {
-      const touched = k === 'dates' ? from !== initial.fromDate || toDate !== initial.toDate : k === 'goalType' ? goal !== initial.goalType : changed[k];
-      if (touched && rules[k]) shown[k] = rules[k];
-    });
-  }
+  const shown: TabungEditErrors = initial && loaded ? visibleEditErrors(initial, values, saved, edit.errors) : { ...edit.errors };
   const valid = Object.keys(rules).length === 0;
   const dateMoved = !!initial && toDate.slice(0, 7) !== initial.toDate.slice(0, 7);
   const follow = () => setPickedTo(null);

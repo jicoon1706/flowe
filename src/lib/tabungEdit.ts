@@ -85,6 +85,50 @@ export function validateTabungEdit(values: TabungEditValues, saved: number): Tab
   return errors;
 }
 
+/**
+ * The errors to draw under the fields: a rule that fails on a field the user
+ * changed, a rule the stored values already fail, and whatever the server sent
+ * back. Without the second kind, a Tabung saved with no monthly top-up (every
+ * one from before migration 20261124, and any made without one) or no target
+ * kept Save disabled with nothing on screen saying why.
+ */
+export function visibleEditErrors(
+  initial: TabungEditValues,
+  values: TabungEditValues,
+  saved: number,
+  server: TabungEditErrors = {},
+): TabungEditErrors {
+  const rules = validateTabungEdit(values, saved);
+  const stored = validateTabungEdit(initial, saved);
+  const touched: Record<TabungEditField, boolean> = {
+    goalType: values.goalType !== initial.goalType,
+    name: values.name.trim() !== initial.name.trim(),
+    target: values.target !== initial.target,
+    monthlyTopup: values.monthlyTopup !== initial.monthlyTopup,
+    dates: values.fromDate !== initial.fromDate || values.toDate !== initial.toDate,
+  };
+  const shown: TabungEditErrors = { ...server };
+  (Object.keys(touched) as TabungEditField[]).forEach((k) => {
+    if (rules[k] && (touched[k] || stored[k])) shown[k] = rules[k];
+  });
+  return shown;
+}
+
+/**
+ * What Undo writes back: the values from before the save, except a target or
+ * monthly top-up update_tabung can't store (null or ≤ 0, e.g. a Tabung that had
+ * no monthly top-up yet). Those keep the value just saved, so Undo doesn't fail
+ * the server's checks and leave the edit in place.
+ */
+export function undoValues(previous: TabungEditValues, written: TabungEditValues): TabungEditValues {
+  const ok = (n: number | null) => n !== null && n > 0;
+  return {
+    ...previous,
+    target: ok(previous.target) ? previous.target : written.target,
+    monthlyTopup: ok(previous.monthlyTopup) ? previous.monthlyTopup : written.monthlyTopup,
+  };
+}
+
 /** True when the form differs from what was loaded (the Discard prompt and the "Edited" tag). */
 export function isTabungEditDirty(initial: TabungEditValues, current: TabungEditValues): boolean {
   return (

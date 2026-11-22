@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { accountsRepository } from '../repositories/accounts.repository';
+import { accountsRepository, onTabungChanged } from '../repositories/accounts.repository';
 import { onTransactionsChanged, transactionsRepository } from '../repositories/transactions.repository';
 import { tabungProgress, type TabungFlow, type TabungProgress } from '../lib/tabungProgress';
 import type { AccountWithDetails, Transaction } from '../types';
@@ -28,6 +28,7 @@ export function useTabungProgress(accountId: string) {
 
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => onTransactionsChanged(() => { refresh(); }), [refresh]);
+  useEffect(() => onTabungChanged((changed) => { if (changed === accountId) refresh(); }), [refresh, accountId]);
 
   const flows: TabungFlow[] = useMemo(
     () => rows
