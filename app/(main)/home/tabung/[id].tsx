@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Pressable } from '@/components/ui/Pressable';
-import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { ArrowDownRight, CalendarDays, Check, Pencil, PiggyBank, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
 import { TabungBreakdownSheet } from '@/components/tabung/TabungBreakdownSheet';
@@ -54,7 +53,6 @@ function monthYear(ymd: string): string {
  */
 export default function TabungScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { isTablet } = useBreakpoint();
   const accountId = id ?? '';
   const router = useRouter();
   const toast = useToast();
@@ -172,8 +170,8 @@ export default function TabungScreen() {
         <View>
           <TopBar title={name} onBack={() => router.back()} right={
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {/* t-n-tabung-edit-entry: Edit (name, target & dates) beside Settings. */}
-              {isTablet && tabung ? (
+              {/* n-tabung-edit-entry / t-n-tabung-edit-entry: Edit beside Settings. */}
+              {tabung ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Edit name, target and dates"

@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { RefreshControl, View } from 'react-native';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { Banknote, ChevronDown, ChevronRight, ChevronUp, Plus, RefreshCw, Shield, Workflow } from 'lucide-react-native';
+import { Banknote, ChevronDown, ChevronRight, ChevronUp, Plus, RefreshCw, Shield } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
 import { assetTypeOption, liabilityTypeOption } from '@/constants/balanceSheetTypes';
 import { AssetSheet, type AssetInput } from '@/components/cashflow/AssetSheet';
@@ -11,9 +11,7 @@ import { GainLossTag } from '@/components/cashflow/GainLossTag';
 import { GoldAssetSheet } from '@/components/cashflow/GoldAssetSheet';
 import { KwspAssetSheet } from '@/components/cashflow/KwspAssetSheet';
 import { NetWorthBreakdownPanel } from '@/components/cashflow/NetWorthBreakdownPanel';
-import { CashFlowDiagram } from '@/components/cashflow/CashFlowDiagram';
 import { CashFlowPatternDiagram } from '@/components/cashflow/CashFlowPatternDiagram';
-import { StatementLine } from '@/components/cashflow/StatementLine';
 import { LiabilitySheet, type LiabilityInput } from '@/components/cashflow/LiabilitySheet';
 import { Button } from '@/components/ui/Button';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
@@ -21,19 +19,15 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { FullScreenModal } from '@/components/ui/FullScreenModal';
 import { GlassChip } from '@/components/ui/GlassChip';
 import { HeroScreen } from '@/components/ui/HeroScreen';
-import { ResponsiveColumns } from '@/src/components/ui/ResponsiveGrid';
 import { Money } from '@/components/ui/Money';
-import { SettingsRow } from '@/components/ui/SettingsRow';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
 import { TopBar } from '@/components/ui/TopBar';
-import { TransactionRow } from '@/components/ui/TransactionRow';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
 import { useAccounts } from '@/src/hooks/useAccounts';
 import { useAssets } from '@/src/hooks/useAssets';
-import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useNetWorthBreakdown } from '@/src/hooks/useNetWorthBreakdown';
 import { assetGainLoss, assetRowLabel, assetSubtitle, staleDays } from '@/src/lib/assetDisplay';
 import { isPricedGold, todayInKualaLumpur } from '@/src/lib/goldValuation';
@@ -49,13 +43,11 @@ import { localYMD } from '@/src/utils/date';
 import type { Asset, AssetType, Liability } from '@/src/types';
 
 /**
- * cashflow/info — income statement + balance sheet, class badge on the hero
- * (tap → patterns), diagram card, Add asset / Add liability sheets.
- *
- * Tablet (t-mn-*, spec §5.4.4): net worth from net_worth_breakdown() with the
+ * cashflow/info (mn-*, t-mn-*, spec §5.4.4): net worth from net_worth_breakdown() with the
  * Breakdown panel; Assets and Liabilities lists (Gold with grams, purity, price
  * date, gain / loss and the stale nudge; KWSP with its 3 accounts); Add asset
- * starts at the type picker; Gold and KWSP have their own forms.
+ * starts at the type picker; Gold and KWSP have their own forms. The class
+ * chip opens the cash flow patterns.
  */
 export default function CashflowInfoScreen() {
   const router = useRouter();
@@ -63,7 +55,7 @@ export default function CashflowInfoScreen() {
   const { user } = useAuth();
   const { locked } = useLock();
   const now = new Date();
-  const { income, expenses, loading: txLoading, refetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { expenses, loading: txLoading, refetch } = useTransactions(now.getFullYear(), now.getMonth() + 1);
   const { assets, loading: aLoading, error: aError, fetchAssets, createAsset, updateAsset, deleteAsset } = useAssets();
   const { liabilities, loading: lLoading, error: lError, fetchLiabilities, createLiability, updateLiability, deleteLiability } = useLiabilities();
   const { accounts, fetchAccounts } = useAccounts();
@@ -71,10 +63,8 @@ export default function CashflowInfoScreen() {
   const [assetSheet, setAssetSheet] = useState<{ initial: Asset | null } | null>(null);
   const [liabSheet, setLiabSheet] = useState<{ initial: Liability | null } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ kind: 'asset' | 'liability'; id: string; name: string } | null>(null);
-  const [diagram, setDiagram] = useState(false);
   const [patterns, setPatterns] = useState(false);
   const [fetched, setFetched] = useState(false);
-  const { isTablet } = useBreakpoint();
   const { data: worth, refresh: refreshWorth } = useNetWorthBreakdown();
   const [picker, setPicker] = useState(false);
   const [pickedType, setPickedType] = useState<AssetType | null>(null);
@@ -94,21 +84,12 @@ export default function CashflowInfoScreen() {
   const totalAssets = cash + assetValue;
   const totalLiab = liabilities.reduce((s, l) => s + Number(l.amount_owed), 0);
   const passive = assets.reduce((s, a) => s + Number(a.monthly_income || 0), 0);
-  const totalIncome = income.reduce((s, t) => s + Number(t.amount), 0);
   const totalExpenses = expenses.reduce((s, t) => s + Number(t.amount), 0);
   const cls = financialClass(totalAssets, passive, totalExpenses);
   const ratio = coverRatio(totalAssets, totalLiab);
-  const monthShort = now.toLocaleDateString('en-MY', { month: 'short' });
-  const incomeDetail = useMemo(() => {
-    const by = new Map<string, number>();
-    for (const t of income) by.set(t.category || 'Other', (by.get(t.category || 'Other') ?? 0) + Number(t.amount));
-    return [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, v]) => `${k.charAt(0).toUpperCase()}${k.slice(1)} ${Math.round(v).toLocaleString('en-MY')}`).join(' · ') || 'No income yet';
-  }, [income]);
-  const assetsLabel = ['cash', ...assets.slice(0, 2).map((a) => a.name)].join(' + ');
-  const liabLabel = liabilities.slice(0, 2).map((l) => l.name).join(' + ') || 'none';
   const firstLoad = (aLoading || lLoading || txLoading) && !fetched;
   const today = todayInKualaLumpur();
-  const netWorth = isTablet && worth ? worth.net_worth : totalAssets - totalLiab;
+  const netWorth = worth ? worth.net_worth : totalAssets - totalLiab;
 
   // t-mn-asset-type-picker → Gold / KWSP forms, or the single-value sheet with that type.
   const pick = (t: AssetType) => {
@@ -188,7 +169,6 @@ export default function CashflowInfoScreen() {
   return (
     <HeroScreen
       tabletLayout="panel"
-      heroHeight={isTablet ? undefined : 300}
       refreshControl={<RefreshControl refreshing={(aLoading || lLoading) && fetched} onRefresh={load} tintColor={colors['on-primary']} />}
       hero={
         <View>
@@ -199,9 +179,9 @@ export default function CashflowInfoScreen() {
             ) : (
               <>
                 <Text variant="body-lg" tone="soft">Net worth</Text>
-                <Money amount={netWorth} variant="numeric-lg" on="gradient" smallCurrency masked={locked} size={isTablet && breakdown ? 48 : undefined} />
+                <Money amount={netWorth} variant="numeric-lg" on="gradient" smallCurrency masked={locked} size={breakdown ? 48 : undefined} />
                 <GlassChip icon={Shield} label={`${CLASS_LABEL[cls]}${ratio ? ` · assets cover ${ratio}× debts` : ''}`} onPress={() => setPatterns(true)} accessibilityLabel={`${CLASS_LABEL[cls]}. Show cash flow patterns`} />
-                {isTablet && worth ? (
+                {worth ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityState={{ expanded: breakdown }}
@@ -212,7 +192,7 @@ export default function CashflowInfoScreen() {
                     {breakdown ? <ChevronUp size={16} color={colors['on-primary']} strokeWidth={1.75} /> : <ChevronDown size={16} color={colors['on-primary']} strokeWidth={1.75} />}
                   </Pressable>
                 ) : null}
-                {isTablet && worth && breakdown ? <NetWorthBreakdownPanel data={worth} masked={locked} /> : null}
+                {worth && breakdown ? <NetWorthBreakdownPanel data={worth} masked={locked} /> : null}
               </>
             )}
           </View>
@@ -224,7 +204,7 @@ export default function CashflowInfoScreen() {
           <GoldAssetSheet visible={!!gold} initial={gold?.initial ?? null} focusPrice={gold?.focusPrice} onClose={() => setGold(null)} onSaved={valuedSaved} onChangeType={gold?.initial ? undefined : backToPicker}
             onDelete={() => { const a = gold?.initial; if (a) { setGold(null); setConfirmDelete({ kind: 'asset', id: a.id, name: a.name }); } }} />
           <KwspAssetSheet visible={kwspAdd} onClose={() => setKwspAdd(false)} onSaved={(a) => valuedSaved(a, true)} onChangeType={backToPicker} />
-          <AssetSheet visible={!!assetSheet} initial={assetSheet?.initial ?? null} initialType={pickedType ?? undefined} valuedForms={isTablet} accounts={spendableAccounts(all)} onClose={() => { setAssetSheet(null); setPickedType(null); }} onSubmit={saveAsset}
+          <AssetSheet visible={!!assetSheet} initial={assetSheet?.initial ?? null} initialType={pickedType ?? undefined} accounts={spendableAccounts(all)} onClose={() => { setAssetSheet(null); setPickedType(null); }} onSubmit={saveAsset}
             onDelete={() => { const a = assetSheet?.initial; if (a) { setAssetSheet(null); setConfirmDelete({ kind: 'asset', id: a.id, name: a.name }); } }} />
           <LiabilitySheet visible={!!liabSheet} initial={liabSheet?.initial ?? null} onClose={() => setLiabSheet(null)} onSubmit={saveLiability}
             onDelete={() => { const l = liabSheet?.initial; if (l) { setLiabSheet(null); setConfirmDelete({ kind: 'liability', id: l.id, name: l.name }); } }} />
@@ -237,18 +217,6 @@ export default function CashflowInfoScreen() {
             onConfirm={remove}
             onCancel={() => setConfirmDelete(null)}
           />
-          <FullScreenModal visible={diagram} title="Cash flow diagram" onClose={() => setDiagram(false)}>
-            <CashFlowDiagram
-              income={{ label: 'Income', amount: totalIncome, detail: incomeDetail }}
-              expenses={{ label: 'Expenses', amount: totalExpenses, detail: totalExpenses ? 'Food, bills, transport…' : 'No spending yet' }}
-              assets={{ label: 'Assets', amount: totalAssets, detail: [`Cash ${cash.toLocaleString('en-MY', { minimumFractionDigits: 2 })}`, ...assets.slice(0, 2).map((a) => `${a.name} ${Math.round(Number(a.current_value)).toLocaleString('en-MY')}`)].join(' · ') }}
-              liabilities={{ label: 'Liabilities', amount: totalLiab, detail: liabLabel }}
-              assetFlow={passive > 0 ? `${assets.filter((a) => Number(a.monthly_income) > 0).map((a) => a.name).slice(0, 2).join(', ')} income` : null}
-              liabilityFlow={liabilities.find((l) => Number(l.monthly_payment) > 0) ? `${liabilities.find((l) => Number(l.monthly_payment) > 0)?.name} ${formatRM(Number(liabilities.find((l) => Number(l.monthly_payment) > 0)?.monthly_payment))}/mo` : null}
-              passiveIncome={passive}
-              totalExpenses={totalExpenses}
-            />
-          </FullScreenModal>
           <FullScreenModal visible={patterns} title="Cash flow patterns" onClose={() => setPatterns(false)}>
             <CashFlowPatternDiagram current={cls} />
           </FullScreenModal>
@@ -258,59 +226,24 @@ export default function CashflowInfoScreen() {
       {(aError || lError) && !assets.length && !liabilities.length && fetched ? (
         <EmptyState icon={RefreshCw} title="Couldn’t load your balance sheet" body="Check your connection and try again." ctaLabel="Try again" onCta={load} />
       ) : null}
-      {isTablet ? (
-        <TabletBalanceSheet
-          worth={worth}
-          assets={assets}
-          liabilities={liabilities}
-          today={today}
-          masked={locked}
-          onAddAsset={() => setPicker(true)}
-          onAddLiability={() => setLiabSheet({ initial: null })}
-          onOpenCash={() => router.push('/home/accounts')}
-          onOpenAsset={openAsset}
-          onUpdatePrice={(a) => setGold({ initial: a, focusPrice: true })}
-          onOpenLiability={(l) => setLiabSheet({ initial: l })}
-        />
-      ) : (
-      <>
-      <ResponsiveColumns>
-        <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
-          <Text variant="label-lg">Income statement · {monthShort}</Text>
-          <StatementLine label="Income" amount={totalIncome} direction="income" masked={locked} />
-          <StatementLine label="Expenses" amount={totalExpenses} direction="expense" masked={locked} />
-          <View style={{ height: 1, backgroundColor: colors['surface-container-high'] }} />
-          <StatementLine label="Net cashflow" amount={Math.abs(totalIncome - totalExpenses)} direction={totalIncome - totalExpenses >= 0 ? 'income' : 'expense'} masked={locked} />
-        </View>
-        <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
-          <Text variant="label-lg">Balance sheet</Text>
-          <StatementLine label={`Assets · ${assetsLabel}`} amount={totalAssets} masked={locked} />
-          <StatementLine label={`Liabilities · ${liabLabel}`} amount={totalLiab} masked={locked} />
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-            <Button label="Add asset" icon={Plus} variant="white" height={44} onPress={() => setAssetSheet({ initial: null })} style={{ flex: 1 }} />
-            <Button label="Add liability" icon={Plus} variant="white" height={44} onPress={() => setLiabSheet({ initial: null })} style={{ flex: 1 }} />
-          </View>
-        </View>
-      </ResponsiveColumns>
-      {assets.length || liabilities.length ? (
-        <View>
-          {assets.map((a) => (
-            <TransactionRow key={a.id} title={a.name} meta={`${assetTypeOption(a.type).label}${Number(a.monthly_income) ? ` · ${formatRM(Number(a.monthly_income))}/mo` : ''}`} amount={Number(a.current_value)} direction="none" icon={assetTypeOption(a.type).icon} masked={locked} onPress={() => setAssetSheet({ initial: a })} />
-          ))}
-          {liabilities.map((l) => (
-            <TransactionRow key={l.id} title={l.name} meta={`${liabilityTypeOption(l.type).label}${Number(l.monthly_payment) ? ` · ${formatRM(Number(l.monthly_payment))}/mo` : ''}`} amount={Number(l.amount_owed)} direction="expense" icon={liabilityTypeOption(l.type).icon} masked={locked} onPress={() => setLiabSheet({ initial: l })} />
-          ))}
-        </View>
-      ) : null}
-      <SettingsRow label="Cash flow diagram" value="How money moves between the four boxes" icon={Workflow} onPress={() => setDiagram(true)} />
-      </>
-      )}
+      <BalanceSheetLists
+        worth={worth}
+        assets={assets}
+        liabilities={liabilities}
+        today={today}
+        masked={locked}
+        onAddAsset={() => setPicker(true)}
+        onAddLiability={() => setLiabSheet({ initial: null })}
+        onOpenCash={() => router.push('/home/accounts')}
+        onOpenAsset={openAsset}
+        onUpdatePrice={(a) => setGold({ initial: a, focusPrice: true })}
+        onOpenLiability={(l) => setLiabSheet({ initial: l })}
+      />
     </HeroScreen>
   );
 }
 
-
-interface TabletBalanceSheetProps {
+interface BalanceSheetListsProps {
   worth: ReturnType<typeof useNetWorthBreakdown>['data'];
   assets: Asset[];
   liabilities: Liability[];
@@ -324,8 +257,8 @@ interface TabletBalanceSheetProps {
   onOpenLiability: (l: Liability) => void;
 }
 
-/** t-mn-assets-saved: Assets (cash, then each asset), Liabilities, "How net worth is counted". */
-function TabletBalanceSheet({ worth, assets, liabilities, today, masked, onAddAsset, onAddLiability, onOpenCash, onOpenAsset, onUpdatePrice, onOpenLiability }: TabletBalanceSheetProps) {
+/** mn-assets-saved / t-mn-assets-saved: Assets (cash, then each asset), Liabilities, "How net worth is counted". */
+function BalanceSheetLists({ worth, assets, liabilities, today, masked, onAddAsset, onAddLiability, onOpenCash, onOpenAsset, onUpdatePrice, onOpenLiability }: BalanceSheetListsProps) {
   const cash = worth?.groups.find((g) => g.key === 'cash');
   const header = (title: string, total: number | null, cta: string, onPress: () => void) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>

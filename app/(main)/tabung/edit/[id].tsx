@@ -18,6 +18,7 @@ import { TextInput } from '@/components/ui/TextInput';
 import { TopBar } from '@/components/ui/TopBar';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAuth } from '@/context/AuthContext';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useTabungEdit } from '@/src/hooks/useTabungEdit';
 import { useTabungProgress } from '@/src/hooks/useTabungProgress';
 import { formatRM, parseAmount } from '@/src/lib/money';
@@ -55,7 +56,8 @@ function Edited() {
 
 /**
  * Edit Tabung (n-tabung-edit, t-n-tabung-edit and their -dirty, -error,
- * -discard, -saving states): goal type, name, target, monthly top-up, dates
+ * -discard, -saving states; the phone draws goal pills and shorter date
+ * pills): goal type, name, target, monthly top-up, dates
  * (target date follows target ÷ monthly top-up), cover photo. Back / Cancel
  * with changes asks to discard; a save returns to the Tabung with Undo.
  */
@@ -66,6 +68,7 @@ export default function EditTabungScreen() {
   const { user } = useAuth();
   const { account, tabung, progress } = useTabungProgress(id);
   const edit = useTabungEdit(id);
+  const { isTablet } = useBreakpoint();
 
   const initial = useMemo<TabungEditValues | null>(
     () => (account && tabung ? tabungEditValues({ ...tabung, name: account.name }) : null),
@@ -192,12 +195,18 @@ export default function EditTabungScreen() {
       tabletLayout="panel"
       contentWidth="form"
       bottomPadding={32}
-      sheetPadding={{ top: 24, horizontal: 24 }}
+      sheetPadding={{ top: isTablet ? 24 : 20, horizontal: isTablet ? 24 : 16 }}
       hero={
-        <View style={{ paddingBottom: 40 }}>
-          <TopBar title={account?.name ?? ''} onBack={close} />
-          <Text variant="display-md" tone="inverse" style={{ paddingHorizontal: 24, marginTop: 28 }} accessibilityRole="header">Edit Tabung</Text>
-        </View>
+        isTablet ? (
+          <View style={{ paddingBottom: 40 }}>
+            <TopBar title={account?.name ?? ''} onBack={close} />
+            <Text variant="display-md" tone="inverse" style={{ paddingHorizontal: 24, marginTop: 28 }} accessibilityRole="header">Edit Tabung</Text>
+          </View>
+        ) : (
+          <View style={{ paddingBottom: 12 }}>
+            <TopBar title="Edit Tabung" onBack={close} />
+          </View>
+        )
       }
       overlay={
         <ConfirmSheet
@@ -218,7 +227,7 @@ export default function EditTabungScreen() {
           <Skeleton width="100%" height={52} />
         </View>
       ) : (
-        <View style={{ gap: 18 }}>
+        <View style={{ gap: isTablet ? 18 : 10 }}>
           <View style={{ gap: 8 }}>
             <Text variant="label-sm" tone="muted">Goal type</Text>
             <View accessibilityRole="radiogroup" accessibilityLabel="Goal type" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -230,12 +239,16 @@ export default function EditTabungScreen() {
                     accessibilityRole="radio"
                     accessibilityState={{ checked: on }}
                     onPress={() => setGoal(g.key)}
-                    style={{ width: '32%', height: 72, borderRadius: radius.md, borderWidth: 2, borderColor: on ? colors.secondary : 'transparent', backgroundColor: colors['surface-container'], flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 }}
+                    style={{ width: '32%', height: isTablet ? 72 : 44, borderRadius: isTablet ? radius.md : 9999, borderWidth: 2, borderColor: on ? colors.secondary : 'transparent', backgroundColor: colors['surface-container'], flexDirection: 'row', alignItems: 'center', gap: isTablet ? 10 : 6, paddingHorizontal: isTablet ? 12 : 10 }}
                   >
-                    <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
-                      <g.icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
-                    </View>
-                    <Text variant="body-md" weight={600} numberOfLines={1} style={{ flexShrink: 1 }}>{g.key === 'raya' ? 'Raya' : g.label}</Text>
+                    {isTablet ? (
+                      <View style={{ width: 40, height: 40, borderRadius: 9999, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+                        <g.icon size={19} color={colors['on-surface']} strokeWidth={1.75} />
+                      </View>
+                    ) : (
+                      <g.icon size={16} color={colors['on-surface']} strokeWidth={1.75} />
+                    )}
+                    <Text variant="body-md" size={isTablet ? undefined : 13} weight={600} numberOfLines={1} style={{ flexShrink: 1 }}>{g.key === 'raya' ? 'Raya' : g.label}</Text>
                   </Pressable>
                 );
               })}
@@ -283,8 +296,8 @@ export default function EditTabungScreen() {
           <View style={{ gap: 8 }}>
             <Text variant="label-sm" tone="muted">Dates</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <AccountPill label={`Start: ${dayMonthYear(from)}`} plainIcon={CalendarDays} onPress={() => setPicking('from')} accessibilityLabel="Start date" />
-              <AccountPill label={`Target: ${monthLabel(toDate)}`} plainIcon={CalendarDays} onPress={() => setPicking('to')} accessibilityLabel="Target date" />
+              <AccountPill label={isTablet ? `Start: ${dayMonthYear(from)}` : dayMonthYear(from)} plainIcon={CalendarDays} onPress={() => setPicking('from')} accessibilityLabel="Start date" />
+              <AccountPill label={isTablet ? `Target: ${monthLabel(toDate)}` : monthLabel(toDate)} plainIcon={CalendarDays} onPress={() => setPicking('to')} accessibilityLabel="Target date" />
               {dateMoved ? (
                 <View style={{ height: 20, paddingHorizontal: 8, borderRadius: 9999, backgroundColor: colors.secondary, justifyContent: 'center' }}>
                   <Text variant="caption" weight={600} tone="inverse">Updated</Text>
@@ -293,7 +306,7 @@ export default function EditTabungScreen() {
             </View>
             {shown.dates ? (
               <InlineError message={shown.dates} />
-            ) : (
+            ) : !isTablet ? null : (
               <Text variant="label-sm" weight={400} tone="meta">
                 {dateMoved && pickedTo === null && t && m ? `Target date moved: ${formatRM(t)} ÷ ${formatRM(m)} a month.` : 'Target date follows target ÷ monthly top-up.'}
               </Text>
@@ -316,7 +329,7 @@ export default function EditTabungScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text variant="body-md" weight={600}>Cover photo</Text>
-              <Text variant="label-sm" weight={400} tone="meta">Optional · shows on the Tabung card</Text>
+              <Text variant="label-sm" weight={400} tone="meta">{isTablet ? 'Optional · shows on the Tabung card' : 'Optional'}</Text>
             </View>
             {cover ? (
               <Button label="Remove photo" variant="white" height={44} onPress={() => setCover(null)} />

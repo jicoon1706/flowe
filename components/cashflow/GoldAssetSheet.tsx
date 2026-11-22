@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useAssets } from '@/src/hooks/useAssets';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { dayMonthYear, gramsText } from '@/src/lib/assetDisplay';
 import { DEFAULT_GOLD_PURITY, goldFormReady, goldGainLoss, goldValue, todayInKualaLumpur } from '@/src/lib/goldValuation';
 import { formatRM, parseAmount } from '@/src/lib/money';
@@ -41,6 +42,7 @@ const text2 = (n: number | null | undefined) => (n === null || n === undefined ?
 export function GoldAssetSheet({ visible, initial, focusPrice = false, onClose, onSaved, onChangeType, onDelete }: GoldAssetSheetProps) {
   const toast = useToast();
   const { saveGold } = useAssets();
+  const { isTablet } = useBreakpoint();
   const editing = !!initial;
   const [name, setName] = useState('');
   const [grams, setGrams] = useState('');
@@ -77,18 +79,19 @@ export function GoldAssetSheet({ visible, initial, focusPrice = false, onClose, 
     onSaved(res.data, !editing);
   };
 
+  const costField = <TextInput label="Cost (optional)" prefix="RM" keyboardType="decimal-pad" placeholder="0.00" value={cost} onChangeText={(v) => setCost(cleanMoney(v))} />;
+
   return (
     <Sheet visible={visible} onClose={onClose} scroll dismissible={!saving}>
       <SheetHeader title={editing ? 'Edit asset' : 'Add asset'} onClose={onClose} />
       <View style={{ gap: 10 }}>
         <AssetTypeRow type="gold" onChange={onChangeType} />
+        {/* Tablet: Name | Cost side by side (t-mn-gold-*); phone: Name alone, Cost after the price (mn-gold-*). */}
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-end' }}>
           <View style={{ flex: 1 }}>
             <TextInput label="Name" placeholder="e.g. Public Gold GAP" value={name} maxLength={40} error={nameError} autoFocus={!editing && !focusPrice} onChangeText={(v) => { setName(v); setNameError(null); }} />
           </View>
-          <View style={{ flex: 1 }}>
-            <TextInput label="Cost (optional)" prefix="RM" keyboardType="decimal-pad" placeholder="0.00" value={cost} onChangeText={(v) => setCost(cleanMoney(v))} />
-          </View>
+          {isTablet ? <View style={{ flex: 1 }}>{costField}</View> : null}
         </View>
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-end' }}>
           <View style={{ flex: 1 }}>
@@ -113,6 +116,7 @@ export function GoldAssetSheet({ visible, initial, focusPrice = false, onClose, 
           />
           <Text variant="label-sm" weight={400} tone="muted">Use Public Gold’s buy price (the price they pay you), not the sell price.</Text>
         </View>
+        {isTablet ? null : costField}
         <ValuePreview label="Current value" aside={ready ? `${gramsText(g ?? 0)} g × ${formatRM(p ?? 0)}` : undefined} value={value} empty={!ready}>
           {!ready ? (
             <Text variant="label-sm" weight={400} tone="muted">Fills in as you enter grams and PG Buy price.</Text>

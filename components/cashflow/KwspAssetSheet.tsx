@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useAssets } from '@/src/hooks/useAssets';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { KWSP_ACCOUNTS, kwspFormReady, kwspTotal, type KwspAccountKey } from '@/src/lib/kwsp';
 import { parseAmount } from '@/src/lib/money';
 import type { Asset } from '@/src/types';
@@ -29,6 +30,7 @@ export const kwspNumbers = (f: KwspFields) => ({
 export function KwspAssetSheet({ visible, onClose, onSaved, onChangeType }: { visible: boolean; onClose: () => void; onSaved: (asset: Asset) => void; onChangeType?: () => void }) {
   const toast = useToast();
   const { saveKwsp } = useAssets();
+  const { isTablet } = useBreakpoint();
   const [fields, setFields] = useState<KwspFields>(EMPTY);
   const [saving, setSaving] = useState(false);
 
@@ -68,10 +70,18 @@ export function KwspAssetSheet({ visible, onClose, onSaved, onChangeType }: { vi
         <AssetTypeRow type="kwsp" onChange={onChangeType} />
         <Text variant="body-md" size={13} tone="muted" style={{ paddingHorizontal: 4 }}>Copy balances from KWSP i-Akaun.</Text>
         {field('persaraan')}
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 1 }}>{field('sejahtera')}</View>
-          <View style={{ flex: 1 }}>{field('fleksibel')}</View>
-        </View>
+        {/* Tablet: Sejahtera | Fleksibel side by side; phone: one column (mn-kwsp-*). */}
+        {isTablet ? (
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>{field('sejahtera')}</View>
+            <View style={{ flex: 1 }}>{field('fleksibel')}</View>
+          </View>
+        ) : (
+          <>
+            {field('sejahtera')}
+            {field('fleksibel')}
+          </>
+        )}
         <ValuePreview label="Total balance" aside={ready ? '3 accounts' : undefined} value={kwspTotal(balances)} empty={!ready}>
           {!ready ? <Text variant="label-sm" weight={400} tone="muted">Adds up the 3 accounts as you type.</Text> : null}
         </ValuePreview>

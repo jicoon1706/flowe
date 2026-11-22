@@ -41,12 +41,10 @@ export interface AssetSheetProps {
   onDelete?: () => void;
   /** Add: the type picked in the type picker. */
   initialType?: AssetType;
-  /** Gold and KWSP have their own forms here, so their chips are hidden (tablet). */
-  valuedForms?: boolean;
 }
 
 /** Add / edit asset (ins-add-asset). Type defaults to an investment; optional funding from an account. */
-export function AssetSheet({ visible, onClose, initial, accounts, onSubmit, onDelete, initialType, valuedForms = false }: AssetSheetProps) {
+export function AssetSheet({ visible, onClose, initial, accounts, onSubmit, onDelete, initialType }: AssetSheetProps) {
   const editing = !!initial;
   const [name, setName] = useState('');
   const [type, setType] = useState<AssetType>('stocks');
@@ -108,7 +106,8 @@ export function AssetSheet({ visible, onClose, initial, accounts, onSubmit, onDe
         <View style={{ gap: 8 }}>
           <Text variant="label-sm" tone="muted">Type</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {ASSET_TYPES.filter((o) => o.value === initial?.type || (o.value !== 'kwsp' && !(valuedForms && VALUED_ASSET_TYPES.includes(o.value)))).map((o) => <Chip key={o.value} label={o.label} selected={o.value === type} onPress={() => setType(o.value)} />)}
+            {/* Gold and KWSP / EPF have their own forms (mn-gold-*, mn-kwsp-*); a legacy unpriced Gold row keeps its chip. */}
+            {ASSET_TYPES.filter((o) => o.value === initial?.type || !VALUED_ASSET_TYPES.includes(o.value)).map((o) => <Chip key={o.value} label={o.label} selected={o.value === type} onPress={() => setType(o.value)} />)}
           </ScrollView>
         </View>
         <AmountField label={editing ? 'Value now' : 'Value'} value={value} onChangeText={setValue} />

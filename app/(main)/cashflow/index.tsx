@@ -182,6 +182,8 @@ export default function CashflowScreen() {
               {trend}
               {diagram}
               {pattern}
+              {/* mo-cashflow-card: after Your pattern, above Expenses. */}
+              <IncomeSplitCard month={month} masked={locked} />
               <View style={{ marginTop: 12 }}>{expenses}</View>
             </>
           )}
