@@ -1,7 +1,8 @@
 -- Edit Tabung backend tests: update_tabung validation, the saved-so-far floor
 -- in both progress modes, the cover bucket policy and RLS.
 --
--- Runs against a database that has migration 20261124_tabung_edit applied.
+-- Runs against a database that has migrations 20261124_tabung_edit and
+-- 20261124b_update_tabung_keep_icon applied.
 -- Same harness as k_l_backend.test.sql: ONE transaction that never commits.
 -- The last statement raises 'PASS: …' on purpose so the run rolls back; any
 -- failed check raises 'FAIL: …' first. Safe to run on any project:
@@ -21,13 +22,13 @@ insert into auth.users (id, aud, role, email, raw_user_meta_data, created_at, up
 values ('00000000-0000-4000-8000-0000000000a2', 'authenticated', 'authenticated', 'te-test-a@example.invalid', '{"display_name":"TE Test A"}', now(), now()),
        ('00000000-0000-4000-8000-0000000000b2', 'authenticated', 'authenticated', 'te-test-b@example.invalid', '{"display_name":"TE Test B"}', now(), now());
 
-insert into public.accounts (id, user_id, type, name)
-values ('00000000-0000-4000-8000-00000000ad01', '00000000-0000-4000-8000-0000000000a2', 'bank', 'Maybank'),
-       ('00000000-0000-4000-8000-00000000ad02', '00000000-0000-4000-8000-0000000000a2', 'tabung', 'Tabung Rumah');
+insert into public.accounts (id, user_id, type, name, icon)
+values ('00000000-0000-4000-8000-00000000ad01', '00000000-0000-4000-8000-0000000000a2', 'bank', 'Maybank', null),
+       ('00000000-0000-4000-8000-00000000ad02', '00000000-0000-4000-8000-0000000000a2', 'tabung', 'Tabung Rumah', '🏠');
 insert into public.bank_accounts (account_id, bank_name, opening_balance, current_balance)
 values ('00000000-0000-4000-8000-00000000ad01', 'Maybank', 10000, 10000);
-insert into public.tabung_accounts (account_id, target_amount, saved_amount, from_date, to_date, template_type)
-values ('00000000-0000-4000-8000-00000000ad02', 5000, 2000, '2026-03-01', '2026-07-31', 'home');
+insert into public.tabung_accounts (account_id, target_amount, saved_amount, from_date, to_date, template_type, icon)
+values ('00000000-0000-4000-8000-00000000ad02', 5000, 2000, '2026-03-01', '2026-07-31', 'home', '🏠');
 
 -- The d-tabung-edit board: RM 4,000 topped up since March (RM 2,000 paid out
 -- since, so the balance is RM 2,000). One top-up before March doesn't count.
@@ -78,7 +79,9 @@ begin
   select name, icon into a from public.accounts where id = '00000000-0000-4000-8000-00000000ad02';
   select * into t from public.tabung_accounts where account_id = '00000000-0000-4000-8000-00000000ad02';
   assert a.name = 'Bali 2026', format('FAIL name trimmed: %s', a.name);
-  assert a.icon = 'travel' and t.icon = 'travel' and t.template_type = 'travel', 'FAIL goal type stored';
+  assert t.template_type = 'travel', 'FAIL goal type stored';
+  -- 20261124b: the Tabung's own icon is left alone.
+  assert a.icon = '🏠' and t.icon = '🏠', format('FAIL icon overwritten: %s / %s', a.icon, t.icon);
   assert t.target_amount = 6000.01 and t.monthly_topup = 1250.00, format('FAIL rounding: %s / %s', t.target_amount, t.monthly_topup);
   assert t.from_date = '2026-03-01' and t.to_date = '2026-08-31', 'FAIL dates stored';
   assert t.cover_path is null, 'FAIL blank cover should be null';
