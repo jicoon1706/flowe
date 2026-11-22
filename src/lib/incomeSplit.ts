@@ -27,6 +27,9 @@ export const SPLIT_GROUP_SHORT = { needs: 'Needs', wants: 'Wants', invest: 'Inve
 
 export const SPLIT_DISCLAIMER = 'A general guide, not financial advice.';
 
+/** Edit groups: a save is snapshotted per month (migration 20261125), so it never rewrites earlier months. */
+export const SPLIT_HISTORY_NOTE = 'Changes apply from this month on. Past months keep the groups and targets they had.';
+
 const num = (v: unknown): number => {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : 0;

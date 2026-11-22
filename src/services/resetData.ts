@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FloweNotifications from '../../modules/flowe-notifications';
 import { authRepository, userDataRepository } from '../repositories';
 import { flags } from '../lib/secureStore';
+import { clearIncomeSplitCache } from './incomeSplitCache';
 import { cancelScheduledWithPrefix } from './notifications';
 import type { Result, SupabaseError } from '../utils/result';
 
@@ -34,6 +35,7 @@ export async function resetAllData(userId: string): Promise<Result<void, Supabas
   } catch {
     // Stale caches only affect pre-fills; the next user overwrites them.
   }
+  clearIncomeSplitCache();
   await authRepository.signOut();
   await flags.unsetPin(); // also clears onboardingDone, so the gate runs onboarding again
   return { ok: true, data: undefined };

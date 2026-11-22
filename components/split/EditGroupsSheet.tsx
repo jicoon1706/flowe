@@ -6,7 +6,7 @@ import { expenseCategories } from '@/constants/categories';
 import { useAuth } from '@/context/AuthContext';
 import { useCategoryGroups } from '@/src/hooks/useCategoryGroups';
 import { useCustomCategories } from '@/src/hooks/useCustomCategories';
-import { DEFAULT_SPLIT_TARGETS, targetsProblem } from '@/src/lib/incomeSplit';
+import { DEFAULT_SPLIT_TARGETS, SPLIT_HISTORY_NOTE, targetsProblem } from '@/src/lib/incomeSplit';
 import { groupCategories } from '@/src/lib/incomeSplitView';
 import type { SplitGroup, SplitTargets } from '@/src/types';
 import { Button } from '../ui/Button';
@@ -123,6 +123,7 @@ export function EditGroupsSheet({ visible, onClose, onSaved, pillWidth }: { visi
               <Text variant="body-md" size={13} weight={500}>{problem}</Text>
             </View>
           ) : null}
+          <Text variant="label-sm" weight={400} tone="muted" style={{ marginTop: 12 }}>{SPLIT_HISTORY_NOTE}</Text>
           <Button label="Save groups" disabled={!!problem || loading || !!error} loading={saving} loadingLabel="Saving…" onPress={submit} style={{ marginTop: 12 }} />
         </View>
       )}

@@ -5,6 +5,7 @@ import { colors, radius } from '@/theme/tokens';
 import { useIncomeSplit } from '@/src/hooks/useIncomeSplit';
 import { pct1, SPLIT_GROUP_LABEL } from '@/src/lib/incomeSplit';
 import { splitBar } from '@/src/lib/incomeSplitView';
+import { monthKey, monthName } from '@/src/lib/splitMonth';
 import { formatRM } from '@/src/lib/money';
 import { Money } from '../ui/Money';
 import { Pressable } from '../ui/Pressable';
@@ -19,7 +20,7 @@ import { PartDot, SplitBar } from './SplitBar';
 export function IncomeSplitCard({ month, masked = false }: { month: Date; masked?: boolean }) {
   const router = useRouter();
   const { data, loading, error, refresh } = useIncomeSplit(month);
-  const monthShort = month.toLocaleDateString('en-MY', { month: 'short', year: 'numeric' });
+  const monthShort = monthName(month, 'short');
   const bar = data ? splitBar(data) : null;
 
   return (
@@ -31,7 +32,7 @@ export function IncomeSplitCard({ month, masked = false }: { month: Date; masked
         </View>
         <Pressable
           accessibilityRole="link"
-          onPress={() => router.push({ pathname: '/cashflow/split', params: { month: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}` } } as never)}
+          onPress={() => router.push({ pathname: '/cashflow/split', params: { month: monthKey(month) } })}
           style={({ pressed }) => ({ height: 44, flexDirection: 'row', alignItems: 'center', gap: 6, opacity: pressed ? 0.7 : 1 })}
         >
           <Text variant="body-md" weight={600}>See split</Text>

@@ -11,8 +11,12 @@ export function partFill(part: SplitPart): ViewStyle {
   return { backgroundColor: colors['surface-container-high'], borderWidth: 1, borderColor: colors['on-surface-variant'] + '55' };
 }
 
-/** The 100% stacked bar (mo-cashflow-card 14 dp, mo-split 18 dp); overspent adds the "Income 100%" line. */
-export function SplitBar({ model, height }: { model: SplitBarModel; height: 14 | 18 }) {
+/**
+ * The 100% stacked bar (mo-cashflow-card 14 dp, mo-split 18 dp, history strip 8 dp); overspent adds
+ * the "Income 100%" line, labelled except on the 8 dp mini bar.
+ */
+export function SplitBar({ model, height }: { model: SplitBarModel; height: 8 | 14 | 18 }) {
+  const mini = height === 8;
   return (
     <View accessible accessibilityRole="image" accessibilityLabel={model.label} style={{ position: 'relative' }}>
       <View style={{ flexDirection: 'row', gap: 3, borderRadius: 9999, overflow: 'hidden' }}>
@@ -20,12 +24,14 @@ export function SplitBar({ model, height }: { model: SplitBarModel; height: 14 |
       </View>
       {model.incomeAt !== null ? (
         <>
-          <View style={{ position: 'absolute', left: `${model.incomeAt}%`, top: -5, bottom: -5, width: 2, backgroundColor: colors.secondary }} />
-          <View style={{ position: 'absolute', left: `${model.incomeAt}%`, top: -24, transform: [{ translateX: -36 }], width: 72, alignItems: 'center' }}>
-            <View style={{ backgroundColor: colors.surface, borderRadius: 9999, paddingHorizontal: 6 }}>
-              <Text variant="caption" weight={600}>Income 100%</Text>
+          <View style={{ position: 'absolute', left: `${model.incomeAt}%`, top: mini ? -3 : -5, bottom: mini ? -3 : -5, width: 2, backgroundColor: colors.secondary }} />
+          {mini ? null : (
+            <View style={{ position: 'absolute', left: `${model.incomeAt}%`, top: -24, transform: [{ translateX: -36 }], width: 72, alignItems: 'center' }}>
+              <View style={{ backgroundColor: colors.surface, borderRadius: 9999, paddingHorizontal: 6 }}>
+                <Text variant="caption" weight={600}>Income 100%</Text>
+              </View>
             </View>
-          </View>
+          )}
         </>
       ) : null}
     </View>

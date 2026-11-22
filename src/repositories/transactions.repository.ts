@@ -303,6 +303,13 @@ export const transactionsRepository = {
     return { ok: true, data: count ?? 0 };
   },
 
+  /** 'YYYY-MM-DD' of the earliest transaction, or null with none (Income split's first month). */
+  async fetchFirstDate(): Promise<Result<string | null, SupabaseError>> {
+    const { data, error } = await supabase.from('transactions').select('date').order('date', { ascending: true }).limit(1).maybeSingle();
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: data?.date ?? null };
+  },
+
   async fetchByAccount(accountId: string): Promise<Result<Transaction[], SupabaseError>> {
     const { data, error } = await fetchAllPages<Transaction>((from, to) => supabase
       .from('transactions')

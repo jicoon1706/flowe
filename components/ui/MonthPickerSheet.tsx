@@ -13,12 +13,14 @@ export interface MonthPickerSheetProps {
   onChange: (firstOfMonth: Date) => void;
   /** How many months back to offer (default 12). */
   count?: number;
+  /** The exact months to offer, newest first (Income split: none before the first data month). Overrides `count`. */
+  months?: readonly Date[];
 }
 
 /** Month list for the month pill (cashflow, analysis): current month first. */
-export function MonthPickerSheet({ visible, onClose, value, onChange, count = 12 }: MonthPickerSheetProps) {
+export function MonthPickerSheet({ visible, onClose, value, onChange, count = 12, months: offered }: MonthPickerSheetProps) {
   const now = new Date();
-  const months = Array.from({ length: count }, (_, i) => new Date(now.getFullYear(), now.getMonth() - i, 1));
+  const months = offered ?? Array.from({ length: count }, (_, i) => new Date(now.getFullYear(), now.getMonth() - i, 1));
   return (
     <Sheet visible={visible} onClose={onClose} title="Choose month" scroll>
       <View>

@@ -1,7 +1,7 @@
 -- Desktop K + L backend tests: Gold and KWSP valuation, net worth, income
 -- split, split targets and RLS.
 --
--- Runs against a database that has migrations 20261123–20261123e applied.
+-- Runs against a database that has migrations 20261123–20261125 applied.
 -- Everything happens inside ONE transaction that never commits: the last
 -- statement raises 'PASS: …' on purpose so the whole run rolls back, and any
 -- failed check raises 'FAIL: …' (or 'assertion failed') first. Nothing is left
@@ -179,6 +179,11 @@ begin
     50::smallint, 30::smallint, 20::smallint);
   assert (select split_needs_pct + split_wants_pct + split_invest_pct from public.settings
            where user_id = '00000000-0000-4000-8000-0000000000a1') = 100, 'FAIL targets: valid save not stored';
+  -- Since 20261125 a save also snapshots the groups per month. This file checks
+  -- the split maths against the current groups for fixed months (2026-08…11),
+  -- whatever today is, so drop A's snapshots; income_split_history.test.sql
+  -- covers them.
+  delete from public.income_split_history where user_id = '00000000-0000-4000-8000-0000000000a1';
 end $$;
 
 -- L · Income split fixtures (as owner role, dated in test months).

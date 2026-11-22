@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { ChevronDown, CircleAlert, SquarePen, Sparkle, X } from 'lucide-react-native';
+import { CircleAlert, SquarePen, Sparkle, X } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
 import { expenseCategories } from '@/constants/categories';
 import { EditGroupsSheet } from '@/components/split/EditGroupsSheet';
 import { PartDot, SplitBar, partFill } from '@/components/split/SplitBar';
+import { SplitHistoryStrip } from '@/components/split/SplitHistoryStrip';
+import { SplitMonthStepper, SplitPastMonthChip } from '@/components/split/SplitMonthStepper';
 import { Button } from '@/components/ui/Button';
 import { GlassIconButton } from '@/components/ui/GlassIconButton';
 import { HeroScreen } from '@/components/ui/HeroScreen';
@@ -19,6 +21,8 @@ import { useLock } from '@/context/LockContext';
 import { useAccounts } from '@/src/hooks/useAccounts';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useIncomeSplit } from '@/src/hooks/useIncomeSplit';
+import { useSplitBounds } from '@/src/hooks/useSplitBounds';
+import { addMonths, historyMonths, monthFromKey, monthKey, monthName, pickerMonths, resolveMonth, sameMonth, stepState } from '@/src/lib/splitMonth';
 import { guideLabel, incomeUsedPct, overspentBy, pct1, pctShort, SPLIT_DISCLAIMER, SPLIT_GROUP_LABEL, SPLIT_GROUP_SHORT, suggestionCopy } from '@/src/lib/incomeSplit';
 import { groupNote, rowName, splitBar, type SplitPart } from '@/src/lib/incomeSplitView';
 import { formatRM } from '@/src/lib/money';
@@ -26,32 +30,51 @@ import type { IncomeSplit, IncomeSplitRow } from '@/src/types';
 
 type Group = 'needs' | 'wants' | 'invest';
 
-const monthFromParam = (m?: string): Date => {
-  const [y, mo] = (m ?? '').split('-').map(Number);
-  const n = new Date();
-  return y && mo ? new Date(y, mo - 1, 1) : new Date(n.getFullYear(), n.getMonth(), 1);
-};
-const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const label = (c: string) => expenseCategories.find((x) => x.id === c)?.name ?? c;
 
 /**
  * cashflow/split (spec §5.4.5; mo-split / t-mo-split, -bucket, -over, -empty): the
  * month's income split. Hero with the 100% bar, four group cards (tap one to
  * filter), All categories, Suggestions; Edit groups in the top bar.
+ *
+ * Month (INCOME-SPLIT-HISTORY.md): `?month=YYYY-MM` is the one source of truth.
+ * The stepper, picker, history strip and "Back to this month" replace it in
+ * place (setParams), so deep links open the right month and Back leaves the
+ * screen instead of stepping through months. Months run from the first
+ * transaction to the current one; anything else is clamped.
  */
 export default function IncomeSplitScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ month?: string }>();
   const { locked } = useLock();
   const { isTablet } = useBreakpoint();
-  const [month, setMonth] = useState(() => monthFromParam(params.month));
+  const { bounds, ready } = useSplitBounds();
+  const month = resolveMonth(monthFromKey(params.month), bounds, ready);
+  const key = monthKey(month);
+  const steps = stepState(month, ready ? bounds : { earliest: month, latest: bounds.latest });
+  const isCurrent = sameMonth(month, bounds.latest);
   const [picker, setPicker] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [selected, setSelected] = useState<Group | null>(null);
-  const { data, loading, error, refresh } = useIncomeSplit(month);
-  const monthLong = month.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' });
+  // The group filter belongs to the month it was picked in.
+  const [filter, setFilter] = useState<{ key: string; group: Group } | null>(null);
+  const selected = filter?.key === key ? filter.group : null;
+  const setSelected = (g: Group | null) => setFilter(g ? { key, group: g } : null);
+  const neighbours = [steps.prev ? addMonths(month, -1) : null, steps.next ? addMonths(month, 1) : null].filter((m): m is Date => m !== null);
+  const { data: fresh, previous, loading, error, refresh } = useIncomeSplit(month, neighbours);
+  // While the next month loads, the last one stays up, dimmed (no blank flash).
+  const data = fresh ?? previous;
+  const stale = loading && !!data;
+  const monthLong = monthName(month);
   const bar = data ? splitBar(data) : null;
   const over = data ? overspentBy(data) : 0;
+  const setMonth = (m: Date) => router.setParams({ month: monthKey(m) });
+  const strip = ready ? historyMonths(bounds) : [];
+  const emptyLine = isCurrent ? 'No income logged this month yet.' : `No income logged in ${monthName(month, 'month')}.`;
+
+  // A param outside the bounds (future, or before the first transaction) is rewritten to the month shown.
+  useEffect(() => {
+    if (ready && params.month && params.month !== key) router.setParams({ month: key });
+  }, [ready, params.month, key, router]);
 
   return (
     <HeroScreen
@@ -78,17 +101,10 @@ export default function IncomeSplitScreen() {
           />
           {!isTablet ? (
             <View style={{ marginTop: 6, gap: 8, alignItems: 'center', paddingHorizontal: 4 }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Month"
-                onPress={() => setPicker(true)}
-                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 16, paddingRight: 14, borderRadius: 9999, backgroundColor: colors.glass, opacity: pressed ? 0.8 : 1 })}
-              >
-                <Text variant="body-md" weight={600} tone="inverse">{monthLong}</Text>
-                <ChevronDown size={16} color={colors['on-primary']} strokeWidth={1.75} />
-              </Pressable>
+              <SplitMonthStepper month={month} bounds={ready ? bounds : { earliest: month, latest: bounds.latest }} onChange={setMonth} onPick={() => setPicker(true)} />
+              {!isCurrent ? <SplitPastMonthChip month={month} onBack={() => setMonth(bounds.latest)} /> : null}
               <Text variant="body-md" tone="soft" style={{ marginTop: 2 }}>Income · {monthLong}</Text>
-              {data ? <Money amount={data.income} variant="numeric-lg" size={48} on="gradient" smallCurrency masked={locked} /> : <Skeleton width={200} height={48} tone="glass" />}
+              {data ? <View style={{ opacity: stale ? 0.5 : 1 }}><Money amount={data.income} variant="numeric-lg" size={48} on="gradient" smallCurrency masked={locked} /></View> : loading ? <Skeleton width={200} height={48} tone="glass" /> : null}
               {data && over > 0 ? (
                 <View accessibilityRole="text" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 9999, backgroundColor: colors.glass }}>
                   <CircleAlert size={14} color={colors['on-primary']} strokeWidth={1.75} />
@@ -98,7 +114,7 @@ export default function IncomeSplitScreen() {
               {data?.state === 'empty' ? (
                 <>
                   <View style={{ alignSelf: 'stretch', height: 24, borderRadius: 9999, borderWidth: 2, borderStyle: 'dashed', borderColor: colors['on-primary-muted'], marginTop: 4 }} />
-                  <Text variant="body-md" tone="soft">No income logged this month yet.</Text>
+                  <Text variant="body-md" tone="soft">{emptyLine}</Text>
                 </>
               ) : bar ? (
                 <>
@@ -114,17 +130,12 @@ export default function IncomeSplitScreen() {
           <View style={{ marginTop: 16, gap: 12 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
               <View style={{ gap: 10, alignItems: 'flex-start' }}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Month"
-                  onPress={() => setPicker(true)}
-                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 16, paddingRight: 14, borderRadius: 9999, backgroundColor: colors.glass, opacity: pressed ? 0.8 : 1 })}
-                >
-                  <Text variant="body-md" weight={600} tone="inverse">{monthLong}</Text>
-                  <ChevronDown size={16} color={colors['on-primary']} strokeWidth={1.75} />
-                </Pressable>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <SplitMonthStepper month={month} bounds={ready ? bounds : { earliest: month, latest: bounds.latest }} onChange={setMonth} onPick={() => setPicker(true)} />
+                  {!isCurrent ? <SplitPastMonthChip month={month} onBack={() => setMonth(bounds.latest)} /> : null}
+                </View>
                 <Text variant="body-lg" tone="soft">Income · {monthLong}</Text>
-                {data ? <Money amount={data.income} variant="numeric-lg" on="gradient" smallCurrency masked={locked} /> : <Skeleton width={240} height={56} tone="glass" />}
+                {data ? <View style={{ opacity: stale ? 0.5 : 1 }}><Money amount={data.income} variant="numeric-lg" on="gradient" smallCurrency masked={locked} /></View> : loading ? <Skeleton width={240} height={56} tone="glass" /> : null}
               </View>
               {data && data.state !== 'empty' ? (
                 <View style={{ alignItems: 'flex-end', gap: 8 }}>
@@ -143,7 +154,7 @@ export default function IncomeSplitScreen() {
                 <View style={{ paddingTop: 16 }}>
                   <View style={{ height: 28, borderRadius: 9999, borderWidth: 2, borderStyle: 'dashed', borderColor: colors['on-primary-muted'] }} />
                 </View>
-                <Text variant="body-md" tone="soft">No income logged this month yet.</Text>
+                <Text variant="body-md" tone="soft">{emptyLine}</Text>
               </>
             ) : bar ? (
               <View style={{ paddingTop: bar.incomeAt !== null ? 26 : 16 }}>
@@ -158,34 +169,42 @@ export default function IncomeSplitScreen() {
       }
       overlay={
         <>
-          <MonthPickerSheet visible={picker} onClose={() => setPicker(false)} value={month} onChange={(m) => { setMonth(m); setSelected(null); }} />
+          <MonthPickerSheet visible={picker} onClose={() => setPicker(false)} value={month} onChange={setMonth} months={ready ? pickerMonths(bounds) : undefined} />
           <EditGroupsSheet visible={editing} onClose={() => setEditing(false)} onSaved={refresh} pillWidth={isTablet ? 240 : 198} />
         </>
       }
     >
-      {loading ? (
-        <View style={{ gap: 12 }}>
-          <View style={{ flexDirection: 'row', gap: 12 }}>{[0, 1, 2, 3].map((i) => <View key={i} style={{ flex: 1 }}><Skeleton width="100%" height={112} /></View>)}</View>
-          <Skeleton width="100%" height={240} />
-        </View>
-      ) : error && !data ? (
-        <Pressable accessibilityRole="button" onPress={refresh}><Text variant="body-md" tone="meta">Couldn’t load this month · Try again</Text></Pressable>
-      ) : data?.state === 'empty' ? (
-        <EmptyBody month={month} phone={!isTablet} onAdd={() => router.push({ pathname: '/add-transaction', params: { type: 'income', nonce: String(Date.now()) } })} />
-      ) : data ? (
-        <SplitBody split={data} month={month} selected={selected} onSelect={setSelected} masked={locked} phone={!isTablet} />
-      ) : null}
+      <View style={{ gap: 16 }}>
+        {strip.length > 1 ? <SplitHistoryStrip months={strip} selected={month} onSelect={setMonth} masked={locked} phone={!isTablet} /> : null}
+        {loading && !data ? (
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 12 }}>{[0, 1, 2, 3].map((i) => <View key={i} style={{ flex: 1 }}><Skeleton width="100%" height={112} /></View>)}</View>
+            <Skeleton width="100%" height={240} />
+          </View>
+        ) : error && !data ? (
+          <Pressable accessibilityRole="button" onPress={refresh}><Text variant="body-md" tone="meta">Couldn’t load this month · Try again</Text></Pressable>
+        ) : data?.state === 'empty' ? (
+          <View style={{ opacity: stale ? 0.5 : 1 }}>
+            <EmptyBody month={month} phone={!isTablet} past={!isCurrent} onAdd={() => router.push({ pathname: '/add-transaction', params: { type: 'income', nonce: String(Date.now()) } })} />
+          </View>
+        ) : data ? (
+          <View style={{ opacity: stale ? 0.5 : 1 }}>
+            <SplitBody split={data} month={month} selected={selected} onSelect={setSelected} masked={locked} phone={!isTablet} past={!isCurrent} />
+          </View>
+        ) : null}
+      </View>
     </HeroScreen>
   );
 }
 
-function SplitBody({ split, month, selected, onSelect, masked, phone }: { split: IncomeSplit; month: Date; selected: Group | null; onSelect: (g: Group | null) => void; masked: boolean; phone: boolean }) {
+/** `past`: a month before this one — a Tabung top-up can't go back in time, so those suggestions lose their button. */
+function SplitBody({ split, month, selected, onSelect, masked, phone, past }: { split: IncomeSplit; month: Date; selected: Group | null; onSelect: (g: Group | null) => void; masked: boolean; phone: boolean; past: boolean }) {
   const router = useRouter();
   const { accounts } = useAccounts();
   const b = split.buckets!;
   const rows = useMemo(() => (selected ? split.rows.filter((r) => r.group === selected) : split.rows), [split.rows, selected]);
   const tabungs = accounts.filter((a) => a.type === 'tabung');
-  const monthName = month.toLocaleDateString('en-MY', { month: 'long' });
+  const monthLabel = monthName(month, 'month');
   const toTabung = () => router.push((tabungs.length === 1 ? `/home/tabung/${tabungs[0].id}` : '/home/accounts') as Href);
   const openRow = (r: IncomeSplitRow) => {
     if (r.kind === 'tabung') router.push(`/home/tabung/${r.key.replace(/^tabung:/, '')}` as Href);
@@ -242,7 +261,7 @@ function SplitBody({ split, month, selected, onSelect, masked, phone }: { split:
             <Text variant="label-sm" weight={400} tone="muted">{split.suggestions.length} of 3</Text>
           </View>
           {split.suggestions.map((s) => {
-            const copy = suggestionCopy(s, monthName, label);
+            const copy = suggestionCopy(s, monthLabel, label);
             const go = copy.target === 'tabung' ? toTabung : () => router.push({ pathname: '/transactions', params: { month: monthKey(month), category: copy.category ?? '' } });
             return (
               <View key={s.kind} style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 14, gap: 10 }}>
@@ -255,7 +274,7 @@ function SplitBody({ split, month, selected, onSelect, masked, phone }: { split:
                     <Text variant="body-md" size={13} tone="muted">{copy.body}</Text>
                   </View>
                 </View>
-                <Button label={copy.action} variant="white" height={44} onPress={go} style={{ alignSelf: 'flex-start' }} />
+                {past && copy.target === 'tabung' ? null : <Button label={copy.action} variant="white" height={44} onPress={go} style={{ alignSelf: 'flex-start' }} />}
               </View>
             );
           })}
@@ -301,19 +320,28 @@ function GroupCard({ part, title, amount, note, fill, guide, pressed, onPress, m
   return <Pressable accessibilityRole="radio" accessibilityState={{ checked: !!pressed }} onPress={onPress} style={style}>{body}</Pressable>;
 }
 
-function EmptyBody({ month, onAdd, phone }: { month: Date; onAdd: () => void; phone: boolean }) {
-  const monthName = month.toLocaleDateString('en-MY', { month: 'long' });
+/** No income in the month. The current month nudges to add some; a past month just says so. */
+function EmptyBody({ month, onAdd, phone, past }: { month: Date; onAdd: () => void; phone: boolean; past: boolean }) {
+  const name = monthName(month, 'month');
   return (
     <View style={{ gap: 12 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: phone ? 8 : 12 }} accessibilityElementsHidden>
         {[0, 1, 2, 3].map((i) => <View key={i} style={{ ...(phone ? { width: '48.6%' as const } : { flex: 1 }), height: phone ? 72 : 96, borderRadius: radius.md, borderWidth: 2, borderStyle: 'dashed', borderColor: colors['on-surface-variant'] + '55' }} />)}
       </View>
-      <View style={{ alignItems: 'center', gap: phone ? 8 : 10, paddingTop: phone ? 8 : 24, paddingHorizontal: phone ? 8 : 80 }}>
-        <Text variant={phone ? 'label-lg' : 'headline-md'} size={phone ? 17 : undefined} align="center">Log your income to see where it goes</Text>
-        <Text variant="body-md" size={phone ? 14 : 15} tone="muted" align="center">Once {monthName}’s salary or other income is in, Flowe splits it into Needs, Wants, Invest &amp; save and what’s left.</Text>
-        {phone ? null : <Button label="Add income" onPress={onAdd} style={{ width: 280, marginTop: 8 }} />}
-      </View>
-      {phone ? <Button label="Add income" onPress={onAdd} fullWidth style={{ marginTop: 4 }} /> : null}
+      {past ? (
+        <View style={{ alignItems: 'center', paddingTop: phone ? 8 : 24 }}>
+          <Text variant={phone ? 'label-lg' : 'headline-md'} size={phone ? 17 : undefined} align="center">No income logged in {name}</Text>
+        </View>
+      ) : (
+        <>
+          <View style={{ alignItems: 'center', gap: phone ? 8 : 10, paddingTop: phone ? 8 : 24, paddingHorizontal: phone ? 8 : 80 }}>
+            <Text variant={phone ? 'label-lg' : 'headline-md'} size={phone ? 17 : undefined} align="center">Log your income to see where it goes</Text>
+            <Text variant="body-md" size={phone ? 14 : 15} tone="muted" align="center">Once {name}’s salary or other income is in, Flowe splits it into Needs, Wants, Invest &amp; save and what’s left.</Text>
+            {phone ? null : <Button label="Add income" onPress={onAdd} style={{ width: 280, marginTop: 8 }} />}
+          </View>
+          {phone ? <Button label="Add income" onPress={onAdd} fullWidth style={{ marginTop: 4 }} /> : null}
+        </>
+      )}
     </View>
   );
 }
