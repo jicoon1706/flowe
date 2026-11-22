@@ -44,6 +44,21 @@ export interface CreateTabungAccountRequest {
   starting_amount?: number;
 }
 
+/** Edit Tabung: everything the edit drawer / sheet saves, in one call. */
+export interface UpdateTabungRequest {
+  accountId: string;
+  goalType: string;
+  name: string;
+  target: number;
+  monthlyTopup: number;
+  /** 'YYYY-MM-DD'. */
+  fromDate: string;
+  /** 'YYYY-MM-DD'. */
+  toDate: string;
+  /** tabung-covers object path, or null for no cover. */
+  coverPath: string | null;
+}
+
 export const accountsRepository = {
   async fetchAllActive(): Promise<Result<Account[], SupabaseError>> {
     const { data, error } = await supabase
@@ -144,6 +159,8 @@ export const accountsRepository = {
         color: req.color,
         template_type: req.template_type,
         auto_save: req.auto_save ?? false,
+        // Migration 20261124. Was accepted but never stored before.
+        ...(req.monthly_amount && req.monthly_amount > 0 ? { monthly_topup: roundCents(req.monthly_amount) } : {}),
       })
       .select()
       .single();
@@ -269,6 +286,26 @@ export const accountsRepository = {
         .eq('account_id', accountId);
       if (error) return { ok: false, error: fromSupabaseError(error) };
     }
+    return { ok: true, data: undefined };
+  },
+
+  /**
+   * Edit Tabung: goal type, name, target, monthly top-up, dates and cover in one
+   * transaction (update_tabung, migration 20261124). The server re-checks every
+   * rule in tabungEdit.ts and raises the same copy (errcode 23514).
+   */
+  async updateTabung(req: UpdateTabungRequest): Promise<Result<void, SupabaseError>> {
+    const { error } = await supabase.rpc('update_tabung', {
+      p_account_id: req.accountId,
+      p_goal_type: req.goalType,
+      p_name: req.name.trim(),
+      p_target: roundCents(req.target),
+      p_monthly_topup: roundCents(req.monthlyTopup),
+      p_from_date: req.fromDate,
+      p_to_date: req.toDate,
+      p_cover_path: req.coverPath ?? '',
+    });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
     return { ok: true, data: undefined };
   },
 };

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { assetsRepository, CreateAssetRequest } from '../repositories/assets.repository';
+import { assetsRepository, type CreateAssetRequest, type SaveGoldInput, type SaveKwspInput } from '../repositories/assets.repository';
 import type { Asset } from '../types';
 import type { SupabaseError } from '../utils/result';
 import { notify, formatRM } from '../services/notifications';
@@ -57,5 +57,31 @@ export function useAssets() {
     return result;
   }, [fetchAssets, assets]);
 
-  return { assets, loading, error, fetchAssets, createAsset, updateAsset, deleteAsset };
+  /** K: create or update a Gold asset (value = grams × PG Buy price, computed by the server). */
+  const saveGold = useCallback(async (input: SaveGoldInput) => {
+    setLoading(true);
+    setError(null);
+    const result = await assetsRepository.saveGold(input);
+    if (result.ok) {
+      notify({ type: 'asset', emoji: '🏦', message: input.id ? 'Asset updated' : 'Asset added', sub_text: `${result.data.name} • ${formatRM(Number(result.data.current_value))}`, related_entity_id: result.data.id });
+      await fetchAssets();
+    } else setError(result.error);
+    setLoading(false);
+    return result;
+  }, [fetchAssets]);
+
+  /** K: create or update the KWSP / EPF asset (value = the three accounts' sum, computed by the server). */
+  const saveKwsp = useCallback(async (input: SaveKwspInput) => {
+    setLoading(true);
+    setError(null);
+    const result = await assetsRepository.saveKwsp(input);
+    if (result.ok) {
+      notify({ type: 'asset', emoji: '🏦', message: input.id ? 'Asset updated' : 'Asset added', sub_text: `KWSP / EPF • ${formatRM(Number(result.data.current_value))}`, related_entity_id: result.data.id });
+      await fetchAssets();
+    } else setError(result.error);
+    setLoading(false);
+    return result;
+  }, [fetchAssets]);
+
+  return { assets, loading, error, fetchAssets, createAsset, updateAsset, deleteAsset, saveGold, saveKwsp };
 }

@@ -4,7 +4,7 @@ export type TransactionType = 'expense' | 'income' | 'transfer' | 'tabung_topup'
 export type RecurringFrequency = 'monthly' | 'weekly' | 'yearly';
 export type RecurringStatus = 'active' | 'paused' | 'ended';
 export type ReminderOffset = 'none' | 'same_day' | '1_day' | '3_days' | '1_week';
-export type AssetType = 'real_estate' | 'stocks' | 'unit_trust' | 'fixed_deposit' | 'asb' | 'gold' | 'vehicle' | 'business' | 'others';
+export type AssetType = 'real_estate' | 'stocks' | 'unit_trust' | 'fixed_deposit' | 'asb' | 'gold' | 'vehicle' | 'business' | 'others' | 'kwsp';
 export type LiabilityType = 'mortgage' | 'car_loan' | 'credit_card' | 'study_loan' | 'medical_loan' | 'business_loan' | 'others';
 export type NotificationType = 'expense' | 'income' | 'transfer' | 'recurring' | 'alert' | 'tabung' | 'milestone' | 'asset' | 'liability' | 'cashflow' | 'note' | 'affirmation' | 'project';
 export type AffirmationCategory = 'saving' | 'investing' | 'mindset' | 'awareness';
@@ -77,6 +77,10 @@ export interface TabungAccount {
   auto_save: boolean;
   /** Migration 20261117. Defaults to 'contributed'. */
   progress_mode: TabungProgressMode;
+  /** Planned monthly top-up (RM, > 0). Migration 20261124. */
+  monthly_topup?: number | null;
+  /** Cover photo path in the tabung-covers bucket. Migration 20261124. */
+  cover_path?: string | null;
 }
 
 export interface WalletAccount {
@@ -171,6 +175,20 @@ export interface Asset {
   quantity?: number;
   /** Unit for `quantity`, e.g. 'g'. */
   unit?: string;
+  /** Gold only: 999 or 916. Migration 20261123b. */
+  purity?: GoldPurity | null;
+  /** Gold only: Public Gold buy-back (PG Buy) price per gram, RM. Null = unpriced (legacy) gold. */
+  price_per_gram?: number | null;
+  /** Gold only: date the price was saved, 'YYYY-MM-DD' (Asia/Kuala_Lumpur). */
+  price_date?: string | null;
+  /** Gold only, optional: what was paid. Gain/loss = current_value − cost. */
+  cost?: number | null;
+  /** KWSP only: Akaun Persaraan balance. current_value = the three accounts' sum. */
+  kwsp_persaraan?: number | null;
+  /** KWSP only: Akaun Sejahtera balance. */
+  kwsp_sejahtera?: number | null;
+  /** KWSP only: Akaun Fleksibel balance. */
+  kwsp_fleksibel?: number | null;
   monthly_income: number;
   date_acquired?: string;
   note?: string;
@@ -292,6 +310,10 @@ export interface Settings {
   monthly_budget: number | null;
   /** Pinned live budget update. Migration 20261117. */
   live_budget_mode: LiveBudgetMode;
+  /** Income split targets, % of income; the three add up to 100. Migration 20261123c. */
+  split_needs_pct: number;
+  split_wants_pct: number;
+  split_invest_pct: number;
   created_at: string;
   updated_at: string;
 }
@@ -344,4 +366,102 @@ export interface TabungMonthlyFlow {
   month: string;
   topped_up: number;
   paid_out: number;
+}
+
+// ─── Desktop K · Gold & KWSP valuation (migrations 20261123–20261123b) ───
+
+export type GoldPurity = 999 | 916;
+
+/**
+ * Extension point (phase 2, NOT built): one month of KWSP contributions.
+ * Planned as its own table keyed by asset_id + month that feeds asset_values;
+ * nothing reads or writes this yet.
+ */
+export interface KwspContribution {
+  asset_id: string;
+  /** First day of the month, 'YYYY-MM-01'. */
+  month: string;
+  /** Employer (majikan) share, RM. */
+  majikan: number;
+  /** Member (ahli) share, RM. */
+  ahli: number;
+}
+
+/** One asset type in the net worth breakdown; 'cash' = bank + wallet + Tabung balances. */
+export interface NetWorthGroup {
+  key: 'cash' | AssetType;
+  total: number;
+  count: number;
+  /** Share of total assets, 1 dp; the groups add up to exactly 100.0. */
+  share_pct: number;
+}
+
+/** net_worth_breakdown() (migration 20261123d): the one net worth computation. */
+export interface NetWorthBreakdown {
+  total_assets: number;
+  total_liabilities: number;
+  net_worth: number;
+  cash_accounts: number;
+  groups: NetWorthGroup[];
+  liabilities: { id: string; name: string; type: LiabilityType; amount_owed: number }[];
+}
+
+// ─── Desktop L · Income split (migrations 20261123c, 20261123e) ───
+
+export type SplitGroup = 'needs' | 'wants' | 'skip';
+
+/** category_groups row: which group an expense category counts towards. No row = skip. */
+export interface CategoryGroup {
+  id: string;
+  user_id: string;
+  /** transactions.category: a built-in slug ('food') or a custom category's name. */
+  category: string;
+  split_group: SplitGroup;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SplitTargets {
+  needs: number;
+  wants: number;
+  invest: number;
+}
+
+export interface SplitBucket {
+  amount: number;
+  /** % of the month's income, 1 dp. */
+  pct: number;
+}
+
+export interface IncomeSplitRow {
+  kind: 'category' | 'tabung' | 'asset';
+  /** Stable key: the category, 'tabung:{account id}' or 'asset:{asset id}'. */
+  key: string;
+  /** Set for kind 'category'. */
+  category: string | null;
+  /** Set for kind 'tabung' ('Tabung · {name}') and 'asset' ('{name} top-up'). */
+  label: string | null;
+  group: 'needs' | 'wants' | 'invest';
+  amount: number;
+  pct: number;
+}
+
+export type IncomeSplitSuggestion =
+  | { kind: 'invest_below_target'; amount: number; target_pct: number; current_pct: number; target_amount: number }
+  | { kind: 'unassigned'; amount: number; pct: number }
+  | { kind: 'needs_over_target'; category: string; amount: number; pct: number; target_pct: number }
+  | { kind: 'wants_over_target'; category: string; amount: number; pct: number; target_pct: number };
+
+/** income_split(p_month) (migration 20261123e): the one monthly split computation. */
+export interface IncomeSplit {
+  /** 'YYYY-MM-01'. */
+  month: string;
+  state: 'empty' | 'ok' | 'overspent';
+  income: number;
+  targets: SplitTargets;
+  /** Null when state is 'empty'. The four pcts add up to exactly 100.0. */
+  buckets: { needs: SplitBucket; wants: SplitBucket; invest: SplitBucket; left: SplitBucket } | null;
+  rows: IncomeSplitRow[];
+  /** At most 3, in rule order. */
+  suggestions: IncomeSplitSuggestion[];
 }

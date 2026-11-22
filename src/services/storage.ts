@@ -46,6 +46,34 @@ export const storageService = {
     return { ok: true, data: undefined };
   },
 
+  // Tabung covers (private bucket — use signed URL). Migration 20261124.
+  // A new file per upload, so Undo can put the previous cover back.
+  async uploadTabungCover(userId: string, accountId: string, base64Image: string): Promise<Result<string, SupabaseError>> {
+    const path = `${userId}/${accountId}-${Date.now()}.jpg`;
+    const { error } = await supabase.storage
+      .from('tabung-covers')
+      .upload(path, decode(base64Image), { contentType: 'image/jpeg' });
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: path };
+  },
+
+  async getTabungCoverUrls(paths: string[]): Promise<Result<Record<string, string>, SupabaseError>> {
+    if (paths.length === 0) return { ok: true, data: {} };
+    const { data, error } = await supabase.storage.from('tabung-covers').createSignedUrls(paths, 60 * 60);
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    const map: Record<string, string> = {};
+    for (const item of data ?? []) {
+      if (item.path && item.signedUrl) map[item.path] = item.signedUrl;
+    }
+    return { ok: true, data: map };
+  },
+
+  async deleteTabungCover(path: string): Promise<Result<void, SupabaseError>> {
+    const { error } = await supabase.storage.from('tabung-covers').remove([path]);
+    if (error) return { ok: false, error: fromSupabaseError(error) };
+    return { ok: true, data: undefined };
+  },
+
   // Learn Images (private bucket — use signed URL)
   async uploadLearnImage(userId: string, entryId: string, imageId: string, base64Image: string): Promise<Result<string, SupabaseError>> {
     const path = `${userId}/${entryId}/${imageId}.jpg`;

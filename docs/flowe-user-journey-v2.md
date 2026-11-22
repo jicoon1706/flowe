@@ -480,6 +480,20 @@ Both are thin wrappers around `components/accounts/AccountDetailScreen.tsx`, wit
 - **Data:** `useTabungProgress(id)`, `useAccounts`, `transactionsRepository`, `accountsRepository`, `readLastUsed` / `writeLastUsed`, `notify`.
 - **Exits:** back.
 
+#### 5.1.6a Edit Tabung — drawer (desktop) / sheet (tablet, phone)
+> **Status (2026-11-22):** backend live on "flowe" (migration 20261124_tabung_edit). Data layer done in both apps. **UI pending** on desktop, tablet and phone.
+
+- **Design:** desktop `d-tabung-edit-entry`, `d-tabung-edit`, `-dirty`, `-error`, `-discard`, `-saving`, `-saved`; tablet `t-n-tabung-edit-*`; phone `n-tabung-edit-*` (same seven states).
+- **Entry:** **Edit** on the Tabung detail hero. Progress mode and Delete stay in Settings ("Progress mode & delete are in Settings").
+- **Fields:** Goal type (Emergency · Travel · Raya · Education · Home · Custom), Name, Target, Monthly top-up, Dates (Start; Target date follows target ÷ monthly top-up), Cover photo (optional, "shows on the Tabung card").
+- **Validation (client and server, same copy):** "Give your Tabung a name" (≤ 40 characters); "Enter a target above RM 0.00"; target below saved toward goal → "Can't be lower than RM x saved so far"; "Enter a monthly top-up above RM 0.00"; "Target date can't be before the start date"; "Choose a goal type". Saved toward goal = Σ top-ups since the start date (default) or the balance (balance mode), the same figure as the card; the server recomputes it with the start date being saved.
+
+##### Data & system flow (Edit Tabung)
+- **DB:** `tabung_accounts.monthly_topup numeric(12,2)` (null or > 0) and `cover_path text`; goal type, start and target date reuse `template_type`, `from_date`, `to_date`. Private bucket `tabung-covers`, files at `{user_id}/{account_id}-{ms}.jpg`, policy "tabung_covers user folder access" (same rule as avatars / receipts).
+- **RPC:** `update_tabung(p_account_id, p_goal_type, p_name, p_target, p_monthly_topup, p_from_date, p_to_date, p_cover_path)`, caller rights, one transaction over `accounts` (name, icon) and `tabung_accounts`; ownership checked against `auth.uid()`; rule failures raise errcode 23514 with the copy above. Tests: `supabase/tests/tabung_edit.test.sql`.
+- **Client:** shared `src/lib/tabungEdit.ts` (values, `validateTabungEdit`, `savedTowardGoal`, `followTargetDate`, dirty check, server-error → field) and `src/lib/tabungPlan.ts`; `accountsRepository.updateTabung`; `storageService.uploadTabungCover` / `getTabungCoverUrls` / `deleteTabungCover`; hook `useTabungEdit(accountId)` → `save`, `undo` (toast Undo writes the previous values), `finalize` (removes a replaced cover once the Undo window closes), `uploadCover`, `discardCover`, `errors`.
+- **Create:** New Tabung now stores its monthly amount in `monthly_topup` (it was accepted but dropped before).
+
 #### 5.1.7 New Tabung · goal — `app/(main)/tabung/new/index.tsx`
 - **Design:** E · tabung/new
 - **Tab:** listed under Home because a created Tabung lands in Accounts (§5.1.3). The route is still unreachable, see below.
@@ -777,6 +791,97 @@ Spending by category (`/cashflow`) and the net-worth / assets / liabilities scre
 - **Data:** `useAppData` (accounts, categories), assets, liabilities and their value history (`asset_values`, `liability_values`), `useMonthTransactions(month)`; `spendByCategory`, `financialClass`, `coverRatio` (`src/lib/cashflow`, identical to the app's). Trend, passive income and repayments are computed exactly as in §5.4.1.
 - **Exits:** cashflow/info; transactions (category or expense filter); Add transaction drawer; patterns dialog.
 
+#### 5.4.4 Desktop · Gold & KWSP valuation (Desktop K) — `flowe-desktop/src/pages/CashflowInfoPage.tsx`
+> **Status (2026-11-22):** backend live on "flowe" (migrations 20261123–20261123b, 20261123d). Data layer done in both apps: `assetsRepository.saveGold` / `saveKwsp`, `useAssets().saveGold` / `saveKwsp`, `netWorthRepository`, `useNetWorthBreakdown`; shared `src/lib/goldValuation.ts`, `kwsp.ts`. **UI pending** on desktop, tablet (`t-mn-*`) and phone (`mn-*`); until then every platform uses the single-value asset sheet (§5.4.2).
+
+- **Design (Desktop page, section K):** cashflow/info · add asset · type picker (`dn-asset-type-picker`); add asset · Gold (empty) (`dn-gold-empty`); add asset · Gold (filled) (`dn-gold-filled`); add asset · KWSP / EPF (empty) (`dn-kwsp-empty`); add asset · KWSP / EPF (filled) (`dn-kwsp-filled`); Gold + KWSP saved (`dn-assets-saved`); Gold price stale (`dn-gold-stale`); KWSP / EPF detail (`dn-kwsp-detail`); net worth breakdown (`dn-networth-breakdown`). Flow: `dl-flow-map`, lower row "H + K · Net worth (Gold & KWSP)".
+- **Route:** `/cashflow/info` (unchanged) · **Locked?** PIN required (desktop lock) · **Shell:** sidebar with **Cashflow** active; page header "Cashflow info" with search (⌘K), month button, notifications and avatar.
+- **Entry points:** **Add asset** on the balance sheet; a Gold or KWSP row; the hero **Breakdown** toggle.
+- **Purpose:** value gold by weight at Public Gold's buy-back price and KWSP / EPF by its three accounts, and show both inside net worth.
+- **What's on screen:**
+  - **Hero** (gradient, 40 px radius): "Net worth" and the amount (cash in accounts + all assets − all liabilities, from `net_worth_breakdown()`); glass chip "{class} · assets cover N× debts" → patterns dialog; **Breakdown ▾** / **Hide breakdown ▴** toggle; two glass stats **Assets** | **Liabilities**.
+  - **Assets** card: header "Assets" + total + **Add asset**. Rows: **Cash in accounts** ("{n} accounts"), then each asset. Row subtitles:
+    - Gold: "{grams} g · {purity} · Price as of {d Mon}", the value, and a gain/loss tag "+RM X · +N%" / "−RM X · −N%" when a cost is set.
+    - KWSP / EPF: "3 accounts" and the total.
+    - Other types: their type label (e.g. "Unit trust · ASNB"), as today.
+  - **Liabilities** card: header + **Add liability**; one row per liability.
+  - Footnote "How net worth is counted · Gold uses Public Gold’s buyback price. KWSP counts all 3 accounts."
+- **States and transitions:**
+  1. **Type picker** (`dn-asset-type-picker`). **Add asset** opens the 480 px right drawer "Add asset" (Esc / ✕ close). "What are you adding?" with chips: Stocks / ETF, Unit trust, ASB, Fixed deposit, Gold, Property, Vehicle, Business, **KWSP / EPF** (shield icon, "New" tag), Other. The footer button reads "Pick a type to continue" and is disabled until a chip is picked. Gold → step 2a; KWSP / EPF → step 2b; any other type → the existing single-value form (§5.4.2, unchanged).
+  2a. **Gold form, empty** (`dn-gold-empty`): Name (placeholder "e.g. Public Gold GAP"); Type "Gold" · **Change** (back to the picker); **Grams held** (g); **Purity** pills **999** (default) | 916; **PG Buy price** with "Price as of {today}", RM … / g, help text "Use Public Gold’s buy price (the price they pay you), not the sell price."; **Cost (optional)** RM; **Current value** RM 0.00 with "Fills in as you enter grams and PG Buy price." The primary button reads "Enter grams and price" and stays disabled until grams > 0 and price > 0.
+  2a′. **Gold form, filled** (`dn-gold-filled`): Current value = grams × PG Buy price, live as you type, with the working line "{g} g × RM {price}". With a cost: the gain/loss tag "±RM X · ±N%" and "unrealised vs RM {cost} paid" (green for gain, red for loss — the only coloured tag on desktop). Primary **Add asset** → save → toast, state 3.
+  2b. **KWSP form, empty** (`dn-kwsp-empty`): Type "KWSP / EPF" · **Change**; hint "Copy balances from KWSP i-Akaun."; **Akaun Persaraan**, **Akaun Sejahtera**, **Akaun Fleksibel** (RM each); **Total balance** RM 0.00, "Adds up the 3 accounts as you type." No name field (fixed to "KWSP / EPF") and no monthly income field. The primary button reads "Enter at least one balance" and stays disabled until one balance > 0.
+  2b′. **KWSP form, filled** (`dn-kwsp-filled`): Total = Persaraan + Sejahtera + Fleksibel, live, "3 accounts". Primary **Add asset** → save → toast, state 3.
+  3. **Saved** (`dn-assets-saved`): the drawer closes; toast "{Gold name | KWSP / EPF} added" with **Undo**; the new row appears; the hero, Assets total and breakdown include it at once. A row click opens its edit drawer (Gold → the Gold form in edit mode, title "Edit asset"; KWSP → state 5).
+  4. **Gold price stale** (`dn-gold-stale`): when the saved price date is more than 30 days before today, the Gold row gets a grey fill, a "Price is {n} days old" chip and an **Update price** button. **Update price** opens the Gold edit drawer with focus in the PG Buy price field. Saving stamps today's date and the row returns to normal. There is no live price fetch.
+  5. **KWSP / EPF detail** (`dn-kwsp-detail`): 480 px drawer "KWSP / EPF". Total balance + "Updated {d Mon yyyy}"; a split bar by account (monochrome blues, aria-label "Split: Persaraan N%, Sejahtera N%, Fleksibel N%"); one line per account with RM and %; **Balances** with "Copy from KWSP i-Akaun" and the three editable fields; a dashed placeholder "Monthly contributions · Coming soon — Majikan and ahli contributions will show here in a later update." [not built: phase 2]; **Save changes** (toast "KWSP / EPF updated" [TBD: copy not drawn]); **Delete asset** → the remove dialog (J · `dd-remove-asset`).
+  6. **Net worth breakdown** (`dn-networth-breakdown`): **Breakdown** on the hero expands a panel "Assets by type": Cash in accounts, then each asset type (Gold and KWSP / EPF carry a "New" tag), each with RM, a bar and its share of total assets (shares add up to 100.0%, each bar has an aria-label "{type}: N% of assets"); "Total assets"; "Liabilities · {names}" −RM; "Net worth". **Hide breakdown** collapses it.
+- **Loading / error:** as §5.4.2 (skeleton hero; "Couldn’t load your balance sheet" → **Try again**). Save failure → toast "Couldn’t save it" with **Retry** [TBD: copy not drawn] (same data); the drawer stays open with every field intact.
+- **Validation (client, mirrored on the server):** grams > 0, price > 0, cost ≥ 0, purity 999 or 916; KWSP balances ≥ 0 and at least one > 0.
+- **Exits:** patterns dialog; remove dialog; cash flow diagram dialog; back to `/cashflow`.
+
+##### Data & system flow (K)
+- **Tables:** `assets` gains `purity`, `price_per_gram`, `price_date`, `cost` (Gold) and `kwsp_persaraan`, `kwsp_sejahtera`, `kwsp_fleksibel` (KWSP); grams use the existing `quantity` (+ `unit` = 'g'). `asset_type` gains `kwsp`. `asset_values` gets this month's value on every save. RLS: the existing `assets` / `asset_values` policies (`auth.uid() = user_id`).
+- **Server logic:**
+  - Trigger `assets_derive_value`: keeps `current_value` = round(grams × price, 2) for a priced Gold row and = the sum of the three accounts for KWSP (whatever the write path); fixes KWSP's name and monthly income (0).
+  - `save_gold_asset(...)` / `save_kwsp_asset(...)`: create or update the asset and record this month's `asset_values` row in one transaction; Gold's `price_date` = save date (Asia/Kuala_Lumpur).
+  - `net_worth_breakdown()`: the one net worth computation — cash (bank + wallet + Tabung balances), assets by type with share of total assets, liabilities, net worth.
+- **Computed in the client:** gain/loss (value − cost, % = ÷ cost) and staleness (> 30 days) in `goldValuation.ts`; the KWSP split % in `kwsp.ts` (identical files in both apps).
+- **Who reads / writes what:**
+
+| Screen / state | Reads | Writes |
+|---|---|---|
+| Hero, Assets list, breakdown (states 3, 4, 6) | `net_worth_breakdown()`, `assets` | — |
+| Gold form (2a, 2a′, 4) | `assets` (edit) | `save_gold_asset` → `assets`, `asset_values` |
+| KWSP form / detail (2b, 2b′, 5) | `assets` | `save_kwsp_asset` → `assets`, `asset_values`; Delete → `assets.is_active = false` |
+| Cashflow Net worth card (§5.4.3, current month) | `net_worth_breakdown()` | — |
+
+- **Extension point:** KWSP monthly contributions (TS type `KwspContribution`, comment in the migration). No table yet.
+
+#### 5.4.5 Desktop · Income split (Desktop L) — `flowe-desktop/src/pages/IncomeSplitPage.tsx`
+> **Status (2026-11-22):** backend live on "flowe" (migrations 20261123c, 20261123e). Data layer done in both apps: `incomeSplitRepository`, `useIncomeSplit`, `useCategoryGroups`; shared `src/lib/incomeSplit.ts`. **UI pending** on desktop, tablet (`t-mo-*`) and phone (`mo-*`).
+
+- **Design (Desktop page, section L):** cashflow · income split card (`dl-cashflow-card`); income split (`dl-split`); income split · Needs selected (`dl-split-bucket`); income split · edit groups drawer (`dl-edit-groups`); income split · overspent (`dl-split-over`); income split · empty (`dl-split-empty`). Flow: `dl-flow-map`, upper row "L · Income split".
+- **Route:** `/cashflow/split` · **Locked?** PIN required (desktop lock) · **Shell:** sidebar with **Cashflow** active; page header "Income split" with search (⌘K), **Edit groups**, the month button, notifications and avatar.
+- **Entry points:** **See split** on the Income split card (Cashflow).
+- **Purpose:** for the selected month, show where 100% of the income went: Needs, Wants, Investments & savings and Left over, against the user's targets (default 50 / 30 / 20).
+- **Rules:** every % is of that month's income; the four parts add up to 100% (Left over is negative when overspent). Needs and Wants come from the user's category groups; Skip categories are not counted. Investments & savings = money moved that month into a Tabung or an asset (top-ups and transfers in), excluding KWSP. Left over = income − Needs − Wants − Investments & savings.
+- **States and transitions** (solid arrows = click, dashed = state change, as in `dl-flow-map`):
+  1. **Cashflow · Income split card** (`dl-cashflow-card`): one new card on the existing Cashflow page (§5.4.3), above Expenses; nothing else on the page changes. "Income split", "{Mon YYYY} · of RM {income} income", **See split ›**; a 100% stacked bar (aria-label "Income split: Needs N%, Wants N%, Investments & savings N%, Left over N%") and four legend items with RM and %. **See split** → state 2.
+  2. **Income split** (`dl-split`):
+     - Hero (gradient): "Income · {Month YYYY}", the income amount, "Guide: {N} / {W} / {I}", the stacked bar with a black tick on each part at its target.
+     - **Groups**: four cards — Needs, Wants, Investments & savings ("N% of income · guide N%", each with a bar and aria-label), Left over ("N% of income · not assigned yet").
+     - **All categories** table ("Click a row to see its transactions"): Category · Group · Amount · Of income. Needs rows, then Wants, then Invest & save rows ("Tabung · {name}", "{asset} top-up"), largest first within each group.
+     - **Suggestions** "{n} of 3" (rule-based, at most 3, in this order): (1) Invest & save below target and money left over → "Move RM X a month to reach N%" / "Invest & save is N% of income. The guide is N% (RM Y)." → **Top up a Tabung**; (2) Left over > 10% → "RM X isn’t assigned yet" / "N% of {Month}’s income is still sitting in your accounts." → **Move to Tabung**; (3) Needs above target → "{Category} is your biggest need: RM X" / "Needs are N% of income against a N% guide." → **View transactions**; (4) Wants above target → "{Category} is your biggest want: RM X" / "Wants are N% of income against a N% guide." → **View transactions**.
+     - Always: "A general guide, not financial advice."
+     - Header month button → pick a month → the whole page reloads (state 2, 3, 5 or 6 for that month).
+  3. **Group selected** (`dl-split-bucket`): clicking a group card gives it a black outline and filters the table to that group ("Needs · {n} categories" + **Show all ›**). **Show all** or clicking the card again → state 2.
+  4. **Transactions · filtered** (`d-transactions`): a category row → `/transactions?category={category}&month=YYYY-MM`; a Tabung row → `/transactions?types=tabung_topup&account={id}&month=YYYY-MM`; an asset row → `/transactions?types=transfer&month=YYYY-MM&search={asset}` [TBD: the board only says "filtered by category + month"]. **View transactions** on a suggestion does the same for its category.
+  5. **Edit groups** (`dl-edit-groups`): **Edit groups** opens the 480 px drawer "Edit groups" (Esc / ✕). **Categories**: every expense category (built-in and custom, "(custom)") with pills **Needs | Wants | Skip**. Note "Invest & save is filled automatically from Tabung and asset top-ups." **Targets (% of income)**: Needs, Wants, Invest & save. When they don't add up to 100: inline error "Targets add up to N%. Make them 100%." and **Save groups** is disabled. **Save groups** → toast "Groups saved", drawer closes, the page recomputes (back to 2). A server-side check rejects any total ≠ 100 (toast "Couldn’t save groups" with **Retry** [TBD: copy not drawn]).
+  6. **Suggestion → Tabung · add money** (`d-tabung-add`): **Top up a Tabung** / **Move to Tabung** → with one Tabung, `/tabung/{id}?add=1` (its Add money drawer opens); with several, `/tabung` to pick one. [TBD: no picker board]
+  7. **Overspent** (`dl-split-over`): when Needs + Wants + Invest & save > income: hero chip "Overspent RM X · N% of income used"; the bar runs past a black "Income 100%" line; the fourth card reads "Overspent", "−RM X", "−N% of income · more than you earned"; no red (alert chip pattern). The Invest suggestion is not shown (nothing is left to move).
+  8. **Empty** (`dl-split-empty`): no income logged that month: hero shows RM 0.00, a dashed ghost bar and "No income logged this month yet."; four dashed group slots; "Log your income to see where it goes" / "Once {Month}’s salary or other income is in, Flowe splits it into Needs, Wants, Invest & save and what’s left." One CTA **Add income** → the existing Add transaction drawer (`d-transaction-add`) with **Income** preselected; saving it reloads the page (→ state 2). On the Cashflow card the same month shows the ghost bar.
+- **Loading / error:** skeleton hero, cards and table in place; error → "Couldn’t load this month" → **Try again**. [TBD: no artboard; follows §5.4.3]
+- **Exits:** back to Cashflow (sidebar); filtered Transactions; Tabung add money; Add transaction drawer.
+
+##### Data & system flow (L)
+- **Tables:**
+  - `category_groups` (new): one row per user and category (`category` = the value in `transactions.category`: a built-in slug or a custom category's name) → `needs` | `wants` | `skip`. No row = Skip, so new and custom categories start as Skip. Defaults are seeded for every existing user and, through a trigger on `profiles`, for every new one: Needs = Food & Drink, Bills, Transport (+ a custom "Groceries"); Wants = Shopping, Entertainment (+ a custom "Leisure"). Reset all data clears and re-seeds them. RLS: four policies, `auth.uid() = user_id`.
+  - `settings` gains `split_needs_pct`, `split_wants_pct`, `split_invest_pct` (default 50 / 30 / 20) with a check that they add up to 100. A missing settings row means the defaults.
+  - Read only: `transactions` (income, expenses; `tabung_topup`; `transfer` into a Tabung; investments = `transfer` with no `to_account_id`, linked by `asset_id`), `accounts` (Tabung names), `assets` (names; KWSP excluded).
+- **Server logic:**
+  - `income_split(p_month)`: the one monthly computation, for `auth.uid()`. Returns `state` (`empty` | `ok` | `overspent`), income, targets, the four buckets (RM and %), the table rows and up to 3 suggestions (as `kind` + figures; the copy lives in the UI).
+  - `save_income_split_groups(p_groups, p_needs, p_wants, p_invest)`: saves groups and targets together; rejects targets ≠ 100.
+- **Who reads / writes what:**
+
+| Screen / state | Reads | Writes |
+|---|---|---|
+| Cashflow · Income split card (1) | `income_split(month)` | — |
+| Income split, group selected, overspent, empty (2, 3, 7, 8) | `income_split(month)` | — |
+| Edit groups (5) | `category_groups`, `settings`, `custom_categories` | `save_income_split_groups` → `category_groups`, `settings` |
+| Add income (8 → Add transaction drawer) | — | `transactions` (existing add flow) |
+| Tabung add money (6) | existing Tabung detail | existing top-up flow |
+
 ---
 
 ### 5.5 Settings tab
@@ -1016,6 +1121,17 @@ These exist on the canvas but go beyond what v1 found in `app/`. Each entry says
 
 ## 7. Changes
 
+### Changes in v2.3 (2026-11-22) · Edit Tabung data layer
+- **§5.1.6a Edit Tabung** is new: migration 20261124 (`monthly_topup`, `cover_path`, bucket `tabung-covers`, `update_tabung`), `useTabungEdit` in both apps. UI pending on all platforms.
+- §5.4.4 / §5.4.5 status corrected: their UI isn't built on any platform yet; flowe-akmal now has the same hooks as desktop (`useIncomeSplit`, `useNetWorthBreakdown`, `useCategoryGroups`, `useAssets().saveGold` / `saveKwsp`).
+
+### Changes in v2.2 (2026-11-21) · Desktop Gold & KWSP valuation, Income split
+
+- **§5.4.4 Desktop · Gold & KWSP valuation** is new (Desktop page, section K, 9 boards). Add asset gets a type-picker step; Gold is valued as grams × Public Gold's buy-back (PG Buy) price, with purity 999 / 916, an automatic price date, an optional cost and an unrealised gain/loss tag; a price older than 30 days shows **Update price**. **KWSP / EPF** is a new asset type holding Akaun Persaraan, Sejahtera and Fleksibel; its value is their sum. The Cashflow info hero gains a **Breakdown** of assets by type. Net worth counts Gold and KWSP. UI pending on all platforms (data layer done).
+- **§5.4.5 Desktop · Income split** is new (Desktop page, section L, 6 boards): a card on Cashflow (§5.4.3, above Expenses) and the `/cashflow/split` page with group cards, a category table, the Edit groups drawer, rule-based suggestions, and overspent and empty states. UI pending on all platforms (data layer done).
+- **Backend:** `assets` gains Gold and KWSP columns and the `kwsp` type; new `category_groups` table; `settings` gains split targets; new functions `save_gold_asset`, `save_kwsp_asset`, `net_worth_breakdown`, `income_split`, `save_income_split_groups`; `reset_user_data` also clears and re-seeds category groups. Every new row is RLS-scoped to `auth.uid()`.
+- **Net worth is now computed in one place** (`net_worth_breakdown()`) for the Cashflow info hero, its breakdown and the current month on the Cashflow Net worth card. The `cashflow-summary` Edge Function (mobile) still counts assets − liabilities without cash. [unclear: to be aligned when mobile adopts §5.4.4]
+
 ### 7.0 Changes in v2.1 (2026-11-18) · Cashflow tab redesign
 
 - **§5.4.1 Cashflow** is redesigned to the canvas artboards `ins-cashflow` (phone) and `t-ins-cashflow` (tablet). The tab now has five cards in this order: Net worth hero, Net worth trend, Cash flow diagram, Your pattern, Expenses. It was a bubbles-only hero with category tiles.
@@ -1117,4 +1233,14 @@ Canvas **"Flowe — Full App Redesign"**, Mobile page. One row per section, top 
 | **L** | Live budget & widgets (12) | Android Live Update · 3 states; iOS Live Activity · lock screen [iOS · out of scope]; iOS Dynamic Island · compact + expanded [iOS · out of scope]; home · live · before confirm; home · live · after confirm; settings/notifications · live budget updates; widgets · Android home · light wallpaper; widgets · Android home · dark wallpaper; widgets · iOS home · light wallpaper [iOS · out of scope]; widgets · iOS home · dark wallpaper [iOS · out of scope]; widgets · Left today + Budget · normal / empty / stale; widgets · Tabung · normal / empty / stale |
 | **M** | Shared feedback (confirmations, toasts, errors, empty/loading/error states) (50) | transaction · delete; account/[id] · delete; wallet/[id] · delete; tabung/[id] · delete; cashflow/info · remove asset; settings/categories · delete; settings/recurring · delete; settings/budget · turn off daily budget; learn/[projectId] · delete; learn/[projectId]/entry · delete; settings/affirmations · remove; settings/data · reset confirm; settings/account · sign out; toast · catalogue; home · toast saved; add-transaction · save failed; wallet/[id] · top up failed; settings/data · file too large; settings/security · PIN changed; add-transaction · invalid amount; add-transaction · missing account; add-transaction · not enough balance; add-transaction · transfer same account; add-transaction · transfer missing destination; settings/recurring · invalid end date; settings/recurring · transfers not supported; permission · file access; home · empty; home · loading; home · error; home · pull to refresh; transactions · empty; transactions · loading; transactions · error; home/accounts · loading; account/[id] · loading; tabung/[id] · loading; home/notifications · all caught up; home/analysis · empty; home/analysis · loading; home/learn · empty; home/learn · loading; calendar · loading; cashflow · empty; cashflow · loading; cashflow · error; add-transaction · Save loading; island · Confirm loading; widgets · loading; Live Update · Syncing… |
 
-**Total:** 176 artboards. Tablet and Desktop pages are not part of this map.
+**Total:** 176 artboards. Tablet and Desktop pages are not part of this map, except the Desktop sections below.
+
+### 8.1 Desktop page · sections K and L
+
+From the Desktop page's own map (note `dMap`). These letters are the Desktop page's, not the Mobile letters above.
+
+| Letter | Section name | Boards (journey order) |
+|---|---|---|
+| **K** | Gold & KWSP valuation (9) | cashflow/info · add asset · type picker (`dn-asset-type-picker`); add asset · Gold (empty) (`dn-gold-empty`); add asset · Gold (filled) (`dn-gold-filled`); add asset · KWSP / EPF (empty) (`dn-kwsp-empty`); add asset · KWSP / EPF (filled) (`dn-kwsp-filled`); Gold + KWSP saved (`dn-assets-saved`); Gold price stale (`dn-gold-stale`); KWSP / EPF detail (`dn-kwsp-detail`); net worth breakdown (`dn-networth-breakdown`) |
+| **L** | Income split (6) | cashflow · income split card (`dl-cashflow-card`); income split (`dl-split`); income split · Needs selected (`dl-split-bucket`); income split · edit groups drawer (`dl-edit-groups`); income split · overspent (`dl-split-over`); income split · empty (`dl-split-empty`) |
+| — | Flow map | desktop/flows · user flow map (`dl-flow-map`) — H, K and L connected; see §5.4.4 and §5.4.5 |

@@ -16,3 +16,7 @@ export { useCustomCategories } from './useCustomCategories';
 export { useReceiptScan } from './useReceiptScan';export { useProfile } from './useProfile';
 export { useTodaySpend } from './useTodaySpend';
 export { useCountDown } from './useCountDown';
+export { useIncomeSplit } from './useIncomeSplit';
+export { useNetWorthBreakdown } from './useNetWorthBreakdown';
+export { useCategoryGroups } from './useCategoryGroups';
+export { useTabungEdit } from './useTabungEdit';

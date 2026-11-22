@@ -103,7 +103,7 @@ supabase.functions.invoke('cashflow-summary', { body: { month: '2026-05' } })
 ```
 
 **Storage buckets** (private, RLS; accessed with time-limited signed URLs via `src/services/storage.ts`):
-`avatars/`, `receipts/`, `learn-images/`.
+`avatars/`, `receipts/`, `learn-images/`, `tabung-covers/`.
 
 ## Auto-detect (Android only)
 
