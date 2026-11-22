@@ -3,8 +3,8 @@ import { RefreshControl, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BellRing, Ellipsis, Landmark, Pen, Plus, RefreshCw, Trash2, Wallet, ArrowDownRight, ArrowUpRight } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
-import { categoryIcon } from '@/constants/categoryIcons';
 import { TransactionDetail } from '@/components/home/TransactionDetail';
+import { TransactionList } from '@/components/home/TransactionList';
 import { Button } from '@/components/ui/Button';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -22,7 +22,6 @@ import { StatTile } from '@/components/ui/StatTile';
 import { Text } from '@/components/ui/Text';
 import { TextInput } from '@/components/ui/TextInput';
 import { TopBar } from '@/components/ui/TopBar';
-import { TransactionRow } from '@/components/ui/TransactionRow';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
@@ -31,9 +30,9 @@ import { useAccountTransactions } from '@/src/hooks/useAccountTransactions';
 import { accountsRepository } from '@/src/repositories/accounts.repository';
 import { verifyPin } from '@/src/lib/pinVerify';
 import { parseAmount } from '@/src/lib/money';
-import { monthTotals } from '@/src/utils/accountHistory';
+import { HISTORY_PAGE_SIZE, historyPage, monthTotals } from '@/src/utils/accountHistory';
 import { accountBalance, accountDomain, accountMask, type AnyAccount } from '@/src/utils/accountDisplay';
-import { dayLabel, describeTransaction, editParams, groupByDay, timeOf, type TxWithAccounts } from '@/src/utils/transactionDisplay';
+import { editParams, type TxWithAccounts } from '@/src/utils/transactionDisplay';
 import { localYMD } from '@/src/utils/date';
 
 type Filter = 'all' | 'in' | 'out';
@@ -50,6 +49,8 @@ export function AccountDetailScreen({ accountId, kind }: { accountId: string; ki
   const { accounts, fetchAccounts, loading: accLoading } = useAccounts();
   const { transactions, loading, error, refetch } = useAccountTransactions(accountId);
   const [filter, setFilter] = useState<Filter>('all');
+  // Rows mounted in the history; grows by a page per "Show more", back to one page on a new filter.
+  const [shown, setShown] = useState(HISTORY_PAGE_SIZE);
   const [menu, setMenu] = useState(false);
   const [filterSheet, setFilterSheet] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -84,6 +85,7 @@ export function AccountDetailScreen({ accountId, kind }: { accountId: string; ki
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, ym, accountId]);
   const filtered = rows.filter((t) => filter === 'all' || (filter === 'in' ? dirFor(t) === 'income' : dirFor(t) === 'expense'));
+  const page = historyPage(filtered, shown);
 
   const openEdit = () => {
     if (!account) return;
@@ -193,7 +195,7 @@ export function AccountDetailScreen({ accountId, kind }: { accountId: string; ki
             onEdit={(tx) => router.push({ pathname: '/add-transaction', params: { ...editParams(tx), returnTo: `/home/${kind === 'wallet' ? 'wallet' : 'account'}/${accountId}` } })}
           />
           <Sheet visible={filterSheet} onClose={() => setFilterSheet(false)} title="Show">
-            <SegmentedToggle options={[{ value: 'all', label: 'All' }, { value: 'in', label: 'Money in' }, { value: 'out', label: 'Money out' }]} value={filter} onChange={(f) => { setFilter(f); setFilterSheet(false); }} />
+            <SegmentedToggle options={[{ value: 'all', label: 'All' }, { value: 'in', label: 'Money in' }, { value: 'out', label: 'Money out' }]} value={filter} onChange={(f) => { setFilter(f); setShown(HISTORY_PAGE_SIZE); setFilterSheet(false); }} />
           </Sheet>
         </>
       }
@@ -204,40 +206,23 @@ export function AccountDetailScreen({ accountId, kind }: { accountId: string; ki
       </View>
       <SectionHeader title="History" actionLabel={filter === 'all' ? 'Filter' : filter === 'in' ? 'Money in' : 'Money out'} onAction={() => setFilterSheet(true)} />
       {loading && rows.length === 0 ? (
-        <View style={{ gap: 12 }}>
-          {[0, 1, 2, 3].map((i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Skeleton width={40} height={40} />
-              <View style={{ flex: 1, gap: 6 }}><Skeleton width="55%" height={14} /><Skeleton width="35%" height={10} /></View>
-              <Skeleton width={72} height={14} />
-            </View>
-          ))}
-        </View>
+        <TransactionList transactions={[]} loading skeletonRows={4} />
       ) : error && rows.length === 0 ? (
         <EmptyState icon={RefreshCw} title="Couldn’t load history" body="Check your connection and try again." ctaLabel="Try again" onCta={refetch} />
       ) : filtered.length === 0 ? (
         <EmptyState icon={Icon} title="Nothing here yet" body="Transactions for this account show up here." />
       ) : (
-        groupByDay(filtered).map((g) => (
-          <View key={g.day}>
-            <Text variant="label-sm" tone="muted" style={{ marginTop: 4 }}>{dayLabel(g.day)}</Text>
-            {g.items.map((t) => {
-              const d = describeTransaction(t);
-              return (
-                <TransactionRow
-                  key={t.id}
-                  title={t.name}
-                  meta={`${d.label} · ${timeOf(t)}`}
-                  amount={Number(t.amount)}
-                  direction={dirFor(t)}
-                  icon={categoryIcon(d.iconKey, d.kind)}
-                  masked={locked}
-                  onPress={() => setDetail(t)}
-                />
-              );
-            })}
-          </View>
-        ))
+        <>
+          <TransactionList transactions={page.visible} directionFor={dirFor} masked={locked} onPress={setDetail} />
+          {page.remaining > 0 ? (
+            <Button
+              label="Show more"
+              variant="action"
+              onPress={() => setShown((n) => n + HISTORY_PAGE_SIZE)}
+              accessibilityHint={`${page.remaining} more transactions`}
+            />
+          ) : null}
+        </>
       )}
     </HeroScreen>
   );

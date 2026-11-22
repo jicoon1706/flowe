@@ -43,3 +43,16 @@ export function historyDateLabel(ymd: string, todayYmd: string): string {
     ...(sameYear ? {} : { year: 'numeric' }),
   });
 }
+
+/** Rows an account page mounts at first, and adds per "Show more". */
+export const HISTORY_PAGE_SIZE = 50;
+
+/**
+ * The slice of an account's history to render. The full history is fetched (the
+ * tiles and filter need it), but mounting thousands of rows in one ScrollView is
+ * slow, so the list grows a page at a time. `shown` is clamped to at least one page.
+ */
+export function historyPage<T>(rows: T[], shown: number): { visible: T[]; remaining: number } {
+  const n = Math.max(HISTORY_PAGE_SIZE, Math.floor(shown) || 0);
+  return { visible: rows.length > n ? rows.slice(0, n) : rows, remaining: Math.max(0, rows.length - n) };
+}

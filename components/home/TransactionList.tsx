@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { categoryIcon } from '@/constants/categoryIcons';
 import { describeTransaction, dayLabel, groupByDay, timeOf, type TxWithAccounts } from '@/src/utils/transactionDisplay';
+import type { MoneyDirection } from '@/src/lib/money';
 import type { CustomCategory } from '@/src/types';
 import { Skeleton } from '../ui/Skeleton';
 import { Text } from '../ui/Text';
@@ -14,10 +15,12 @@ export interface TransactionListProps {
   loading?: boolean;
   /** Skeleton rows while loading (st-recent-loading). */
   skeletonRows?: number;
+  /** Sign/arrow per row. Default: the transaction's own direction; an account page passes in/out for that account. */
+  directionFor?: (tx: TxWithAccounts) => MoneyDirection;
 }
 
 /** Rows grouped under "Today" / "Yesterday" / date labels, merchant logos in wells. */
-export function TransactionList({ transactions, customCategories = [], onPress, masked, loading, skeletonRows = 6 }: TransactionListProps) {
+export function TransactionList({ transactions, customCategories = [], onPress, masked, loading, skeletonRows = 6, directionFor }: TransactionListProps) {
   if (loading && transactions.length === 0) {
     return (
       <View style={{ gap: 12 }} accessibilityLabel="Loading transactions">
@@ -48,7 +51,7 @@ export function TransactionList({ transactions, customCategories = [], onPress, 
                 title={tx.name}
                 meta={`${d.label} · ${timeOf(tx)}`}
                 amount={Number(tx.amount)}
-                direction={d.direction}
+                direction={directionFor ? directionFor(tx) : d.direction}
                 icon={categoryIcon(d.iconKey, d.kind)}
                 masked={masked}
                 onPress={onPress ? () => onPress(tx) : undefined}

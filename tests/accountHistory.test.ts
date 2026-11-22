@@ -1,4 +1,4 @@
-import { monthTotals, historyDateLabel } from '../src/utils/accountHistory';
+import { monthTotals, historyDateLabel, historyPage, HISTORY_PAGE_SIZE } from '../src/utils/accountHistory';
 
 // AUDIT #8: the account pages list full history, but the tiles stay monthly.
 const tx = (type: string, amount: number, date: string) => ({ type, amount, date }) as any;
@@ -47,5 +47,30 @@ describe('historyDateLabel', () => {
 
   it('ignores a time part on the stored date', () => {
     expect(historyDateLabel('2024-02-29T00:00:00', '2026-11-16')).toBe('29 Feb 2024');
+  });
+});
+
+describe('historyPage', () => {
+  const rows = Array.from({ length: 120 }, (_, i) => i);
+
+  it('shows one page first and says how many are left', () => {
+    const { visible, remaining } = historyPage(rows, HISTORY_PAGE_SIZE);
+    expect(visible).toEqual(rows.slice(0, 50));
+    expect(remaining).toBe(70);
+  });
+
+  it('grows by the shown count and stops at the end', () => {
+    expect(historyPage(rows, 100).visible).toHaveLength(100);
+    expect(historyPage(rows, 150)).toEqual({ visible: rows, remaining: 0 });
+  });
+
+  it('returns a short history unchanged, with nothing left', () => {
+    const short = rows.slice(0, 7);
+    expect(historyPage(short, HISTORY_PAGE_SIZE)).toEqual({ visible: short, remaining: 0 });
+  });
+
+  it('never shows less than one page', () => {
+    expect(historyPage(rows, 0).visible).toHaveLength(50);
+    expect(historyPage(rows, Number.NaN).visible).toHaveLength(50);
   });
 });
