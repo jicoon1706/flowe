@@ -3,7 +3,10 @@
 import {
   fieldOfServerError,
   followTargetDate,
+  discardCopy,
   isTabungEditDirty,
+  monthLabel,
+  progressPct,
   savedTowardGoal,
   tabungEditValues,
   validateTabungEdit,
@@ -102,5 +105,26 @@ describe('fieldOfServerError', () => {
     expect(fieldOfServerError("Target date can't be before the start date")).toBe('dates');
     expect(fieldOfServerError('Choose a goal type')).toBe('goalType');
     expect(fieldOfServerError('network down')).toBeNull();
+  });
+});
+
+describe('discardCopy', () => {
+  it('names the new target and date (d-tabung-edit-discard)', () => {
+    expect(discardCopy(base, { ...base, target: 8000, toDate: '2026-10-31' }))
+      .toBe('Your new target of RM 8,000.00 and target date of Oct 2026 won’t be saved. Tabung Rumah stays at RM 5,000.00.');
+  });
+
+  it('leaves the date out when it did not move, and falls back for other edits', () => {
+    expect(discardCopy(base, { ...base, target: 5500 })).toBe('Your new target of RM 5,500.00 won’t be saved. Tabung Rumah stays at RM 5,000.00.');
+    expect(discardCopy(base, { ...base, name: 'Rumah' })).toBe('Your changes to Tabung Rumah won’t be saved.');
+  });
+});
+
+describe('progressPct and monthLabel', () => {
+  it('match the dirty preview: 80% → 50%', () => {
+    expect(progressPct(4000, 5000)).toBe(80);
+    expect(progressPct(4000, 8000)).toBe(50);
+    expect(progressPct(4000, null)).toBe(0);
+    expect(monthLabel('2026-10-31')).toBe('Oct 2026');
   });
 });

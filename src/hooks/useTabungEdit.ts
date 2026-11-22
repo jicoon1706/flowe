@@ -107,6 +107,12 @@ export function useTabungEdit(accountId: string) {
     await storageService.deleteTabungCover(path);
   }, []);
 
+  /** A signed URL for a cover path (1 hour), or null. */
+  const coverUrl = useCallback(async (path: string): Promise<string | null> => {
+    const res = await storageService.getTabungCoverUrls([path]);
+    return res.ok ? res.data[path] ?? null : null;
+  }, []);
+
   const clearError = useCallback((field: keyof TabungEditErrors) => {
     setErrors((prev) => {
       if (!(field in prev)) return prev;
@@ -116,5 +122,5 @@ export function useTabungEdit(accountId: string) {
     });
   }, []);
 
-  return { save, undo, finalize, uploadCover, discardCover, saving, uploading, errors, clearError };
+  return { save, undo, finalize, uploadCover, discardCover, coverUrl, saving, uploading, errors, clearError };
 }

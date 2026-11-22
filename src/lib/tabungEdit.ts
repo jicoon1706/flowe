@@ -107,3 +107,31 @@ export function fieldOfServerError(message: string): TabungEditField | null {
   if (/target|saved so far/i.test(message)) return 'target';
   return null;
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** '2026-10-31' → 'Oct 2026' (the Target date pill). */
+export function monthLabel(ymd: string): string {
+  const [y, m] = ymd.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${y}`;
+}
+
+/**
+ * The Discard prompt's body (d-tabung-edit-discard): "Your new target of RM
+ * 8,000.00 and target date of Oct 2026 won’t be saved. Tabung Rumah stays at
+ * RM 5,000.00." Other edits get the general line.
+ */
+export function discardCopy(initial: TabungEditValues, current: TabungEditValues): string {
+  const targetMoved = current.target !== null && current.target !== initial.target;
+  const dateMoved = current.toDate.slice(0, 7) !== initial.toDate.slice(0, 7);
+  if (targetMoved) {
+    const date = dateMoved ? ` and target date of ${monthLabel(current.toDate)}` : '';
+    return `Your new target of ${formatRM(current.target ?? 0)}${date} won’t be saved. ${initial.name} stays at ${formatRM(initial.target ?? 0)}.`;
+  }
+  return `Your changes to ${initial.name} won’t be saved.`;
+}
+
+/** Whole % of the target already saved (the "Progress: 80% → 50%" preview). */
+export function progressPct(saved: number, target: number | null): number {
+  return target && target > 0 ? Math.round((saved / target) * 100) : 0;
+}

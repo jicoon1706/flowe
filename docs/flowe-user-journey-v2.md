@@ -481,7 +481,7 @@ Both are thin wrappers around `components/accounts/AccountDetailScreen.tsx`, wit
 - **Exits:** back.
 
 #### 5.1.6a Edit Tabung — drawer (desktop) / sheet (tablet, phone)
-> **Status (2026-11-22):** backend live on "flowe" (migration 20261124_tabung_edit). Data layer done in both apps. **UI pending** on desktop, tablet and phone.
+> **Status (2026-11-22):** backend live on "flowe" (migration 20261124_tabung_edit). Data layer done in both apps. **Desktop UI built** (2026-11-22): `components/tabung/TabungEditDrawer.tsx`, opened from **Edit** on the Tabung detail hero (hint "Edit name, target & dates · E", key E); saved toast "Saved · {name} target is now RM X" with **Undo**. **Tablet and phone UI pending.**
 
 - **Design:** desktop `d-tabung-edit-entry`, `d-tabung-edit`, `-dirty`, `-error`, `-discard`, `-saving`, `-saved`; tablet `t-n-tabung-edit-*`; phone `n-tabung-edit-*` (same seven states).
 - **Entry:** **Edit** on the Tabung detail hero. Progress mode and Delete stay in Settings ("Progress mode & delete are in Settings").
@@ -792,7 +792,7 @@ Spending by category (`/cashflow`) and the net-worth / assets / liabilities scre
 - **Exits:** cashflow/info; transactions (category or expense filter); Add transaction drawer; patterns dialog.
 
 #### 5.4.4 Desktop · Gold & KWSP valuation (Desktop K) — `flowe-desktop/src/pages/CashflowInfoPage.tsx`
-> **Status (2026-11-22):** backend live on "flowe" (migrations 20261123–20261123b, 20261123d). Data layer done in both apps: `assetsRepository.saveGold` / `saveKwsp`, `useAssets().saveGold` / `saveKwsp`, `netWorthRepository`, `useNetWorthBreakdown`; shared `src/lib/goldValuation.ts`, `kwsp.ts`. **UI pending** on desktop, tablet (`t-mn-*`) and phone (`mn-*`); until then every platform uses the single-value asset sheet (§5.4.2).
+> **Status (2026-11-22):** backend live on "flowe" (migrations 20261123–20261123b, 20261123d). Data layer done in both apps: `assetsRepository.saveGold` / `saveKwsp`, `useAssets().saveGold` / `saveKwsp`, `netWorthRepository`, `useNetWorthBreakdown`; shared `src/lib/goldValuation.ts`, `kwsp.ts`. **Desktop UI built** (2026-11-22): `pages/CashflowInfoPage.tsx` (hero + Breakdown, Assets / Liabilities cards, footnote), `components/cashflow/` `AddAssetDrawer` (type picker), `GoldAssetDrawer`, `KwspAssetDrawer` (add + detail), `NetWorthHero`, `BalanceRow`, `GainLossTag`; copy in `lib/assetDisplay.ts`. **Tablet (`t-mn-*`) and phone (`mn-*`) UI pending**; they still use the single-value asset sheet (§5.4.2).
 
 - **Design (Desktop page, section K):** cashflow/info · add asset · type picker (`dn-asset-type-picker`); add asset · Gold (empty) (`dn-gold-empty`); add asset · Gold (filled) (`dn-gold-filled`); add asset · KWSP / EPF (empty) (`dn-kwsp-empty`); add asset · KWSP / EPF (filled) (`dn-kwsp-filled`); Gold + KWSP saved (`dn-assets-saved`); Gold price stale (`dn-gold-stale`); KWSP / EPF detail (`dn-kwsp-detail`); net worth breakdown (`dn-networth-breakdown`). Flow: `dl-flow-map`, lower row "H + K · Net worth (Gold & KWSP)".
 - **Route:** `/cashflow/info` (unchanged) · **Locked?** PIN required (desktop lock) · **Shell:** sidebar with **Cashflow** active; page header "Cashflow info" with search (⌘K), month button, notifications and avatar.
@@ -839,7 +839,7 @@ Spending by category (`/cashflow`) and the net-worth / assets / liabilities scre
 - **Extension point:** KWSP monthly contributions (TS type `KwspContribution`, comment in the migration). No table yet.
 
 #### 5.4.5 Desktop · Income split (Desktop L) — `flowe-desktop/src/pages/IncomeSplitPage.tsx`
-> **Status (2026-11-22):** backend live on "flowe" (migrations 20261123c, 20261123e). Data layer done in both apps: `incomeSplitRepository`, `useIncomeSplit`, `useCategoryGroups`; shared `src/lib/incomeSplit.ts`. **UI pending** on desktop, tablet (`t-mo-*`) and phone (`mo-*`).
+> **Status (2026-11-22):** backend live on "flowe" (migrations 20261123c, 20261123e). Data layer done in both apps: `incomeSplitRepository`, `useIncomeSplit`, `useCategoryGroups`; shared `src/lib/incomeSplit.ts`. **Desktop UI built** (2026-11-22): `pages/IncomeSplitPage.tsx` (route `/cashflow/split`, title and **Edit groups** in the page header), `components/split/` `IncomeSplitCard` (on Cashflow above Expenses), `SplitBar`, `EditGroupsDrawer`; bar / links / list in `lib/incomeSplitView.ts`. **Tablet (`t-mo-*`) and phone (`mo-*`) UI pending.**
 
 - **Design (Desktop page, section L):** cashflow · income split card (`dl-cashflow-card`); income split (`dl-split`); income split · Needs selected (`dl-split-bucket`); income split · edit groups drawer (`dl-edit-groups`); income split · overspent (`dl-split-over`); income split · empty (`dl-split-empty`). Flow: `dl-flow-map`, upper row "L · Income split".
 - **Route:** `/cashflow/split` · **Locked?** PIN required (desktop lock) · **Shell:** sidebar with **Cashflow** active; page header "Income split" with search (⌘K), **Edit groups**, the month button, notifications and avatar.
@@ -1120,6 +1120,13 @@ These exist on the canvas but go beyond what v1 found in `app/`. Each entry says
 ---
 
 ## 7. Changes
+
+### Changes in v2.4 (2026-11-22) · Desktop UI for Gold & KWSP, Income split, Edit Tabung
+- §5.4.4: Cashflow info is rebuilt to the K boards (the income statement and diagram cards move off this page; they remain on Cashflow). The header reads "Cashflow info".
+- §5.4.5: `/cashflow/split` and the Cashflow card are built; the header reads "Income split" with **Edit groups**.
+- §5.1.6a: Edit Tabung drawer built on desktop.
+- Gold gain/loss is the one coloured tag: tokens `gain-container` / `on-gain` (not drawn; matching green) and `loss-container` / `on-loss` (#FEF3F2 / #B42318, drawn).
+- Differences from the boards: the Discard prompt uses the app's ConfirmDialog (icon, side-by-side buttons; "Keep editing" stays primary); the success toast is the app's grey toast for all three (dn-assets-saved draws a black one); with the "Updated" tag the Target date pill wraps under Start; cover photos are stored but not yet shown on the Tabung card.
 
 ### Changes in v2.3 (2026-11-22) · Edit Tabung data layer
 - **§5.1.6a Edit Tabung** is new: migration 20261124 (`monthly_topup`, `cover_path`, bucket `tabung-covers`, `update_tabung`), `useTabungEdit` in both apps. UI pending on all platforms.
