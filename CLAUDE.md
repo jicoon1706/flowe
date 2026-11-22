@@ -75,8 +75,8 @@ Gate an action with `await requireUnlock()`; read `locked` to decide what to mas
 - `src/lib/` — `supabase.ts`, `secureStore.ts` (PIN hash + flags), `pinCrypto.ts`
 - `src/types/` — `database.types.ts` (row types + enums), cashflow/receipt/onboarding types
 - `src/utils/` — parsing/matching helpers, `result.ts`
-- `context/` — Auth, Onboarding, Settings, Learn, Lock, TabBar providers
-- `constants/` — `categories.ts`, `banks.ts`, `notificationSources.ts`, `theme.ts`
+- `context/` — Auth, Onboarding, Lock, DetectedTransactions providers
+- `constants/` — `categories.ts`, `banks.ts`, `notificationSources.ts`, `tabungGoals.ts`, … (theme tokens live in `theme/tokens.js`)
 - `modules/flowe-notifications/` — Android notification-listener native module
 - `supabase/functions/`, `supabase/migrations/` — Edge Functions and SQL
 - `docs/` — architecture, API, DB, theme, user journey, auto-detect flow
