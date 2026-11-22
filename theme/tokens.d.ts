@@ -21,6 +21,8 @@ export interface TypeSpec {
 }
 
 export const colors: Record<ColorToken, string>;
+/** Gold gain / loss tag colours (not in `colors`, so not in the Android resources). */
+export const status: Record<'gain-container' | 'on-gain' | 'loss-container' | 'on-loss', string>;
 export const gradient: { from: string; to: string };
 export const chart: readonly [string, string, string];
 export const radius: Record<'sm' | 'md' | 'lg' | 'xl' | 'full', number>;

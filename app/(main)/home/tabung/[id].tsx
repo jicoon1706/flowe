@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, View } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowDownRight, CalendarDays, Check, PiggyBank, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { Pressable } from '@/components/ui/Pressable';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { ArrowDownRight, CalendarDays, Check, Pencil, PiggyBank, Plus, RefreshCw, SlidersHorizontal } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
 import { TabungBreakdownSheet } from '@/components/tabung/TabungBreakdownSheet';
 import { TabungMoneySheet } from '@/components/tabung/TabungMoneySheet';
@@ -52,6 +54,7 @@ function monthYear(ymd: string): string {
  */
 export default function TabungScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { isTablet } = useBreakpoint();
   const accountId = id ?? '';
   const router = useRouter();
   const toast = useToast();
@@ -167,7 +170,23 @@ export default function TabungScreen() {
       refreshControl={<RefreshControl refreshing={loading && !!progress} onRefresh={refresh} tintColor={colors['on-primary']} />}
       hero={
         <View>
-          <TopBar title={name} onBack={() => router.back()} right={<GlassIconButton icon={SlidersHorizontal} accessibilityLabel="Tabung settings" onPress={() => setSettings({ focusTarget: false })} disabled={!tabung} />} />
+          <TopBar title={name} onBack={() => router.back()} right={
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {/* t-n-tabung-edit-entry: Edit (name, target & dates) beside Settings. */}
+              {isTablet && tabung ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit name, target and dates"
+                  onPress={() => router.push(`/tabung/edit/${id}` as Href)}
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 14, paddingRight: 18, borderRadius: 9999, backgroundColor: colors.glass, opacity: pressed ? 0.8 : 1 })}
+                >
+                  <Pencil size={18} color={colors['on-primary']} strokeWidth={1.75} />
+                  <Text variant="label-lg" tone="inverse">Edit</Text>
+                </Pressable>
+              ) : null}
+              <GlassIconButton icon={SlidersHorizontal} accessibilityLabel="Tabung settings" onPress={() => setSettings({ focusTarget: false })} disabled={!tabung} />
+            </View>
+          } />
           <View style={{ alignItems: 'center', gap: 14, marginTop: 16 }}>
             <ProgressRing progress={firstLoad ? 0 : progress?.progress ?? 0} size={196} stroke={12} accessibilityLabel={progress ? `${progress.percent}% of goal` : 'Loading'}>
               {firstLoad ? (

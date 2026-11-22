@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react-native';
-import { Briefcase, Building2, Car, CreditCard, Gem, GraduationCap, HeartPulse, House, Landmark, LineChart, Package, PiggyBank, Shield } from 'lucide-react-native';
+import { Briefcase, Building2, Car, ChartPie, Coins, CreditCard, GraduationCap, HeartPulse, House, Landmark, LayoutGrid, Lock, Package, ShieldCheck, TrendingUp } from 'lucide-react-native';
 import type { AssetType, LiabilityType } from '../src/types/database.types';
 
 export interface BalanceTypeOption<T extends string> {
@@ -10,18 +10,22 @@ export interface BalanceTypeOption<T extends string> {
   iconKey: string;
 }
 
-/** Asset types (DB enum). Default for new assets: stocks ("Investment"). */
+/** Asset types (DB enum) in the type picker's order and icons (canvas mn-asset-type-picker). */
 export const ASSET_TYPES: BalanceTypeOption<AssetType>[] = [
-  { value: 'stocks', label: 'Stocks / ETF', icon: LineChart, iconKey: 'stocks' },
-  { value: 'unit_trust', label: 'Unit trust', icon: Shield, iconKey: 'unit_trust' },
-  { value: 'asb', label: 'ASB', icon: PiggyBank, iconKey: 'asb' },
-  { value: 'fixed_deposit', label: 'Fixed deposit', icon: Landmark, iconKey: 'fixed_deposit' },
-  { value: 'gold', label: 'Gold', icon: Gem, iconKey: 'gold' },
+  { value: 'stocks', label: 'Stocks / ETF', icon: TrendingUp, iconKey: 'stocks' },
+  { value: 'unit_trust', label: 'Unit trust', icon: ChartPie, iconKey: 'unit_trust' },
+  { value: 'asb', label: 'ASB', icon: Landmark, iconKey: 'asb' },
+  { value: 'fixed_deposit', label: 'Fixed deposit', icon: Lock, iconKey: 'fixed_deposit' },
+  { value: 'gold', label: 'Gold', icon: Coins, iconKey: 'gold' },
   { value: 'real_estate', label: 'Property', icon: House, iconKey: 'real_estate' },
   { value: 'vehicle', label: 'Vehicle', icon: Car, iconKey: 'vehicle' },
   { value: 'business', label: 'Business', icon: Briefcase, iconKey: 'business' },
-  { value: 'others', label: 'Other', icon: Package, iconKey: 'others' },
+  { value: 'kwsp', label: 'KWSP / EPF', icon: ShieldCheck, iconKey: 'kwsp' },
+  { value: 'others', label: 'Other', icon: LayoutGrid, iconKey: 'others' },
 ];
+
+/** Types with their own form (mn-gold-*, mn-kwsp-*); the rest use the single-value sheet. */
+export const VALUED_ASSET_TYPES: readonly AssetType[] = ['gold', 'kwsp'];
 
 /** Assets held as a physical amount as well as ringgit (grams of gold). */
 export const UNIT_FOR_ASSET: Partial<Record<AssetType, string>> = { gold: 'g' };

@@ -1,10 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
 import { RefreshControl, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { Plus, RefreshCw, Shield, Workflow } from 'lucide-react-native';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { Banknote, ChevronDown, ChevronRight, ChevronUp, Plus, RefreshCw, Shield, Workflow } from 'lucide-react-native';
 import { colors, radius } from '@/theme/tokens';
 import { assetTypeOption, liabilityTypeOption } from '@/constants/balanceSheetTypes';
 import { AssetSheet, type AssetInput } from '@/components/cashflow/AssetSheet';
+import { AssetTypePickerSheet } from '@/components/cashflow/AssetTypePickerSheet';
+import { BalanceRow } from '@/components/cashflow/BalanceRow';
+import { GainLossTag } from '@/components/cashflow/GainLossTag';
+import { GoldAssetSheet } from '@/components/cashflow/GoldAssetSheet';
+import { KwspAssetSheet } from '@/components/cashflow/KwspAssetSheet';
+import { NetWorthBreakdownPanel } from '@/components/cashflow/NetWorthBreakdownPanel';
 import { CashFlowDiagram } from '@/components/cashflow/CashFlowDiagram';
 import { CashFlowPatternDiagram } from '@/components/cashflow/CashFlowPatternDiagram';
 import { StatementLine } from '@/components/cashflow/StatementLine';
@@ -27,6 +33,11 @@ import { useAuth } from '@/context/AuthContext';
 import { useLock } from '@/context/LockContext';
 import { useAccounts } from '@/src/hooks/useAccounts';
 import { useAssets } from '@/src/hooks/useAssets';
+import { useBreakpoint } from '@/src/hooks/useBreakpoint';
+import { useNetWorthBreakdown } from '@/src/hooks/useNetWorthBreakdown';
+import { assetGainLoss, assetRowLabel, assetSubtitle, staleDays } from '@/src/lib/assetDisplay';
+import { isPricedGold, todayInKualaLumpur } from '@/src/lib/goldValuation';
+import { Pressable } from '@/components/ui/Pressable';
 import { useLiabilities } from '@/src/hooks/useLiabilities';
 import { useRecurring } from '@/src/hooks/useRecurring';
 import { useTransactions } from '@/src/hooks/useTransactions';
@@ -35,11 +46,16 @@ import { CLASS_LABEL, coverRatio, financialClass } from '@/src/lib/cashflow';
 import { formatRM } from '@/src/lib/money';
 import { sumBalances, spendableAccounts, type AnyAccount } from '@/src/utils/accountDisplay';
 import { localYMD } from '@/src/utils/date';
-import type { Asset, Liability } from '@/src/types';
+import type { Asset, AssetType, Liability } from '@/src/types';
 
 /**
  * cashflow/info — income statement + balance sheet, class badge on the hero
  * (tap → patterns), diagram card, Add asset / Add liability sheets.
+ *
+ * Tablet (t-mn-*, spec §5.4.4): net worth from net_worth_breakdown() with the
+ * Breakdown panel; Assets and Liabilities lists (Gold with grams, purity, price
+ * date, gain / loss and the stale nudge; KWSP with its 3 accounts); Add asset
+ * starts at the type picker; Gold and KWSP have their own forms.
  */
 export default function CashflowInfoScreen() {
   const router = useRouter();
@@ -58,11 +74,18 @@ export default function CashflowInfoScreen() {
   const [diagram, setDiagram] = useState(false);
   const [patterns, setPatterns] = useState(false);
   const [fetched, setFetched] = useState(false);
+  const { isTablet } = useBreakpoint();
+  const { data: worth, refresh: refreshWorth } = useNetWorthBreakdown();
+  const [picker, setPicker] = useState(false);
+  const [pickedType, setPickedType] = useState<AssetType | null>(null);
+  const [gold, setGold] = useState<{ initial: Asset | null; focusPrice?: boolean } | null>(null);
+  const [kwspAdd, setKwspAdd] = useState(false);
+  const [breakdown, setBreakdown] = useState(false);
 
   const load = useCallback(async () => {
-    await Promise.all([fetchAssets(), fetchLiabilities(), fetchAccounts(), refetch()]);
+    await Promise.all([fetchAssets(), fetchLiabilities(), fetchAccounts(), refetch(), refreshWorth()]);
     setFetched(true);
-  }, [fetchAssets, fetchLiabilities, fetchAccounts, refetch]);
+  }, [fetchAssets, fetchLiabilities, fetchAccounts, refetch, refreshWorth]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const all = accounts as AnyAccount[];
@@ -84,6 +107,38 @@ export default function CashflowInfoScreen() {
   const assetsLabel = ['cash', ...assets.slice(0, 2).map((a) => a.name)].join(' + ');
   const liabLabel = liabilities.slice(0, 2).map((l) => l.name).join(' + ') || 'none';
   const firstLoad = (aLoading || lLoading || txLoading) && !fetched;
+  const today = todayInKualaLumpur();
+  const netWorth = isTablet && worth ? worth.net_worth : totalAssets - totalLiab;
+
+  // t-mn-asset-type-picker → Gold / KWSP forms, or the single-value sheet with that type.
+  const pick = (t: AssetType) => {
+    setPicker(false);
+    if (t === 'gold') setGold({ initial: null });
+    else if (t === 'kwsp') setKwspAdd(true);
+    else { setPickedType(t); setAssetSheet({ initial: null }); }
+  };
+  const backToPicker = () => { setGold(null); setKwspAdd(false); setPicker(true); };
+  const openAsset = (a: Asset) => {
+    if (isPricedGold(a)) setGold({ initial: a });
+    else if (a.type === 'kwsp') router.push(`/cashflow/kwsp/${a.id}` as Href);
+    else setAssetSheet({ initial: a });
+  };
+  // t-mn-assets-saved: "{name} added" with Undo (Undo removes it again).
+  const valuedSaved = (asset: Asset, created: boolean) => {
+    setGold(null);
+    setKwspAdd(false);
+    load();
+    const name = asset.type === 'kwsp' ? 'KWSP / EPF' : asset.name;
+    if (!created) { toast.success('Asset updated'); return; }
+    toast.success(`${name} added`, {
+      label: 'Undo',
+      onPress: async () => {
+        const res = await deleteAsset(asset.id);
+        if (!res.ok) toast.failure('Couldn’t undo it');
+        load();
+      },
+    });
+  };
 
   const saveAsset = async (a: AssetInput) => {
     if (!user) return false;
@@ -133,7 +188,7 @@ export default function CashflowInfoScreen() {
   return (
     <HeroScreen
       tabletLayout="panel"
-      heroHeight={300}
+      heroHeight={isTablet ? undefined : 300}
       refreshControl={<RefreshControl refreshing={(aLoading || lLoading) && fetched} onRefresh={load} tintColor={colors['on-primary']} />}
       hero={
         <View>
@@ -144,8 +199,20 @@ export default function CashflowInfoScreen() {
             ) : (
               <>
                 <Text variant="body-lg" tone="soft">Net worth</Text>
-                <Money amount={totalAssets - totalLiab} variant="numeric-lg" on="gradient" smallCurrency masked={locked} />
+                <Money amount={netWorth} variant="numeric-lg" on="gradient" smallCurrency masked={locked} size={isTablet && breakdown ? 48 : undefined} />
                 <GlassChip icon={Shield} label={`${CLASS_LABEL[cls]}${ratio ? ` · assets cover ${ratio}× debts` : ''}`} onPress={() => setPatterns(true)} accessibilityLabel={`${CLASS_LABEL[cls]}. Show cash flow patterns`} />
+                {isTablet && worth ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: breakdown }}
+                    onPress={() => setBreakdown((b) => !b)}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 16, paddingRight: 14, borderRadius: 9999, backgroundColor: colors.glass, opacity: pressed ? 0.8 : 1 })}
+                  >
+                    <Text variant="body-md" weight={600} tone="inverse">{breakdown ? 'Hide breakdown' : 'Breakdown'}</Text>
+                    {breakdown ? <ChevronUp size={16} color={colors['on-primary']} strokeWidth={1.75} /> : <ChevronDown size={16} color={colors['on-primary']} strokeWidth={1.75} />}
+                  </Pressable>
+                ) : null}
+                {isTablet && worth && breakdown ? <NetWorthBreakdownPanel data={worth} masked={locked} /> : null}
               </>
             )}
           </View>
@@ -153,7 +220,11 @@ export default function CashflowInfoScreen() {
       }
       overlay={
         <>
-          <AssetSheet visible={!!assetSheet} initial={assetSheet?.initial ?? null} accounts={spendableAccounts(all)} onClose={() => setAssetSheet(null)} onSubmit={saveAsset}
+          <AssetTypePickerSheet visible={picker} onClose={() => setPicker(false)} onPick={pick} />
+          <GoldAssetSheet visible={!!gold} initial={gold?.initial ?? null} focusPrice={gold?.focusPrice} onClose={() => setGold(null)} onSaved={valuedSaved} onChangeType={gold?.initial ? undefined : backToPicker}
+            onDelete={() => { const a = gold?.initial; if (a) { setGold(null); setConfirmDelete({ kind: 'asset', id: a.id, name: a.name }); } }} />
+          <KwspAssetSheet visible={kwspAdd} onClose={() => setKwspAdd(false)} onSaved={(a) => valuedSaved(a, true)} onChangeType={backToPicker} />
+          <AssetSheet visible={!!assetSheet} initial={assetSheet?.initial ?? null} initialType={pickedType ?? undefined} valuedForms={isTablet} accounts={spendableAccounts(all)} onClose={() => { setAssetSheet(null); setPickedType(null); }} onSubmit={saveAsset}
             onDelete={() => { const a = assetSheet?.initial; if (a) { setAssetSheet(null); setConfirmDelete({ kind: 'asset', id: a.id, name: a.name }); } }} />
           <LiabilitySheet visible={!!liabSheet} initial={liabSheet?.initial ?? null} onClose={() => setLiabSheet(null)} onSubmit={saveLiability}
             onDelete={() => { const l = liabSheet?.initial; if (l) { setLiabSheet(null); setConfirmDelete({ kind: 'liability', id: l.id, name: l.name }); } }} />
@@ -187,6 +258,22 @@ export default function CashflowInfoScreen() {
       {(aError || lError) && !assets.length && !liabilities.length && fetched ? (
         <EmptyState icon={RefreshCw} title="Couldn’t load your balance sheet" body="Check your connection and try again." ctaLabel="Try again" onCta={load} />
       ) : null}
+      {isTablet ? (
+        <TabletBalanceSheet
+          worth={worth}
+          assets={assets}
+          liabilities={liabilities}
+          today={today}
+          masked={locked}
+          onAddAsset={() => setPicker(true)}
+          onAddLiability={() => setLiabSheet({ initial: null })}
+          onOpenCash={() => router.push('/home/accounts')}
+          onOpenAsset={openAsset}
+          onUpdatePrice={(a) => setGold({ initial: a, focusPrice: true })}
+          onOpenLiability={(l) => setLiabSheet({ initial: l })}
+        />
+      ) : (
+      <>
       <ResponsiveColumns>
         <View style={{ backgroundColor: colors['surface-container'], borderRadius: radius.md, padding: 16, gap: 10 }}>
           <Text variant="label-lg">Income statement · {monthShort}</Text>
@@ -216,7 +303,74 @@ export default function CashflowInfoScreen() {
         </View>
       ) : null}
       <SettingsRow label="Cash flow diagram" value="How money moves between the four boxes" icon={Workflow} onPress={() => setDiagram(true)} />
+      </>
+      )}
     </HeroScreen>
   );
 }
 
+
+interface TabletBalanceSheetProps {
+  worth: ReturnType<typeof useNetWorthBreakdown>['data'];
+  assets: Asset[];
+  liabilities: Liability[];
+  today: string;
+  masked: boolean;
+  onAddAsset: () => void;
+  onAddLiability: () => void;
+  onOpenCash: () => void;
+  onOpenAsset: (a: Asset) => void;
+  onUpdatePrice: (a: Asset) => void;
+  onOpenLiability: (l: Liability) => void;
+}
+
+/** t-mn-assets-saved: Assets (cash, then each asset), Liabilities, "How net worth is counted". */
+function TabletBalanceSheet({ worth, assets, liabilities, today, masked, onAddAsset, onAddLiability, onOpenCash, onOpenAsset, onUpdatePrice, onOpenLiability }: TabletBalanceSheetProps) {
+  const cash = worth?.groups.find((g) => g.key === 'cash');
+  const header = (title: string, total: number | null, cta: string, onPress: () => void) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      <View style={{ gap: 2 }}>
+        <Text variant="headline-md" accessibilityRole="header">{title}</Text>
+        {total !== null ? <Text variant="body-md" size={13} tone="muted" tabular>{masked ? 'RM •••••' : formatRM(total)}</Text> : null}
+      </View>
+      <Button label={cta} icon={Plus} variant="action" height={44} onPress={onPress} />
+    </View>
+  );
+  return (
+    <View style={{ gap: 12 }}>
+      {header('Assets', worth?.total_assets ?? null, 'Add asset', onAddAsset)}
+      <BalanceRow icon={Banknote} title="Cash in accounts" subtitle={`${worth?.cash_accounts ?? 0} accounts`} label="Cash in accounts" amount={<Money amount={cash?.total ?? 0} weight={600} masked={masked} />} onPress={onOpenCash} />
+      {assets.map((a) => {
+        const opt = assetTypeOption(a.type);
+        const gain = assetGainLoss(a);
+        const days = staleDays(a, today);
+        return (
+          <BalanceRow
+            key={a.id}
+            icon={opt.icon}
+            title={a.name}
+            subtitle={assetSubtitle(a, opt.label)}
+            label={assetRowLabel(a, days, gain)}
+            amount={<Money amount={Number(a.current_value)} weight={600} masked={masked} />}
+            tag={gain && days === null ? <GainLossTag gain={gain} /> : null}
+            onPress={() => onOpenAsset(a)}
+            stale={days !== null ? { days, onUpdate: () => onUpdatePrice(a) } : undefined}
+          />
+        );
+      })}
+      <View style={{ height: 4 }} />
+      {header('Liabilities', worth?.total_liabilities ?? null, 'Add liability', onAddLiability)}
+      {liabilities.map((l) => {
+        const opt = liabilityTypeOption(l.type);
+        return <BalanceRow key={l.id} icon={opt.icon} title={l.name} subtitle={opt.label} label={l.name} amount={<Money amount={Number(l.amount_owed)} weight={600} masked={masked} />} onPress={() => onOpenLiability(l)} />;
+      })}
+      <View style={{ flexDirection: 'row', gap: 10, backgroundColor: colors['surface-container'], borderRadius: radius.md, paddingVertical: 14, paddingHorizontal: 16 }}>
+        <ChevronRight size={18} color={colors['on-surface']} strokeWidth={1.75} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text variant="body-md" weight={600}>How net worth is counted</Text>
+          <Text variant="body-md" size={13} tone="muted">Gold uses Public Gold’s buyback price. KWSP counts all 3 accounts.</Text>
+        </View>
+      </View>
+    </View>
+  );
+}

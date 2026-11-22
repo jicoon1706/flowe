@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Landmark, Wallet } from 'lucide-react-native';
-import { ASSET_TYPES, UNIT_FOR_ASSET } from '@/constants/balanceSheetTypes';
+import { ASSET_TYPES, UNIT_FOR_ASSET, VALUED_ASSET_TYPES } from '@/constants/balanceSheetTypes';
 import { parseAmount, roundCents } from '@/src/lib/money';
 import { monthStart } from '@/src/utils/monthStart';
 import { accountDomain, type AnyAccount } from '@/src/utils/accountDisplay';
@@ -39,10 +39,14 @@ export interface AssetSheetProps {
   accounts: AnyAccount[];
   onSubmit: (a: AssetInput) => Promise<boolean>;
   onDelete?: () => void;
+  /** Add: the type picked in the type picker. */
+  initialType?: AssetType;
+  /** Gold and KWSP have their own forms here, so their chips are hidden (tablet). */
+  valuedForms?: boolean;
 }
 
 /** Add / edit asset (ins-add-asset). Type defaults to an investment; optional funding from an account. */
-export function AssetSheet({ visible, onClose, initial, accounts, onSubmit, onDelete }: AssetSheetProps) {
+export function AssetSheet({ visible, onClose, initial, accounts, onSubmit, onDelete, initialType, valuedForms = false }: AssetSheetProps) {
   const editing = !!initial;
   const [name, setName] = useState('');
   const [type, setType] = useState<AssetType>('stocks');
@@ -59,7 +63,7 @@ export function AssetSheet({ visible, onClose, initial, accounts, onSubmit, onDe
   useEffect(() => {
     if (!visible) return;
     setName(initial?.name ?? '');
-    setType(initial?.type ?? 'stocks');
+    setType(initial?.type ?? initialType ?? 'stocks');
     setValue(initial ? String(initial.current_value) : '');
     setIncome(initial?.monthly_income ? String(initial.monthly_income) : '');
     setQty(initial?.quantity != null ? String(initial.quantity) : '');
@@ -67,7 +71,7 @@ export function AssetSheet({ visible, onClose, initial, accounts, onSubmit, onDe
     setFund(false);
     setFundId(null);
     setError(null);
-  }, [visible, initial]);
+  }, [visible, initial, initialType]);
 
   const unit = UNIT_FOR_ASSET[type];
   const base = parseAmount(value) ?? 0;
@@ -104,7 +108,7 @@ export function AssetSheet({ visible, onClose, initial, accounts, onSubmit, onDe
         <View style={{ gap: 8 }}>
           <Text variant="label-sm" tone="muted">Type</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {ASSET_TYPES.map((o) => <Chip key={o.value} label={o.label} selected={o.value === type} onPress={() => setType(o.value)} />)}
+            {ASSET_TYPES.filter((o) => o.value === initial?.type || (o.value !== 'kwsp' && !(valuedForms && VALUED_ASSET_TYPES.includes(o.value)))).map((o) => <Chip key={o.value} label={o.label} selected={o.value === type} onPress={() => setType(o.value)} />)}
           </ScrollView>
         </View>
         <AmountField label={editing ? 'Value now' : 'Value'} value={value} onChangeText={setValue} />

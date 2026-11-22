@@ -31,6 +31,19 @@ const derived = {
 
 const colors = { ...source.colors, ...aa, ...derived };
 
+/**
+ * Gold gain / loss tag: the one coloured tag in the product (spec §5.4.4,
+ * canvas mn-gold-filled / t-mn-assets-saved). Loss is drawn; gain is the
+ * matching green pair (same values as flowe-desktop's tokens). Kept out of
+ * `colors` so the Android widget resources don't change.
+ */
+const status = {
+  'gain-container': '#ECFDF3',
+  'on-gain': '#067647',
+  'loss-container': '#FEF3F2',
+  'on-loss': '#B42318',
+};
+
 /** Vertical hero field, navy on top. The only gradient in the product. */
 const gradient = { from: colors.primary, to: colors['primary-container'] };
 
@@ -65,4 +78,4 @@ const type = Object.fromEntries(
   }),
 );
 
-module.exports = { colors, gradient, chart, radius, spacing, type, fontFamily, familyForWeight, source };
+module.exports = { colors, status, gradient, chart, radius, spacing, type, fontFamily, familyForWeight, source };

@@ -32,6 +32,8 @@ export interface HeroScreenProps {
    * contentWidth 'dashboard' and 'panel' for 'form'.
    */
   tabletLayout?: TabletLayout;
+  /** Tablet panel only: content column width in dp (default 640). Income split uses the full card (24 dp padding). */
+  panelColumn?: number;
 }
 
 /**
@@ -39,7 +41,7 @@ export interface HeroScreenProps {
  * working sheet (32 px top radius) that overlaps its bottom edge. Scrolls as one.
  */
 export function HeroScreen({
-  hero, heroHeight, overlap = 24, children, bottomPadding = 120, refreshControl, sheetPadding, overlay, heroDimmed, scrollEnabled = true, testID, contentWidth = 'dashboard', heroColumn = true, tabletLayout,
+  hero, heroHeight, overlap = 24, children, bottomPadding = 120, refreshControl, sheetPadding, overlay, heroDimmed, scrollEnabled = true, testID, contentWidth = 'dashboard', heroColumn = true, tabletLayout, panelColumn = TABLET_LAYOUT.panelColumn,
 }: HeroScreenProps) {
   const { isTablet, width } = useBreakpoint();
   const padX = sheetPadding?.horizontal ?? 16;
@@ -63,7 +65,7 @@ export function HeroScreen({
       <View style={{ flex: 1 }} testID={testID}>
         <GradientFill />
         <ScrollView refreshControl={refreshControl} scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingBottom: TABLET_LAYOUT.inset }}>
-          <Hero tablet="clear" height={heroHeight} dimmed={heroDimmed} contentMaxWidth={heroColumn ? TABLET_LAYOUT.panelColumn : undefined}>{hero}</Hero>
+          <Hero tablet="clear" height={heroHeight} dimmed={heroDimmed} contentMaxWidth={heroColumn ? panelColumn : undefined}>{hero}</Hero>
           <View
             style={{
               marginTop: 8,
@@ -72,7 +74,7 @@ export function HeroScreen({
               borderRadius: radius.lg,
               paddingTop: (sheetPadding?.top ?? 20) + 4,
               paddingBottom: Math.max(24, bottomPadding - 8),
-              paddingHorizontal: Math.max(padX, (width - 2 * TABLET_LAYOUT.inset - TABLET_LAYOUT.panelColumn) / 2),
+              paddingHorizontal: Math.max(padX, (width - 2 * TABLET_LAYOUT.inset - panelColumn) / 2),
               gap: 16,
               flexGrow: 1,
             }}

@@ -10,6 +10,8 @@ const NO_NAV = [
   /^\/settings\/change-pin$/,
   /^\/settings\/merchant-request$/,
   /^\/tabung\/new(\/form)?$/,
+  /^\/cashflow\/kwsp\/[^/]+$/,
+  /^\/tabung\/edit\/[^/]+$/,
   /^\/home\/learn\/[^/]+\/(add-entry|entry)$/,
 ];
 

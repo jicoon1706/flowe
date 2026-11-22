@@ -24,10 +24,10 @@ const HIDDEN = { href: null } as const;
 /** Every route in (main); only the first four are nav destinations. */
 const ROUTES = [
   'index', 'cashflow/index', 'add-transaction', 'calendar', 'settings',
-  'transactions', 'cashflow/info', 'home/notifications', 'home/analysis', 'home/accounts',
+  'transactions', 'cashflow/info', 'cashflow/kwsp/[id]', 'cashflow/split', 'home/notifications', 'home/analysis', 'home/accounts',
   'home/account/[id]', 'home/wallet/[id]', 'home/tabung/[id]', 'home/learn/index',
   'home/learn/[projectId]', 'home/learn/[projectId]/add-entry', 'home/learn/[projectId]/entry',
-  'tabung/new/index', 'tabung/new/form',
+  'tabung/new/index', 'tabung/new/form', 'tabung/edit/[id]',
 ] as const;
 
 const NAV_TARGET: Record<NavKey, '/(main)' | '/(main)/cashflow' | '/(main)/add-transaction' | '/(main)/calendar' | '/(main)/settings'> = {

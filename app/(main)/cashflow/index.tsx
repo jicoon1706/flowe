@@ -1,3 +1,4 @@
+import { IncomeSplitCard } from '@/components/split/IncomeSplitCard';
 import { useCallback, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -167,7 +168,11 @@ export default function CashflowScreen() {
                 <View style={{ flex: 1, minWidth: 0 }}>{pattern}</View>
               </View>
               <View style={{ flexDirection: 'row', gap: 16, alignItems: 'flex-start' }}>
-                <View style={{ flex: 1, minWidth: 0 }}>{diagram}</View>
+                <View style={{ flex: 1, minWidth: 0, gap: 16 }}>
+                  {diagram}
+                  {/* t-mo-cashflow-card: under the diagram, above nothing else in this column. */}
+                  <IncomeSplitCard month={month} masked={locked} />
+                </View>
                 <View style={{ flex: 1, minWidth: 0 }}>{expenses}</View>
               </View>
             </>
