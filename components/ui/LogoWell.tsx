@@ -51,7 +51,7 @@ export function LogoWell({ domain, merchant, fallback: Fallback = Store, size = 
         <Image
           source={{ uri: url }}
           onError={() => setFailed(true)}
-          style={{ width: inner, height: inner }}
+          style={{ width: inner, height: inner, borderRadius: inner / 2, overflow: 'hidden' }}
           contentFit="contain"
           cachePolicy="memory-disk"
           transition={120}
