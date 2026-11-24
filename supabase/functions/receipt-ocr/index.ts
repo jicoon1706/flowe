@@ -1,3 +1,19 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Every call spends the operator's OpenAI key, so the function checks the
+// caller itself (not only the gateway's verify_jwt, which also accepts the
+// public anon key) and takes one unit of a daily quota before the paid call:
+// OCR_DAILY_USER_LIMIT per user (default 30) and OCR_DAILY_GLOBAL_LIMIT for
+// everyone together (default 1000). See migration 20261126b_ocr_usage_quota.
+// (security-audit/run-1: unauthenticated-unmetered-openai-proxy)
+const DEFAULT_USER_LIMIT = 30;
+const DEFAULT_GLOBAL_LIMIT = 1000;
+
+function limitFromEnv(name: string, fallback: number): number {
+  const n = Number(Deno.env.get(name));
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
 // CORS headers inlined (rather than imported from ../_shared) so this function
 // is a single self-contained file — easiest to paste into the Supabase dashboard.
 const corsHeaders = {
@@ -158,9 +174,20 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+
   try {
     const apiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!apiKey) return json({ error: 'OCR is not configured (missing OPENAI_API_KEY)' }, 500);
+    if (!apiKey) return json({ error: 'OCR is not configured' }, 500);
+
+    // 1. Who is calling? A signed-in Flowe user only; the anon key alone is not enough.
+    const url = Deno.env.get('SUPABASE_URL')!;
+    const caller = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
+      auth: { persistSession: false },
+    });
+    const { data: userData, error: userError } = await caller.auth.getUser();
+    if (userError || !userData.user) return json({ error: 'Not signed in' }, 401);
 
     const { image, today: clientToday } = await req.json().catch(() => ({ image: undefined }));
     if (typeof image !== 'string' || image.length === 0) {
@@ -177,6 +204,17 @@ Deno.serve(async (req) => {
     const today = typeof clientToday === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(clientToday)
       ? clientToday
       : new Date().toISOString().slice(0, 10);
+
+    // 2. Take one unit of today's quota before spending anything. Fails closed:
+    //    if the quota can't be checked, no paid call is made.
+    const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+    const { data: allowed, error: quotaError } = await admin.rpc('ocr_usage_take', {
+      p_user: userData.user.id,
+      p_user_limit: limitFromEnv('OCR_DAILY_USER_LIMIT', DEFAULT_USER_LIMIT),
+      p_global_limit: limitFromEnv('OCR_DAILY_GLOBAL_LIMIT', DEFAULT_GLOBAL_LIMIT),
+    });
+    if (quotaError) return json({ error: 'Receipt scanning is unavailable right now' }, 503);
+    if (allowed !== true) return json({ error: 'Daily receipt scan limit reached. Try again tomorrow.' }, 429);
 
     const model = Deno.env.get('OPENAI_MODEL') ?? 'gpt-4o-mini';
     const baseUrl = (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '');
@@ -205,8 +243,9 @@ Deno.serve(async (req) => {
     });
 
     if (!res.ok) {
-      const detail = await res.text();
-      return json({ error: `LLM request failed (${res.status})`, detail }, 502);
+      // The upstream body can echo account or key details; log it, don't return it.
+      console.error('[receipt-ocr] LLM request failed', res.status, (await res.text()).slice(0, 500));
+      return json({ error: `LLM request failed (${res.status})` }, 502);
     }
 
     const completion = await res.json();
@@ -226,6 +265,7 @@ Deno.serve(async (req) => {
 
     return json(parsed, 200);
   } catch (err) {
-    return json({ error: String((err as Error)?.message ?? err) }, 500);
+    console.error('[receipt-ocr] unexpected error', err);
+    return json({ error: 'Could not read the receipt' }, 500);
   }
 });

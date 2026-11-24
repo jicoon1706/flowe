@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { PinEntryScreen } from '@/components/auth/PinEntryScreen';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAuth } from '@/context/AuthContext';
-import { authConfigRepository } from '@/src/repositories/authConfig.repository';
+import { edgeFunctionsService } from '@/src/services/edgeFunctions';
 import { hashPin } from '@/src/lib/pinCrypto';
 import { verifyPin } from '@/src/lib/pinVerify';
 import { flags } from '@/src/lib/secureStore';
@@ -21,6 +21,7 @@ export default function ChangePinScreen() {
   const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [pin, setPin] = useState('');
+  const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [errorKey, setErrorKey] = useState(0);
@@ -38,7 +39,7 @@ export default function ChangePinScreen() {
         setBusy(false);
         if (cancelled) return;
         if (!ok) { fail('Wrong PIN. Try again.'); return; }
-        setStep(1); setPin('');
+        setCurrentPin(pin); setStep(1); setPin('');
       } else if (step === 1) {
         setNewPin(pin); setStep(2); setPin('');
       } else {
@@ -47,8 +48,11 @@ export default function ChangePinScreen() {
         const hash = await hashPin(pin);
         const fingerprintEnabled = await flags.fingerprintEnabled().catch(() => false);
         if (user) {
-          const res = await authConfigRepository.upsert({ userId: user.id, pinHash: hash, fingerprintEnabled });
-          if (!res.ok) { setBusy(false); fail('Couldn’t save your new PIN. Check your connection.'); return; }
+          // The server checks the current PIN again before changing it. An
+          // account whose PIN was only ever saved on this phone gets it set.
+          let res = await edgeFunctionsService.changePin(currentPin, pin);
+          if (!res.ok && res.error.code === '409') res = await edgeFunctionsService.setPin(pin, fingerprintEnabled);
+          if (!res.ok || !res.data.ok) { setBusy(false); fail('Couldn’t save your new PIN. Check your connection.'); return; }
         }
         try {
           await flags.setPin(hash, fingerprintEnabled);

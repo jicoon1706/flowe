@@ -1,7 +1,10 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 #claude
-.claude/settings.json
+# Everything under .claude/ is local (it has held API keys before). Only the
+# shared settings file is tracked; never put an `env` block with keys in it.
+.claude/*
+!.claude/settings.json
 # dependencies
 node_modules/
 

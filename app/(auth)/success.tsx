@@ -10,7 +10,8 @@ import { IconButton } from '@/components/ui/IconButton';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { Text } from '@/components/ui/Text';
 import { useToast } from '@/components/ui/ToastProvider';
-import { authConfigRepository, authRepository } from '@/src/repositories';
+import { authRepository } from '@/src/repositories';
+import { edgeFunctionsService } from '@/src/services/edgeFunctions';
 import { hashPin } from '@/src/lib/pinCrypto';
 import { flags } from '@/src/lib/secureStore';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -35,8 +36,10 @@ export default function Success() {
     const pinHash = await hashPin(state.pin);
     const userRes = await authRepository.getUser();
     if (userRes.ok && userRes.data) {
-      const upsert = await authConfigRepository.upsert({ userId: userRes.data.id, pinHash, fingerprintEnabled: state.fingerprintEnabled });
-      if (!upsert.ok) console.warn('[success] auth_config upsert failed:', upsert.error.code);
+      // The server PIN is set by verify-pin, never written directly. It refuses
+      // to replace an existing PIN ('409'): that needs the old PIN (Change PIN).
+      const saved = await edgeFunctionsService.setPin(state.pin, state.fingerprintEnabled);
+      if (!saved.ok) console.warn('[success] server PIN not saved:', saved.error.code ?? saved.error.message);
     }
     try {
       await flags.setPin(pinHash, state.fingerprintEnabled);

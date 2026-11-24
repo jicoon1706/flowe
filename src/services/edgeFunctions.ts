@@ -10,7 +10,49 @@ export interface DesktopPairingCode {
   expiresAt: string;
 }
 
+/** verify-pin's answer to a PIN check. A wrong PIN is not an error: `ok` is false. */
+export interface PinCheck {
+  ok: boolean;
+  attemptsLeft?: number;
+  lockedUntil?: string | null;
+}
+
+/** HTTP status of a failed invoke (FunctionsHttpError carries the Response as `context`). */
+function statusOf(error: unknown): number | undefined {
+  const status = (error as { context?: { status?: unknown } } | null)?.context?.status;
+  return typeof status === 'number' ? status : undefined;
+}
+
+async function invokeVerifyPin(body: Record<string, unknown>): Promise<Result<PinCheck, EdgeFunctionError>> {
+  const { data, error } = await supabase.functions.invoke('verify-pin', { body });
+  if (error) {
+    const status = statusOf(error);
+    return { ok: false, error: { message: error.message, code: status === undefined ? undefined : String(status) } };
+  }
+  const res = (data ?? {}) as PinCheck & { error?: string };
+  if (typeof res.ok !== 'boolean') return { ok: false, error: { message: res.error ?? 'Empty response' } };
+  return { ok: true, data: { ok: res.ok, attemptsLeft: res.attemptsLeft, lockedUntil: res.lockedUntil ?? null } };
+}
+
 export const edgeFunctionsService = {
+  /**
+   * The PIN lives only on the server (`verify-pin`). These three calls are the
+   * only way the app sets, checks or changes it; it never reads the stored hash.
+   */
+  checkPin(pin: string): Promise<Result<PinCheck, EdgeFunctionError>> {
+    return invokeVerifyPin({ pin });
+  },
+
+  /** First-time setup. Fails with code '409' when the account already has a PIN. */
+  setPin(pin: string, fingerprintEnabled: boolean): Promise<Result<PinCheck, EdgeFunctionError>> {
+    return invokeVerifyPin({ action: 'set', pin, fingerprintEnabled });
+  },
+
+  /** Needs the current PIN. Fails with code '409' when the account has no server PIN yet. */
+  changePin(pin: string, newPin: string): Promise<Result<PinCheck, EdgeFunctionError>> {
+    return invokeVerifyPin({ action: 'change', pin, newPin });
+  },
+
   // Extract structured fields from a base64 receipt image via the `receipt-ocr`
   // Edge Function (OpenAI vision). The image is sent raw — no transaction exists
   // yet at scan time, so it isn't uploaded to the receipts bucket until submit.

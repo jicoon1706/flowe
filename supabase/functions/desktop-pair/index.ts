@@ -41,9 +41,18 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
 
+// ── PIN hashing (copied from verify-pin; keep them equal) ───────────────────
+
+const toHex = (buf: ArrayBuffer) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+const fromB64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+
 async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+  return toHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+}
+
+async function pbkdf2Hex(pin: string, salt: Uint8Array, iterations: number): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
+  return toHex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, 256));
 }
 
 function sameText(a: string, b: string): boolean {
@@ -51,6 +60,17 @@ function sameText(a: string, b: string): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+/** Whether `pin` matches a stored hash: pbkdf2$iter$salt$hex, or a legacy bare SHA-256 hex. */
+async function pinMatches(pin: string, stored: string): Promise<boolean> {
+  const parts = stored.split('$');
+  if (parts.length === 4 && parts[0] === 'pbkdf2') {
+    const iterations = Number(parts[1]);
+    if (!Number.isInteger(iterations) || iterations < 1) return false;
+    return sameText(await pbkdf2Hex(pin, fromB64(parts[2]), iterations), parts[3]);
+  }
+  return sameText(await sha256Hex(pin), stored);
 }
 
 function newCode(): string {
@@ -110,7 +130,7 @@ async function redeemCode(body: { code?: unknown; pin?: unknown }, url: string, 
   const stored = (config as { pin_hash: string | null } | null)?.pin_hash ?? '';
   const now = new Date().toISOString();
 
-  if (!stored || !sameText(await sha256Hex(pin), stored)) {
+  if (!stored || !(await pinMatches(pin, stored))) {
     const pairingFailed = pairing.failed + 1;
     await admin.from('desktop_pairings').update({ failed: pairingFailed, used_at: pairingFailed >= MAX_FAILED ? now : null }).eq('id', pairing.id);
     const failed = attempts.failed + 1;
